@@ -134,6 +134,12 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div className="mt-3 text-right">
+          <a href="/forgotpassword" className="text-sm" style={{color:'var(--primary)'}}>
+            Quên mật khẩu?
+          </a>
+        </div>
+
         <div className="my-6 flex items-center">
           <div className="flex-1 h-px" style={{background:'var(--border)'}} />
           <span className="px-3 text-xs" style={{color:'var(--primary-700)'}}>hoặc</span>

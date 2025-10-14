@@ -4,6 +4,7 @@ import "./globals.css";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
 import MuiProvider from "./MuiProvider";
 import EmotionRegistry from "./EmotionRegistry";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,19 @@ export default function RootLayout({
         <EmotionRegistry>
           <MuiProvider>
             {children}
+            <Toaster 
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#10B981',
+                  color: '#fff',
+                },
+                success: {
+                  duration: 3000,
+                },
+              }}
+            />
           </MuiProvider>
         </EmotionRegistry>
       </body>

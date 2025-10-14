@@ -1,9 +1,7 @@
 {
   "/dashboard/page": "app/dashboard/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/forgotpassword/page": "app/forgotpassword/page.js",
   "/login/page": "app/login/page.js",
   "/page": "app/page.js",
-  "/projects/[id]/features/page": "app/projects/[id]/features/page.js",
-  "/projects/[id]/milestones/new/page": "app/projects/[id]/milestones/new/page.js",
-  "/projects/[id]/page": "app/projects/[id]/page.js"
+  "/verify-otp/page": "app/verify-otp/page.js"
 }
