@@ -3,9 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --primary: #f2f2f2; /* orange */
-  --primary-600: #f2f2f2;
-  --primary-700: #f2f2f2;
+  --primary: #ff8a3d; /* orange */
+  --primary-600: #ff7a1a;
+  --primary-700: #ff7a1a;
   --accent: #f2f2f2;
   --muted: #faf5ef;
   --border: #f2f2f2;
@@ -128,4 +128,32 @@ a.link {
 }
 a.link:hover {
   color: var(--primary-700);
+}
+
+/* Sonner Toast Styling */
+[data-sonner-toast] {
+  border-radius: calc(var(--radius) - 4px) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background: color-mix(in oklab, #10b981 10%, var(--background)) !important;
+  border-color: color-mix(in oklab, #10b981 30%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="error"] {
+  background: color-mix(in oklab, #ef4444 10%, var(--background)) !important;
+  border-color: color-mix(in oklab, #ef4444 30%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="warning"] {
+  background: color-mix(in oklab, var(--primary) 10%, var(--background)) !important;
+  border-color: color-mix(in oklab, var(--primary) 30%, transparent) !important;
+}
+
+[data-sonner-toast][data-type="info"] {
+  background: color-mix(in oklab, #3b82f6 10%, var(--background)) !important;
+  border-color: color-mix(in oklab, #3b82f6 30%, transparent) !important;
 }

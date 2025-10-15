@@ -81,6 +81,15 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../src/app/projects/[id]/features/[featureId]/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/projects/[id]/features/[featureId]">> = Specific
+  const handler = {} as typeof import("../../src/app/projects/[id]/features/[featureId]/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/projects/[id]/features/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/projects/[id]/features">> = Specific
@@ -90,10 +99,28 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../src/app/projects/[id]/milestones/[milestoneId]/features/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/projects/[id]/milestones/[milestoneId]/features">> = Specific
+  const handler = {} as typeof import("../../src/app/projects/[id]/milestones/[milestoneId]/features/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/projects/[id]/milestones/new/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/projects/[id]/milestones/new">> = Specific
   const handler = {} as typeof import("../../src/app/projects/[id]/milestones/new/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/projects/[id]/monitoring/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/projects/[id]/monitoring">> = Specific
+  const handler = {} as typeof import("../../src/app/projects/[id]/monitoring/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
