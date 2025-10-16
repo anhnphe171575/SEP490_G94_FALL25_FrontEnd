@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 10, "column": 0}, "map": {"version":3,"sources":["file:///G:/SEP/frontend/softcapstone/src/app/MuiProvider.tsx"],"sourcesContent":["\"use client\";\r\n\r\nimport * as React from \"react\";\r\nimport { ThemeProvider, createTheme, CssBaseline } from \"@mui/material\";\r\n\r\ntype Props = { children: React.ReactNode };\r\n\r\nconst theme = createTheme({\r\n  palette: {\r\n    mode: \"light\",\r\n    primary: { main: \"#1976d2\" },\r\n    secondary: { main: \"#9c27b0\" },\r\n  },\r\n  shape: { borderRadius: 12 },\r\n});\r\n\r\nexport default function MuiProvider({ children }: Props) {\r\n  return (\r\n    <ThemeProvider theme={theme}>\r\n      <CssBaseline />\r\n      {children}\r\n    </ThemeProvider>\r\n  );\r\n}\r\n\r\n\r\n"],"names":[],"mappings":";;;;;AAGA;AAAA;AAAA;AAHA;;;AAOA,MAAM,QAAQ,IAAA,0NAAW,EAAC;IACxB,SAAS;QACP,MAAM;QACN,SAAS;YAAE,MAAM;QAAU;QAC3B,WAAW;YAAE,MAAM;QAAU;IAC/B;IACA,OAAO;QAAE,cAAc;IAAG;AAC5B;AAEe,SAAS,YAAY,EAAE,QAAQ,EAAS;IACrD,qBACE,8OAAC,gOAAa;QAAC,OAAO;;0BACpB,8OAAC,+NAAW;;;;;YACX;;;;;;;AAGP","debugId":null}}]
-}
