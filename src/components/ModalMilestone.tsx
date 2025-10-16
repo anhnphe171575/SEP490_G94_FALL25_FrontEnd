@@ -21,13 +21,45 @@ import {
   Divider,
   CircularProgress,
 } from "@mui/material";
+import MilestoneProgressDetail from "./MilestoneProgressDetail";
 import { DateRangePicker } from "@mui/x-date-pickers-pro/DateRangePicker";
 import { SingleInputDateRangeField } from "@mui/x-date-pickers-pro/SingleInputDateRangeField";
 import { DateRange } from "@mui/x-date-pickers-pro/models";
+import { toast } from "sonner";
 
 type Update = { _id: string; content: string; createdAt: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
 type ActivityLog = { _id: string; action: string; createdAt: string; metadata?: any; created_by?: { full_name?: string; email?: string; avatar?: string } };
 type FileDoc = { _id: string; title: string; file_url: string; createdAt: string };
+type SuccessCriterion = {
+  _id?: string;
+  title: string;
+  description: string;
+  status: "pending" | "in-review" | "verified" | "rejected";
+  verified_by?: string;
+  verified_at?: string;
+};
+type MilestoneProgress = {
+  overall: number;
+  by_feature: Array<{
+    feature_id: string;
+    feature_title: string;
+    task_count: number;
+    function_count: number;
+    completed_tasks: number;
+    completed_functions: number;
+    percentage: number;
+  }>;
+  by_task: {
+    total: number;
+    completed: number;
+    percentage: number;
+  };
+  by_function: {
+    total: number;
+    completed: number;
+    percentage: number;
+  };
+};
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -38,8 +70,8 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-export default function ModalMilestone({ open, onClose, projectId, milestoneId }: { open: boolean; onClose: () => void; projectId: string; milestoneId: string; }) {
-  const [tab, setTab] = useState<"updates"|"files"|"activity">("updates");
+export default function ModalMilestone({ open, onClose, projectId, milestoneId, onUpdate }: { open: boolean; onClose: () => void; projectId: string; milestoneId: string; onUpdate?: () => void; }) {
+  const [tab, setTab] = useState<"updates"|"files"|"activity"|"progress">("updates");
   const [updates, setUpdates] = useState<Update[]>([]);
   const [files, setFiles] = useState<FileDoc[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
@@ -49,10 +81,19 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [title, setTitle] = useState("");
+  const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
+  const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("Planned");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [estimatedEffort, setEstimatedEffort] = useState<number>(0);
+  const [actualEffort, setActualEffort] = useState<number>(0);
+  const [tags, setTags] = useState<string>("");
+  const [actualDate, setActualDate] = useState("");
+  const [duration, setDuration] = useState<number>(0);
+  const [successCriteria, setSuccessCriteria] = useState<SuccessCriterion[]>([]);
+  const [delayDays, setDelayDays] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
@@ -61,6 +102,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
   const [fileVersion, setFileVersion] = useState("1.0");
   const [fileStatus, setFileStatus] = useState("Pending");
   const [fileDescription, setFileDescription] = useState("");
+  const [progress, setProgress] = useState<MilestoneProgress | null>(null);
 
   const toInputDate = (d: Date | null) => {
     if (!d) return "";
@@ -78,26 +120,51 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
     return end.getTime() < today.getTime();
   };
 
+  const addSuccessCriterion = () => {
+    setSuccessCriteria([...successCriteria, { title: "", description: "", status: "pending" }]);
+  };
+
+  const removeSuccessCriterion = (index: number) => {
+    setSuccessCriteria(successCriteria.filter((_, i) => i !== index));
+  };
+
+  const updateSuccessCriterion = (index: number, field: keyof SuccessCriterion, value: string) => {
+    const updated = [...successCriteria];
+    updated[index] = { ...updated[index], [field]: value };
+    setSuccessCriteria(updated);
+  };
+
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
-        const [m, u, f, a] = await Promise.all([
+        const [m, u, f, a, p] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/comments`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/files`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`),
+          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } })),
         ]);
         const md = m.data || {};
         setTitle(md.title || "");
+        setCode(md.code || "");
         setDescription(md.description || "");
+        setNotes(md.notes || "");
         setStatus(md.status || "Planned");
         setStartDate(md.start_date ? md.start_date.substring(0,10) : "");
         setDeadline(md.deadline ? md.deadline.substring(0,10) : "");
+        setEstimatedEffort(md.estimated_effort || 0);
+        setActualEffort(md.actual_effort || 0);
+        setTags(Array.isArray(md.tags) ? md.tags.join(', ') : "");
+        setActualDate(md.actual_date ? md.actual_date.substring(0,10) : "");
+        setDuration(md.duration || 0);
+        setSuccessCriteria(Array.isArray(md.success_criteria) ? md.success_criteria : []);
+        setDelayDays(md.delay_days || 0);
         setUpdates(Array.isArray(u.data) ? u.data : []);
         setFiles(Array.isArray(f.data) ? f.data : []);
         setActivity(Array.isArray(a.data) ? a.data : []);
+        setProgress(p.data?.progress || null);
       } finally {
         setLoading(false);
       }
@@ -112,6 +179,11 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
       const res = await axiosInstance.post(`/api/projects/${projectId}/milestones/${milestoneId}/comments`, { content });
       setUpdates(prev => [res.data, ...prev]);
       setContent("");
+      toast.success('Đã thêm bình luận mới');
+    } catch (error: any) {
+      toast.error('Không thể thêm bình luận', {
+        description: error?.response?.data?.message || error?.message,
+      });
     } finally {
       setPosting(false);
     }
@@ -129,18 +201,28 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
 
   const saveEdit = async () => {
     if (!editingId) return;
-    const body = { content: editingContent };
-    const res = await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}/comments/${editingId}`, body);
-    setUpdates(prev => prev.map(u => (u._id === editingId ? res.data : u)));
-    cancelEdit();
+    try {
+      const body = { content: editingContent };
+      const res = await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}/comments/${editingId}`, body);
+      setUpdates(prev => prev.map(u => (u._id === editingId ? res.data : u)));
+      cancelEdit();
+      toast.success('Đã cập nhật bình luận');
+    } catch (error: any) {
+      toast.error('Không thể cập nhật bình luận', {
+        description: error?.response?.data?.message || error?.message,
+      });
+    }
   };
 
   const deleteComment = async (id: string) => {
     try {
       await axiosInstance.delete(`/api/projects/${projectId}/milestones/${milestoneId}/comments/${id}`);
       setUpdates(prev => prev.filter(u => u._id !== id));
-    } catch (_) {
-      // ignore; backend enforces permission
+      toast.success('Đã xóa bình luận');
+    } catch (error: any) {
+      toast.error('Không thể xóa bình luận', {
+        description: error?.response?.data?.message || 'Bạn không có quyền xóa bình luận này',
+      });
     }
   };
 
@@ -149,8 +231,28 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
       <DialogTitle>{title || "Item"}</DialogTitle>
       <DialogContent dividers>
         <Box display="flex" gap={3} minHeight="52vh">
-          <Box width={300} display="flex" flexDirection="column" gap={2}>
-            <TextField label="Name" value={title} onChange={(e)=>setTitle(e.target.value)} fullWidth size="small" />
+          <Box width={320} display="flex" flexDirection="column" gap={2} sx={{ maxHeight: '70vh', overflowY: 'auto', pr: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main', mt: 1 }}>
+              Thông tin cơ bản
+            </Typography>
+            <TextField 
+              label="Title" 
+              value={title} 
+              onChange={(e)=>setTitle(e.target.value)} 
+              fullWidth 
+              size="small" 
+              required
+              error={!title.trim()}
+              helperText={!title.trim() ? "Title là bắt buộc" : ""}
+            />
+            <TextField 
+              label="Code" 
+              value={code} 
+              onChange={(e)=>setCode(e.target.value)} 
+              fullWidth 
+              size="small" 
+              placeholder="MS-001"
+            />
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select label="Status" value={status} onChange={(e)=>setStatus(e.target.value as string)}>
@@ -160,8 +262,196 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
                 <MenuItem value="Overdue">Overdue</MenuItem>
               </Select>
             </FormControl>
-            <TextField label="Due date" type="date" value={deadline} onChange={(e)=>setDeadline(e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} />
-            <TextField label="Notes" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={2} fullWidth />
+            
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+              Thời gian
+            </Typography>
+            <TextField 
+              label="Start Date" 
+              type="date" 
+              value={startDate} 
+              onChange={(e)=>setStartDate(e.target.value)} 
+              fullWidth 
+              size="small" 
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField 
+              label="Deadline" 
+              type="date" 
+              value={deadline} 
+              onChange={(e)=>setDeadline(e.target.value)} 
+              fullWidth 
+              size="small" 
+              InputLabelProps={{ shrink: true }}
+              required
+              error={!deadline}
+              helperText={!deadline ? "Deadline là bắt buộc" : ""}
+            />
+            <TextField 
+              label="Actual Completion Date" 
+              type="date" 
+              value={actualDate} 
+              onChange={(e)=>setActualDate(e.target.value)} 
+              fullWidth 
+              size="small" 
+              InputLabelProps={{ shrink: true }}
+              helperText="Ngày hoàn thành thực tế (nếu đã xong)"
+            />
+            <TextField 
+              label="Duration (days)" 
+              type="number" 
+              value={duration} 
+              onChange={(e)=>setDuration(Number(e.target.value))} 
+              fullWidth 
+              size="small"
+              helperText="Thời lượng dự kiến (ngày)"
+            />
+            
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+              Effort
+            </Typography>
+            <TextField 
+              label="Estimated Effort (hours)" 
+              type="number" 
+              value={estimatedEffort} 
+              onChange={(e)=>setEstimatedEffort(Number(e.target.value))} 
+              fullWidth 
+              size="small"
+              InputProps={{ inputProps: { min: 0, step: 0.5 } }}
+            />
+            <TextField 
+              label="Actual Effort (hours)" 
+              type="number" 
+              value={actualEffort} 
+              onChange={(e)=>setActualEffort(Number(e.target.value))} 
+              fullWidth 
+              size="small"
+              InputProps={{ inputProps: { min: 0, step: 0.5 } }}
+            />
+            <TextField 
+              label="Delay Days" 
+              type="number" 
+              value={delayDays} 
+              fullWidth 
+              size="small"
+              disabled
+              helperText="Tự động tính từ deadline và actual_date"
+              InputProps={{ readOnly: true }}
+            />
+            
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+              Tiêu chí thành công
+            </Typography>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+              <Typography variant="caption" color="text.secondary">
+                {successCriteria.length} tiêu chí
+              </Typography>
+              <Button size="small" variant="outlined" onClick={addSuccessCriterion}>
+                + Thêm tiêu chí
+              </Button>
+            </Box>
+            {successCriteria.length === 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2, opacity: 0.6 }}>
+                Chưa có tiêu chí nào
+              </Typography>
+            ) : (
+              <Box display="flex" flexDirection="column" gap={1}>
+                {successCriteria.map((sc, idx) => (
+                  <Box 
+                    key={idx} 
+                    sx={{ 
+                      p: 1.5, 
+                      border: '1px solid', 
+                      borderColor: 'divider', 
+                      borderRadius: 1.5,
+                      bgcolor: 'background.paper',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        boxShadow: 1
+                      }
+                    }}
+                  >
+                    <Box display="flex" alignItems="start" gap={1} mb={1}>
+                      <TextField
+                        value={sc.title}
+                        onChange={(e) => updateSuccessCriterion(idx, "title", e.target.value)}
+                        size="small"
+                        fullWidth
+                        placeholder="Tiêu đề tiêu chí"
+                        sx={{ flex: 1 }}
+                        autoComplete="off"
+                      />
+                      <FormControl size="small" sx={{ minWidth: 100 }}>
+                        <Select
+                          value={sc.status}
+                          onChange={(e) => updateSuccessCriterion(idx, "status", e.target.value)}
+                        >
+                          <MenuItem value="pending">Pending</MenuItem>
+                          <MenuItem value="in-review">In Review</MenuItem>
+                          <MenuItem value="verified">Verified</MenuItem>
+                          <MenuItem value="rejected">Rejected</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => removeSuccessCriterion(idx)}
+                        sx={{ minWidth: 'auto', px: 1 }}
+                      >
+                        ✕
+                      </Button>
+                    </Box>
+                    <TextField
+                      value={sc.description}
+                      onChange={(e) => updateSuccessCriterion(idx, "description", e.target.value)}
+                      size="small"
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      placeholder="Mô tả chi tiết..."
+                      autoComplete="off"
+                    />
+                  </Box>
+                ))}
+              </Box>
+            )}
+            
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+              Mô tả & Tags
+            </Typography>
+            <TextField 
+              label="Description" 
+              value={description} 
+              onChange={(e)=>setDescription(e.target.value)} 
+              multiline 
+              minRows={3} 
+              fullWidth 
+              size="small"
+              placeholder="Mô tả chi tiết về milestone này..."
+            />
+            <TextField 
+              label="Notes" 
+              value={notes} 
+              onChange={(e)=>setNotes(e.target.value)} 
+              multiline 
+              minRows={2} 
+              fullWidth 
+              size="small"
+              placeholder="Ghi chú nội bộ..."
+            />
+            <TextField 
+              label="Tags (comma separated)" 
+              value={tags} 
+              onChange={(e)=>setTags(e.target.value)} 
+              fullWidth 
+              size="small" 
+              placeholder="backend, api, critical"
+              helperText="Phân cách bằng dấu phẩy"
+            />
             <Box>
               <Typography variant="caption" sx={{ opacity: 0.7 }}>Files</Typography>
               <Box display="flex" alignItems="center" gap={1} mt={0.5}>
@@ -219,7 +509,48 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
               <Typography variant="body2" color="text.secondary">{activity[0]?.createdAt ? new Date(activity[0].createdAt).toLocaleString() : '—'}</Typography>
             </Box>
             <Box display="flex" justifyContent="flex-end">
-              <Button variant="contained" disabled={saving} onClick={async ()=>{ setSaving(true); try { await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { title, description, status, start_date: startDate ? new Date(startDate).toISOString() : undefined, deadline: deadline ? new Date(deadline).toISOString() : undefined }); } finally { setSaving(false); } }}>Save</Button>
+              <Button 
+                variant="contained" 
+                disabled={saving} 
+                onClick={async ()=>{ 
+                  setSaving(true); 
+                  try { 
+                    await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { 
+                      title, 
+                      code: code || undefined,
+                      description, 
+                      notes: notes || undefined,
+                      status, 
+                      start_date: startDate ? new Date(startDate).toISOString() : undefined, 
+                      deadline: deadline ? new Date(deadline).toISOString() : undefined,
+                      actual_date: actualDate ? new Date(actualDate).toISOString() : undefined,
+                      duration: duration || 0,
+                      estimated_effort: estimatedEffort || 0,
+                      actual_effort: actualEffort || 0,
+                      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                      success_criteria: successCriteria.filter(sc => sc.title.trim())
+                    });
+                    // Refresh activity logs to show the update
+                    const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
+                    setActivity(Array.isArray(a.data) ? a.data : []);
+                    toast.success('Milestone đã được cập nhật thành công!', {
+                      description: `${title} - ${status}`,
+                      duration: 3000,
+                    });
+                    // Notify parent to refresh data/charts
+                    if (onUpdate) onUpdate();
+                  } catch (error: any) {
+                    toast.error('Không thể cập nhật milestone', {
+                      description: error?.response?.data?.message || error?.message || 'Lỗi không xác định',
+                      duration: 4000,
+                    });
+                  } finally { 
+                    setSaving(false); 
+                  } 
+                }}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
             </Box>
           </Box>
 
@@ -228,6 +559,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
               <Tab value="updates" label={`Updates${typeof updates.length==='number' ? ` / ${updates.length}` : ''}`} />
               <Tab value="files" label={`Files${typeof files.length==='number' ? ` / ${files.length}` : ''}`} />
               <Tab value="activity" label={`Activity Log${typeof activity.length==='number' ? ` / ${activity.length}` : ''}`} />
+              <Tab value="progress" label="Progress" />
             </Tabs>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ maxHeight: '44vh', overflowY: 'auto' }}>
@@ -256,8 +588,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
                           <Box key={u._id} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
                             <Box display="flex" justifyContent="space-between" alignItems="center">
                               <Box>
-                                <Typography variant="caption" color="text.secondary">{u.user_id?.full_name ? `• ${u.user_id.full_name}` : ''} </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{new Date(u.createdAt).toLocaleString()}</Typography>
+                                <Typography component="span" variant="caption" color="text.secondary">{u.user_id?.full_name ? `• ${u.user_id.full_name}` : ''} </Typography>
+                                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>{new Date(u.createdAt).toLocaleString()}</Typography>
                               </Box>
                               <Box display="flex" gap={1}>
                                 {editingId === u._id ? (
@@ -322,6 +654,13 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
                                   setFileTitle("");
                                   setFileDescription("");
                                   setShowUploader(false);
+                                  toast.success('Đã tải file lên thành công!', {
+                                    description: fileTitle || f.name,
+                                  });
+                                } catch (error: any) {
+                                  toast.error('Không thể tải file lên', {
+                                    description: error?.response?.data?.message || error?.message,
+                                  });
                                 } finally {
                                   setUploading(false);
                                   e.currentTarget.value = '';
@@ -337,8 +676,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
                       {files.map(f => (
                         <Box key={f._id} display="flex" alignItems="center" justifyContent="space-between" sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
                           <Box>
-                            <Typography variant="body2" fontWeight={600}>{f.title}</Typography>
-                            <Typography variant="caption" color="text.secondary">{new Date(f.createdAt).toLocaleString()}</Typography>
+                            <Typography variant="body2" fontWeight={600} sx={{ display: 'block' }}>{f.title}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{new Date(f.createdAt).toLocaleString()}</Typography>
                           </Box>
                           <Button size="small" href={f.file_url} target="_blank" rel="noreferrer" variant="text">Open</Button>
                         </Box>
@@ -350,10 +689,21 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId }
                       {activity.length === 0 && <Typography variant="body2" color="text.secondary">No activity</Typography>}
                       {activity.map(a => (
                         <Box key={a._id} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
-                          <Typography variant="caption" color="text.secondary">{new Date(a.createdAt).toLocaleString()} {a.created_by?.full_name ? `• ${a.created_by.full_name}` : ''}</Typography>
-                          <Typography variant="body2" fontWeight={600} mt={0.5}>{a.action}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{new Date(a.createdAt).toLocaleString()} {a.created_by?.full_name ? `• ${a.created_by.full_name}` : ''}</Typography>
+                          <Typography variant="body2" fontWeight={600} mt={0.5} sx={{ display: 'block' }}>{a.action}</Typography>
                         </Box>
                       ))}
+                    </Box>
+                  )}
+                  {tab === 'progress' && (
+                    <Box>
+                      {progress ? (
+                        <MilestoneProgressDetail milestoneTitle={title} progress={progress} />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" align="center" py={4}>
+                          Không có dữ liệu tiến độ
+                        </Typography>
+                      )}
                     </Box>
                   )}
                 </>

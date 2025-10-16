@@ -2,27 +2,36 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Avatar,
-  Box,
-  Button,
-  Divider,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Paper,
-  Typography,
-} from "@mui/material";
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
-import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
-import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 
 const navItems = [
-  { href: "/dashboard", label: "Bảng điều khiển", icon: DashboardRoundedIcon },
-  { href: "/projects", label: "Dự án", icon: FolderRoundedIcon },
-  { href: "/myprofile", label: "Hồ sơ", icon: PersonRoundedIcon },
+  { 
+    href: "/dashboard", 
+    label: "Bảng điều khiển", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21v-4a2 2 0 012-2h4a2 2 0 012 2v4" />
+      </svg>
+    )
+  },
+  { 
+    href: "/projects", 
+    label: "Dự án", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg>
+    )
+  },
+  { 
+    href: "/myprofile", 
+    label: "Hồ sơ", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    )
+  },
 ];
 
 export default function Sidebar() {
@@ -38,81 +47,96 @@ export default function Sidebar() {
   };
 
   return (
-    <Paper
-      component="aside"
-      elevation={0}
-      square
-      sx={{
-        width: 260,
-        height: "100%",
-        display: { xs: "none", md: "flex" },
-        flexDirection: "column",
-        borderRight: `1px solid #ffffff`,
-        bgcolor: "common.white",
-      }}
-    >
-      <Box px={2} py={2.5} display="flex" alignItems="center" gap={1.5}>
-        <Avatar
-          variant="rounded"
-          sx={{ width: 32, height: 32, bgcolor: "common.white", color: "primary.main", fontWeight: 700 }}
-        >
-          S
-        </Avatar>
-        <Typography fontWeight={600} color="primary.main">
-          SEP Workspace
-        </Typography>
-      </Box>
+    <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 z-50">
+      {/* Sidebar */}
+      <div className="flex flex-col flex-grow bg-white border-r border-gray-200 shadow-sm">
+        {/* Logo */}
+        <div className="flex items-center flex-shrink-0 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">SEP Workspace</h1>
+              <p className="text-xs text-gray-500">Project Management</p>
+            </div>
+          </div>
+        </div>
 
-      <Box component="nav" sx={{ flex: 1, px: 1.5, py: 1 }}>
-        <Typography variant="caption" sx={{ px: 1, py: 1.25, display: "block", color: "text.secondary" }}>
-          Điều hướng
-        </Typography>
-        <List disablePadding>
-          {navItems.map((item) => {
-            const active = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <ListItemButton
-                key={item.href}
-                component={Link}
-                href={item.href}
-                selected={active}
-                sx={{
-                  mb: 0.5,
-                  borderRadius: 1.5,
-                  bgcolor: "common.white",
-                  "&:hover": { bgcolor: "common.white" },
-                  "&.Mui-selected": { bgcolor: "common.white" },
-                  "&.Mui-selected:hover": { bgcolor: "common.white" },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: active ? "primary.main" : "text.secondary" }}>
-                  <Icon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{ noWrap: true }}
-                />
-              </ListItemButton>
-            );
-          })}
-        </List>
-      </Box>
+        {/* Navigation */}
+        <div className="flex-1 flex flex-col px-4 py-4">
+          <nav className="flex-1 space-y-2">
+            <div className="px-2 py-1">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Điều hướng
+              </h3>
+            </div>
+            <div className="space-y-1">
+              {navItems.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                      active
+                        ? 'bg-orange-50 text-orange-700 border-l-4 border-orange-500'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <div className={`mr-3 flex-shrink-0 ${active ? 'text-orange-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                      {item.icon}
+                    </div>
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
 
-      <Divider sx={{ borderColor: "#ffffff" }} />
-      <Box p={1.5}>
-        <Button
-          onClick={onLogout}
-          variant="text"
-          color="inherit"
-          fullWidth
-          startIcon={<LogoutRoundedIcon />}
-          sx={{ bgcolor: "common.white", "&:hover": { bgcolor: "common.white" } }}
-        >
-          Đăng xuất
-        </Button>
-      </Box>
-    </Paper>
+          {/* User Profile & Logout */}
+          <div className="mt-auto">
+            <div className="px-2 py-1 mb-2">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Tài khoản
+              </h3>
+            </div>
+            
+            {/* User Info */}
+            <div className="px-3 py-3 bg-gray-50 rounded-lg mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    Người dùng
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    Sinh viên FPT
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Logout Button */}
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 group"
+            >
+              <svg className="mr-3 w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
   );
 }
 

@@ -14,6 +14,28 @@ export type GanttMilestone = {
   status?: string;
   description?: string;
   createdAt?: string;
+  progress?: {
+    overall: number;
+    by_feature: Array<{
+      feature_id: string;
+      feature_title: string;
+      task_count: number;
+      function_count: number;
+      completed_tasks: number;
+      completed_functions: number;
+      percentage: number;
+    }>;
+    by_task: {
+      total: number;
+      completed: number;
+      percentage: number;
+    };
+    by_function: {
+      total: number;
+      completed: number;
+      percentage: number;
+    };
+  };
 };
 
 type ViewMode = "Days" | "Weeks" | "Months" | "Quarters";
@@ -27,6 +49,7 @@ export default function GanttChart({
   onRequestShift,
   onMilestoneShift,
   onMilestoneClick,
+  searchTerm,
 }: {
   milestones: GanttMilestone[];
   viewMode: ViewMode;
@@ -36,6 +59,7 @@ export default function GanttChart({
   onRequestShift?: (days: number) => void;
   onMilestoneShift?: (id: string, deltaDays: number) => void;
   onMilestoneClick?: (id: string) => void;
+  searchTerm?: string;
 }) {
   const ganttContainerRef = useRef<HTMLDivElement | null>(null);
   const periodStart = useMemo(() => getPeriodStart(viewMode, startDate), [viewMode, startDate]);
@@ -96,6 +120,15 @@ export default function GanttChart({
         if (status === "Completed") return "gantt-task-completed";
         if (status === "Overdue") return "gantt-task-overdue";
         return "gantt-task-default";
+      };
+
+      // Custom task text template to show progress
+      gantt.templates.task_text = (start: Date, end: Date, task: any) => {
+        const progress = task.progress;
+        if (progress && progress.overall !== undefined) {
+          return `${task.text} (${progress.overall}%)`;
+        }
+        return task.text;
       };
 
       // Change listener to fire delta days
@@ -224,6 +257,7 @@ function mapMilestonesToGantt(items: GanttMilestone[], fallbackStart: Date) {
       start_date: toGanttDate(start),
       duration: durationDays,
       status: m.status,
+      progress: m.progress,
     };
   });
 }
