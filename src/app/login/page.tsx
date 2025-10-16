@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const redirectUrl = searchParams.get('redirect');
 
   // Initialize Google Identity Services
   useEffect(() => {
@@ -64,7 +67,13 @@ export default function LoginPage() {
         sessionStorage.setItem("token", token);
         localStorage.setItem("token", token); // keep both for existing interceptor behavior
       }
-      router.replace("/dashboard");
+      
+      // Redirect to original URL or dashboard
+      if (redirectUrl) {
+        router.replace(redirectUrl);
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || "Đăng nhập Google thất bại");
     } finally {
@@ -83,7 +92,13 @@ export default function LoginPage() {
         sessionStorage.setItem("token", token);
         localStorage.setItem("token", token);
       }
-      router.replace("/dashboard");
+      
+      // Redirect to original URL or dashboard
+      if (redirectUrl) {
+        router.replace(redirectUrl);
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: any) {
       setError(e?.response?.data?.message || "Đăng nhập thất bại");
     } finally {
@@ -95,6 +110,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md card rounded-xl p-6 shadow-sm">
         <h1 className="text-2xl font-semibold mb-6" style={{color:'var(--primary)'}}>Đăng nhập</h1>
+
+        {redirectUrl && redirectUrl.includes('/join-team/') && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              Sau khi đăng nhập, bạn sẽ được tự động tham gia nhóm.
+            </p>
+          </div>
+        )}
 
         {error ? (
           <div className="mb-4 text-red-600 text-sm">{error}</div>

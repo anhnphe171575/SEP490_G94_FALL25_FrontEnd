@@ -61,6 +61,9 @@ export default function ProjectDetailPage() {
               <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/features`)}>
                 Features
               </Button>
+              <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/team`)}>
+                Quản lý nhóm
+              </Button>
               <Button variant="outlined" size="medium" startIcon={<ArrowBackIcon />} onClick={() => router.back()}>
                 Quay lại
               </Button>

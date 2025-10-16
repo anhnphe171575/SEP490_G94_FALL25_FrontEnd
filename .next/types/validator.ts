@@ -36,6 +36,15 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
 }
 
 
+// Validate ../../src/app/auto-join-team/[teamCode]/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/auto-join-team/[teamCode]">> = Specific
+  const handler = {} as typeof import("../../src/app/auto-join-team/[teamCode]/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/dashboard/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/dashboard">> = Specific
@@ -108,10 +117,28 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../src/app/projects/[id]/team/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/projects/[id]/team">> = Specific
+  const handler = {} as typeof import("../../src/app/projects/[id]/team/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/projects/new/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/projects/new">> = Specific
   const handler = {} as typeof import("../../src/app/projects/new/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/team-join-success/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/team-join-success">> = Specific
+  const handler = {} as typeof import("../../src/app/team-join-success/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
