@@ -622,7 +622,7 @@ var _s = __turbopack_context__.k.signature();
 ;
 ;
 function GanttChart(param) {
-    let { milestones, viewMode, startDate, autoFit, pagingStepDays, onRequestShift, onMilestoneShift, onMilestoneClick } = param;
+    let { milestones, viewMode, startDate, autoFit, pagingStepDays, onRequestShift, onMilestoneShift, onMilestoneClick, searchTerm } = param;
     _s();
     const ganttContainerRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRef"])(null);
     const periodStart = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
@@ -725,6 +725,16 @@ function GanttChart(param) {
                             return "gantt-task-default";
                         }
                     })["GanttChart.useEffect.init"];
+                    // Custom task text template to show progress
+                    gantt.templates.task_text = ({
+                        "GanttChart.useEffect.init": (start, end, task)=>{
+                            const progress = task.progress;
+                            if (progress && progress.overall !== undefined) {
+                                return "".concat(task.text, " (").concat(progress.overall, "%)");
+                            }
+                            return task.text;
+                        }
+                    })["GanttChart.useEffect.init"];
                     // Change listener to fire delta days
                     gantt.attachEvent("onAfterTaskDrag", {
                         "GanttChart.useEffect.init": (id, mode, e)=>{
@@ -795,20 +805,20 @@ function GanttChart(param) {
                 style: containerStyle
             }, void 0, false, {
                 fileName: "[project]/src/components/GanttChart.tsx",
-                lineNumber: 153,
+                lineNumber: 187,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("style", {
                 children: "\n        /* Container */\n        .gantt_container { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: var(--foreground); }\n\n        /* Scales */\n        .gantt_scale_line { background: color-mix(in oklab, var(--accent) 18%, var(--background)); border-color: var(--border); }\n        .gantt_scale_cell { color: color-mix(in oklab, var(--foreground) 82%, transparent); font-weight: 600; letter-spacing: .2px; }\n        .gantt_task .gantt_task_scale { background: color-mix(in oklab, var(--accent) 18%, var(--background)); }\n\n        /* Rows */\n        .gantt_row, .gantt_task_row { background: var(--background); }\n        .gantt_row.odd, .gantt_task_row.odd { background: color-mix(in oklab, var(--accent) 10%, var(--background)); }\n        .gantt_row, .gantt_task_row { border-bottom: 1px solid var(--border); }\n\n        /* Half-day horizontal split for Days view */\n        .gantt-split-half .gantt_task_row, .gantt-split-half .gantt_row {\n          background-image: repeating-linear-gradient(\n            to bottom,\n            transparent 0 16px,\n            var(--border) 16px 17px,\n            transparent 17px 32px\n          );\n          background-blend-mode: normal;\n        }\n\n        /* Tasks */\n        .gantt_task_line { border-radius: 8px; border: 1px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,.06); background: color-mix(in oklab, var(--foreground) 24%, transparent); }\n        .gantt_task_content { padding: 2px 10px; font-weight: 600; text-shadow: none; }\n\n        /* Status colors */\n        .gantt-task-planned .gantt_task_content { background: #3b82f6 !important; color: #ffffff; } /* blue-500 */\n        .gantt-task-inprogress .gantt_task_content { background: var(--primary-600) !important; color: #ffffff; }\n        .gantt-task-completed .gantt_task_content { background: #22c55e !important; color: #ffffff; } /* green-500 */\n        .gantt-task-overdue .gantt_task_content { background: #ef4444 !important; color: #ffffff; } /* red-500 */\n        .gantt-task-default .gantt_task_content { background: #6b7280 !important; color: #ffffff; } /* slate-500 */\n\n        /* Selection/focus */\n        .gantt_selected .gantt_task_line { outline: 2px solid var(--ring); outline-offset: 0; box-shadow: none; }\n\n        /* Grid hidden state smoothing */\n        .gantt_layout_cell.gantt_grid { border-right: none; }\n\n        /* Today marker */\n        .today .gantt_marker { background: var(--primary-600); opacity: .9; width: 2px; }\n        .today .gantt_marker_content { background: var(--primary-600); color: #fff; border-radius: 8px; padding: 2px 8px; font-size: 12px; box-shadow: 0 4px 12px color-mix(in oklab, var(--primary) 40%, transparent); }\n\n        /* Links (if ever enabled) */\n        .gantt_link_line { stroke: color-mix(in oklab, var(--primary) 80%, #000 20%); }\n        .gantt_link_arrow { fill: color-mix(in oklab, var(--primary) 80%, #000 20%); }\n\n        /* Scrollbars */\n        .gantt_container ::-webkit-scrollbar { height: 8px; width: 8px; }\n        .gantt_container ::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--foreground) 30%, transparent); border-radius: 10px; }\n        .gantt_container ::-webkit-scrollbar-track { background: transparent; }\n      "
             }, void 0, false, {
                 fileName: "[project]/src/components/GanttChart.tsx",
-                lineNumber: 154,
+                lineNumber: 188,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/GanttChart.tsx",
-        lineNumber: 152,
+        lineNumber: 186,
         columnNumber: 5
     }, this);
 }
@@ -827,7 +837,8 @@ function mapMilestonesToGantt(items, fallbackStart) {
             text: m.title,
             start_date: toGanttDate(start),
             duration: durationDays,
-            status: m.status
+            status: m.status,
+            progress: m.progress
         };
     });
 }
@@ -930,67 +941,6 @@ var _s = __turbopack_context__.k.signature();
 ;
 ;
 ;
-// Mock data for display
-const MOCK_MILESTONES = [
-    {
-        _id: "ms-1",
-        title: "Thiết kế kiến trúc",
-        start_date: new Date().toISOString(),
-        deadline: new Date(Date.now() + 7 * 86400000).toISOString()
-    },
-    {
-        _id: "ms-2",
-        title: "Phát triển tính năng cốt lõi",
-        start_date: new Date().toISOString(),
-        deadline: new Date(Date.now() + 14 * 86400000).toISOString()
-    }
-];
-const MOCK_FEATURES = (projectId)=>[
-        {
-            _id: "ft-1",
-            code: "FT-1",
-            title: "Đăng nhập OAuth",
-            description: "Hỗ trợ Google SSO",
-            project_id: projectId,
-            creator_id: "u-1",
-            status: 'planning',
-            priority: 'medium',
-            estimated_effort: "8",
-            milestone_ids: [
-                "ms-1"
-            ]
-        },
-        {
-            _id: "ft-2",
-            code: "FT-2",
-            title: "Bảng điều khiển",
-            description: "Hiển thị KPI chính",
-            project_id: projectId,
-            creator_id: "u-1",
-            status: 'in-progress',
-            priority: 'high',
-            estimated_effort: "13",
-            milestone_ids: [
-                "ms-1",
-                "ms-2"
-            ]
-        },
-        {
-            _id: "ft-3",
-            code: "FT-3",
-            title: "Quản lý người dùng",
-            description: "CRUD và phân quyền",
-            project_id: projectId,
-            creator_id: "u-1",
-            status: 'testing',
-            priority: 'medium',
-            estimated_effort: "21",
-            milestone_ids: [
-                "ms-2"
-            ]
-        }
-    ];
-_c = MOCK_FEATURES;
 function ProjectFeaturesPage() {
     _s();
     const router = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"])();
@@ -1067,7 +1017,7 @@ function ProjectFeaturesPage() {
                                     })
                             }["ProjectFeaturesPage.useEffect"])
                         ]);
-                        const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : MOCK_MILESTONES;
+                        const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
                         setMilestones(milestonesList);
                         if (Array.isArray(featureRes.data)) {
                             // Enrich features with linked milestone ids
@@ -1094,14 +1044,10 @@ function ProjectFeaturesPage() {
                             const raw = ("TURBOPACK compile-time truthy", 1) ? window.localStorage.getItem(key) : "TURBOPACK unreachable";
                             if (raw) {
                                 setFeatures(JSON.parse(raw));
-                            } else {
-                                setFeatures(MOCK_FEATURES(projectId));
                             }
                         }
                     } catch (e) {
                         // Fallback to mock data
-                        setMilestones(MOCK_MILESTONES);
-                        setFeatures(MOCK_FEATURES(projectId));
                         setError(null);
                     } finally{
                         setLoading(false);
@@ -1364,7 +1310,7 @@ function ProjectFeaturesPage() {
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ResponsiveSidebar$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                lineNumber: 339,
+                lineNumber: 327,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -1383,7 +1329,7 @@ function ProjectFeaturesPage() {
                                             children: "Dự án"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 344,
+                                            lineNumber: 332,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -1391,13 +1337,13 @@ function ProjectFeaturesPage() {
                                             children: "Features"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 345,
+                                            lineNumber: 333,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 343,
+                                    lineNumber: 331,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1409,7 +1355,7 @@ function ProjectFeaturesPage() {
                                             children: "Tạo Feature"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 348,
+                                            lineNumber: 336,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1418,7 +1364,7 @@ function ProjectFeaturesPage() {
                                             children: "Milestones"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 349,
+                                            lineNumber: 337,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1427,19 +1373,19 @@ function ProjectFeaturesPage() {
                                             children: "Quay lại"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 350,
+                                            lineNumber: 338,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 347,
+                                    lineNumber: 335,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                            lineNumber: 342,
+                            lineNumber: 330,
                             columnNumber: 11
                         }, this),
                         loading ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1452,19 +1398,19 @@ function ProjectFeaturesPage() {
                                 size: 28
                             }, void 0, false, {
                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                lineNumber: 356,
+                                lineNumber: 344,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                            lineNumber: 355,
+                            lineNumber: 343,
                             columnNumber: 13
                         }, this) : error ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
                             className: "rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 p-4",
                             children: error
                         }, void 0, false, {
                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                            lineNumber: 359,
+                            lineNumber: 347,
                             columnNumber: 13
                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Stack$2f$Stack$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Stack$3e$__["Stack"], {
                             spacing: 3,
@@ -1494,7 +1440,7 @@ function ProjectFeaturesPage() {
                                                             children: "View"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                            lineNumber: 367,
+                                                            lineNumber: 355,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Select$2f$Select$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Select$3e$__["Select"], {
@@ -1508,7 +1454,7 @@ function ProjectFeaturesPage() {
                                                                     children: "Days"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 369,
+                                                                    lineNumber: 357,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1516,7 +1462,7 @@ function ProjectFeaturesPage() {
                                                                     children: "Weeks"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 370,
+                                                                    lineNumber: 358,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1524,7 +1470,7 @@ function ProjectFeaturesPage() {
                                                                     children: "Months"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 371,
+                                                                    lineNumber: 359,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1532,19 +1478,19 @@ function ProjectFeaturesPage() {
                                                                     children: "Quarters"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 372,
+                                                                    lineNumber: 360,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                            lineNumber: 368,
+                                                            lineNumber: 356,
                                                             columnNumber: 21
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                    lineNumber: 366,
+                                                    lineNumber: 354,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1554,7 +1500,7 @@ function ProjectFeaturesPage() {
                                                     children: autoFit ? 'Auto Fit: On' : 'Auto Fit: Off'
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                    lineNumber: 375,
+                                                    lineNumber: 363,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1564,13 +1510,13 @@ function ProjectFeaturesPage() {
                                                     children: detailMode ? 'Chi tiết milestone: Bật' : 'Chi tiết milestone: Tắt'
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                    lineNumber: 378,
+                                                    lineNumber: 366,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 365,
+                                            lineNumber: 353,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$GanttChart$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
@@ -1646,13 +1592,13 @@ function ProjectFeaturesPage() {
                                             }
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 382,
+                                            lineNumber: 370,
                                             columnNumber: 17
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 364,
+                                    lineNumber: 352,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Paper$2f$Paper$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Paper$3e$__["Paper"], {
@@ -1690,81 +1636,81 @@ function ProjectFeaturesPage() {
                                                                 }
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 451,
+                                                                lineNumber: 439,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Code"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 452,
+                                                                lineNumber: 440,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Title"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 453,
+                                                                lineNumber: 441,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Status"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 454,
+                                                                lineNumber: 442,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Start date"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 455,
+                                                                lineNumber: 443,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "End date"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 456,
+                                                                lineNumber: 444,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Priority"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 457,
+                                                                lineNumber: 445,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Estimated effort"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 458,
+                                                                lineNumber: 446,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Description"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 459,
+                                                                lineNumber: 447,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
                                                                 children: "Last updated"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 460,
+                                                                lineNumber: 448,
                                                                 columnNumber: 23
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                        lineNumber: 450,
+                                                        lineNumber: 438,
                                                         columnNumber: 21
                                                     }, this)
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                    lineNumber: 449,
+                                                    lineNumber: 437,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableBody$2f$TableBody$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableBody$3e$__["TableBody"], {
@@ -1806,7 +1752,7 @@ function ProjectFeaturesPage() {
                                                             }
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                            lineNumber: 482,
+                                                            lineNumber: 470,
                                                             columnNumber: 25
                                                         }, this);
                                                         return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableRow$2f$TableRow$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableRow$3e$__["TableRow"], {
@@ -1817,12 +1763,12 @@ function ProjectFeaturesPage() {
                                                                         size: "small"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 494,
+                                                                        lineNumber: 482,
                                                                         columnNumber: 38
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 494,
+                                                                    lineNumber: 482,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -1841,12 +1787,12 @@ function ProjectFeaturesPage() {
                                                                         onBlur: ()=>saveEditRow(f._id)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 497,
+                                                                        lineNumber: 485,
                                                                         columnNumber: 31
                                                                     }, this) : f.code || '-'
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 495,
+                                                                    lineNumber: 483,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -1865,12 +1811,12 @@ function ProjectFeaturesPage() {
                                                                         onBlur: ()=>saveEditRow(f._id)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 504,
+                                                                        lineNumber: 492,
                                                                         columnNumber: 31
                                                                     }, this) : f.title
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 502,
+                                                                    lineNumber: 490,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -1890,7 +1836,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "planning"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 519,
+                                                                                lineNumber: 507,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1898,7 +1844,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "in-progress"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 520,
+                                                                                lineNumber: 508,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1906,7 +1852,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "testing"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 521,
+                                                                                lineNumber: 509,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1914,7 +1860,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "completed"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 522,
+                                                                                lineNumber: 510,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1922,18 +1868,18 @@ function ProjectFeaturesPage() {
                                                                                 children: "cancelled"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 523,
+                                                                                lineNumber: 511,
                                                                                 columnNumber: 33
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 518,
+                                                                        lineNumber: 506,
                                                                         columnNumber: 31
                                                                     }, this) : statusChip
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 516,
+                                                                    lineNumber: 504,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -1950,19 +1896,19 @@ function ProjectFeaturesPage() {
                                                                         onBlur: ()=>saveEditRow(f._id)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 531,
+                                                                        lineNumber: 519,
                                                                         columnNumber: 31
                                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
                                                                         variant: "body2",
                                                                         children: f.start_date ? new Date(f.start_date).toLocaleDateString() : '—'
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 533,
+                                                                        lineNumber: 521,
                                                                         columnNumber: 31
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 529,
+                                                                    lineNumber: 517,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -1979,19 +1925,19 @@ function ProjectFeaturesPage() {
                                                                         onBlur: ()=>saveEditRow(f._id)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 538,
+                                                                        lineNumber: 526,
                                                                         columnNumber: 31
                                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
                                                                         variant: "body2",
                                                                         children: f.end_date ? new Date(f.end_date).toLocaleDateString() : '—'
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 540,
+                                                                        lineNumber: 528,
                                                                         columnNumber: 31
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 536,
+                                                                    lineNumber: 524,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -2011,7 +1957,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "low"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 547,
+                                                                                lineNumber: 535,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2019,7 +1965,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "medium"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 548,
+                                                                                lineNumber: 536,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2027,7 +1973,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "high"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 549,
+                                                                                lineNumber: 537,
                                                                                 columnNumber: 33
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2035,25 +1981,25 @@ function ProjectFeaturesPage() {
                                                                                 children: "critical"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 550,
+                                                                                lineNumber: 538,
                                                                                 columnNumber: 33
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 546,
+                                                                        lineNumber: 534,
                                                                         columnNumber: 31
                                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
                                                                         variant: "body2",
                                                                         children: f.priority
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 553,
+                                                                        lineNumber: 541,
                                                                         columnNumber: 31
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 544,
+                                                                    lineNumber: 532,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -2069,19 +2015,19 @@ function ProjectFeaturesPage() {
                                                                         onBlur: ()=>saveEditRow(f._id)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 558,
+                                                                        lineNumber: 546,
                                                                         columnNumber: 31
                                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
                                                                         variant: "body2",
                                                                         children: f.estimated_effort || '-'
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 560,
+                                                                        lineNumber: 548,
                                                                         columnNumber: 31
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 556,
+                                                                    lineNumber: 544,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -2097,7 +2043,7 @@ function ProjectFeaturesPage() {
                                                                         onBlur: ()=>saveEditRow(f._id)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 565,
+                                                                        lineNumber: 553,
                                                                         columnNumber: 31
                                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
                                                                         variant: "body2",
@@ -2107,12 +2053,12 @@ function ProjectFeaturesPage() {
                                                                         children: f.description || '—'
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 572,
+                                                                        lineNumber: 560,
                                                                         columnNumber: 31
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 563,
+                                                                    lineNumber: 551,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TableCell$2f$TableCell$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TableCell$3e$__["TableCell"], {
@@ -2129,7 +2075,7 @@ function ProjectFeaturesPage() {
                                                                                 children: "A"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 579,
+                                                                                lineNumber: 567,
                                                                                 columnNumber: 31
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -2140,46 +2086,46 @@ function ProjectFeaturesPage() {
                                                                                 children: formatRelative(f.updatedAt)
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                                lineNumber: 580,
+                                                                                lineNumber: 568,
                                                                                 columnNumber: 31
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 578,
+                                                                        lineNumber: 566,
                                                                         columnNumber: 29
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                    lineNumber: 577,
+                                                                    lineNumber: 565,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             ]
                                                         }, f._id || idx, true, {
                                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                            lineNumber: 493,
+                                                            lineNumber: 481,
                                                             columnNumber: 25
                                                         }, this);
                                                     })
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                    lineNumber: 463,
+                                                    lineNumber: 451,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 448,
+                                            lineNumber: 436,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                        lineNumber: 447,
+                                        lineNumber: 435,
                                         columnNumber: 17
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 446,
+                                    lineNumber: 434,
                                     columnNumber: 15
                                 }, this),
                                 features.length === 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Paper$2f$Paper$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Paper$3e$__["Paper"], {
@@ -2195,18 +2141,18 @@ function ProjectFeaturesPage() {
                                         children: 'Chưa có feature nào. Bấm "Tạo Feature" để thêm.'
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                        lineNumber: 592,
+                                        lineNumber: 580,
                                         columnNumber: 19
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 591,
+                                    lineNumber: 579,
                                     columnNumber: 17
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                            lineNumber: 363,
+                            lineNumber: 351,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Dialog$2f$Dialog$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Dialog$3e$__["Dialog"], {
@@ -2219,7 +2165,7 @@ function ProjectFeaturesPage() {
                                     children: "Tạo Feature"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 601,
+                                    lineNumber: 589,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$DialogContent$2f$DialogContent$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__DialogContent$3e$__["DialogContent"], {
@@ -2239,7 +2185,7 @@ function ProjectFeaturesPage() {
                                                 fullWidth: true
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                lineNumber: 604,
+                                                lineNumber: 592,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -2254,7 +2200,7 @@ function ProjectFeaturesPage() {
                                                 minRows: 3
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                lineNumber: 610,
+                                                lineNumber: 598,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -2267,12 +2213,12 @@ function ProjectFeaturesPage() {
                                                 fullWidth: true
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                lineNumber: 618,
+                                                lineNumber: 606,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Divider$2f$Divider$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Divider$3e$__["Divider"], {}, void 0, false, {
                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                lineNumber: 624,
+                                                lineNumber: 612,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$FormControl$2f$FormControl$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__FormControl$3e$__["FormControl"], {
@@ -2283,7 +2229,7 @@ function ProjectFeaturesPage() {
                                                         children: "Milestones"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                        lineNumber: 626,
+                                                        lineNumber: 614,
                                                         columnNumber: 19
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Select$2f$Select$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Select$3e$__["Select"], {
@@ -2306,13 +2252,13 @@ function ProjectFeaturesPage() {
                                                                         size: "small"
                                                                     }, id, false, {
                                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                        lineNumber: 637,
+                                                                        lineNumber: 625,
                                                                         columnNumber: 34
                                                                     }, void 0);
                                                                 })
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 634,
+                                                                lineNumber: 622,
                                                                 columnNumber: 23
                                                             }, void 0),
                                                         children: milestoneOptions.map((m)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2320,29 +2266,29 @@ function ProjectFeaturesPage() {
                                                                 children: m.label
                                                             }, m.id, false, {
                                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                                lineNumber: 643,
+                                                                lineNumber: 631,
                                                                 columnNumber: 23
                                                             }, this))
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                        lineNumber: 627,
+                                                        lineNumber: 615,
                                                         columnNumber: 19
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                                lineNumber: 625,
+                                                lineNumber: 613,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                        lineNumber: 603,
+                                        lineNumber: 591,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 602,
+                                    lineNumber: 590,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$DialogActions$2f$DialogActions$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__DialogActions$3e$__["DialogActions"], {
@@ -2352,7 +2298,7 @@ function ProjectFeaturesPage() {
                                             children: "Hủy"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 650,
+                                            lineNumber: 638,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -2361,36 +2307,36 @@ function ProjectFeaturesPage() {
                                             children: "Tạo"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                            lineNumber: 651,
+                                            lineNumber: 639,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                                    lineNumber: 649,
+                                    lineNumber: 637,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                            lineNumber: 600,
+                            lineNumber: 588,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                    lineNumber: 341,
+                    lineNumber: 329,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-                lineNumber: 340,
+                lineNumber: 328,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/projects/[id]/features/page.tsx",
-        lineNumber: 338,
+        lineNumber: 326,
         columnNumber: 5
     }, this);
 }
@@ -2400,10 +2346,9 @@ _s(ProjectFeaturesPage, "AqPCBNOmiXJEMh/Oeq9XQ/aKC4g=", false, function() {
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useParams"]
     ];
 });
-_c1 = ProjectFeaturesPage;
-var _c, _c1;
-__turbopack_context__.k.register(_c, "MOCK_FEATURES");
-__turbopack_context__.k.register(_c1, "ProjectFeaturesPage");
+_c = ProjectFeaturesPage;
+var _c;
+__turbopack_context__.k.register(_c, "ProjectFeaturesPage");
 if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
     __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
 }

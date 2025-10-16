@@ -725,6 +725,16 @@ function GanttChart(param) {
                             return "gantt-task-default";
                         }
                     })["GanttChart.useEffect.init"];
+                    // Custom task text template to show progress
+                    gantt.templates.task_text = ({
+                        "GanttChart.useEffect.init": (start, end, task)=>{
+                            const progress = task.progress;
+                            if (progress && progress.overall !== undefined) {
+                                return "".concat(task.text, " (").concat(progress.overall, "%)");
+                            }
+                            return task.text;
+                        }
+                    })["GanttChart.useEffect.init"];
                     // Change listener to fire delta days
                     gantt.attachEvent("onAfterTaskDrag", {
                         "GanttChart.useEffect.init": (id, mode, e)=>{
@@ -795,20 +805,20 @@ function GanttChart(param) {
                 style: containerStyle
             }, void 0, false, {
                 fileName: "[project]/src/components/GanttChart.tsx",
-                lineNumber: 153,
+                lineNumber: 185,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("style", {
                 children: "\n        /* Container */\n        .gantt_container { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: var(--foreground); }\n\n        /* Scales */\n        .gantt_scale_line { background: color-mix(in oklab, var(--accent) 18%, var(--background)); border-color: var(--border); }\n        .gantt_scale_cell { color: color-mix(in oklab, var(--foreground) 82%, transparent); font-weight: 600; letter-spacing: .2px; }\n        .gantt_task .gantt_task_scale { background: color-mix(in oklab, var(--accent) 18%, var(--background)); }\n\n        /* Rows */\n        .gantt_row, .gantt_task_row { background: var(--background); }\n        .gantt_row.odd, .gantt_task_row.odd { background: color-mix(in oklab, var(--accent) 10%, var(--background)); }\n        .gantt_row, .gantt_task_row { border-bottom: 1px solid var(--border); }\n\n        /* Half-day horizontal split for Days view */\n        .gantt-split-half .gantt_task_row, .gantt-split-half .gantt_row {\n          background-image: repeating-linear-gradient(\n            to bottom,\n            transparent 0 16px,\n            var(--border) 16px 17px,\n            transparent 17px 32px\n          );\n          background-blend-mode: normal;\n        }\n\n        /* Tasks */\n        .gantt_task_line { border-radius: 8px; border: 1px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,.06); background: color-mix(in oklab, var(--foreground) 24%, transparent); }\n        .gantt_task_content { padding: 2px 10px; font-weight: 600; text-shadow: none; }\n\n        /* Status colors */\n        .gantt-task-planned .gantt_task_content { background: #3b82f6 !important; color: #ffffff; } /* blue-500 */\n        .gantt-task-inprogress .gantt_task_content { background: var(--primary-600) !important; color: #ffffff; }\n        .gantt-task-completed .gantt_task_content { background: #22c55e !important; color: #ffffff; } /* green-500 */\n        .gantt-task-overdue .gantt_task_content { background: #ef4444 !important; color: #ffffff; } /* red-500 */\n        .gantt-task-default .gantt_task_content { background: #6b7280 !important; color: #ffffff; } /* slate-500 */\n\n        /* Selection/focus */\n        .gantt_selected .gantt_task_line { outline: 2px solid var(--ring); outline-offset: 0; box-shadow: none; }\n\n        /* Grid hidden state smoothing */\n        .gantt_layout_cell.gantt_grid { border-right: none; }\n\n        /* Today marker */\n        .today .gantt_marker { background: var(--primary-600); opacity: .9; width: 2px; }\n        .today .gantt_marker_content { background: var(--primary-600); color: #fff; border-radius: 8px; padding: 2px 8px; font-size: 12px; box-shadow: 0 4px 12px color-mix(in oklab, var(--primary) 40%, transparent); }\n\n        /* Links (if ever enabled) */\n        .gantt_link_line { stroke: color-mix(in oklab, var(--primary) 80%, #000 20%); }\n        .gantt_link_arrow { fill: color-mix(in oklab, var(--primary) 80%, #000 20%); }\n\n        /* Scrollbars */\n        .gantt_container ::-webkit-scrollbar { height: 8px; width: 8px; }\n        .gantt_container ::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--foreground) 30%, transparent); border-radius: 10px; }\n        .gantt_container ::-webkit-scrollbar-track { background: transparent; }\n      "
             }, void 0, false, {
                 fileName: "[project]/src/components/GanttChart.tsx",
-                lineNumber: 154,
+                lineNumber: 186,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/GanttChart.tsx",
-        lineNumber: 152,
+        lineNumber: 184,
         columnNumber: 5
     }, this);
 }
@@ -827,7 +837,8 @@ function mapMilestonesToGantt(items, fallbackStart) {
             text: m.title,
             start_date: toGanttDate(start),
             duration: durationDays,
-            status: m.status
+            status: m.status,
+            progress: m.progress
         };
     });
 }
@@ -928,14 +939,14 @@ function Section(param) {
                 children: label
             }, void 0, false, {
                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                lineNumber: 35,
+                lineNumber: 59,
                 columnNumber: 7
             }, this),
             children
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/ModalMilestone.tsx",
-        lineNumber: 34,
+        lineNumber: 58,
         columnNumber: 5
     }, this);
 }
@@ -966,6 +977,7 @@ function ModalMilestone(param) {
     const [fileVersion, setFileVersion] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("1.0");
     const [fileStatus, setFileStatus] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("Pending");
     const [fileDescription, setFileDescription] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
+    const [progress, setProgress] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const toInputDate = (d)=>{
         if (!d) return "";
         const year = d.getFullYear();
@@ -987,11 +999,19 @@ function ModalMilestone(param) {
                 "ModalMilestone.useEffect": async ()=>{
                     setLoading(true);
                     try {
-                        const [m, u, f, a] = await Promise.all([
+                        var _p_data;
+                        const [m, u, f, a, p] = await Promise.all([
                             __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestoneId)),
                             __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestoneId, "/comments")),
                             __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestoneId, "/files")),
-                            __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestoneId, "/activity-logs"))
+                            __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestoneId, "/activity-logs")),
+                            __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestoneId, "/progress")).catch({
+                                "ModalMilestone.useEffect": ()=>({
+                                        data: {
+                                            progress: null
+                                        }
+                                    })
+                            }["ModalMilestone.useEffect"])
                         ]);
                         const md = m.data || {};
                         setTitle(md.title || "");
@@ -1002,6 +1022,7 @@ function ModalMilestone(param) {
                         setUpdates(Array.isArray(u.data) ? u.data : []);
                         setFiles(Array.isArray(f.data) ? f.data : []);
                         setActivity(Array.isArray(a.data) ? a.data : []);
+                        setProgress(((_p_data = p.data) === null || _p_data === void 0 ? void 0 : _p_data.progress) || null);
                     } finally{
                         setLoading(false);
                     }
@@ -1065,7 +1086,7 @@ function ModalMilestone(param) {
                 children: title || "Item"
             }, void 0, false, {
                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                lineNumber: 149,
+                lineNumber: 176,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$DialogContent$2f$DialogContent$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__DialogContent$3e$__["DialogContent"], {
@@ -1089,7 +1110,7 @@ function ModalMilestone(param) {
                                     size: "small"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 153,
+                                    lineNumber: 180,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$FormControl$2f$FormControl$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__FormControl$3e$__["FormControl"], {
@@ -1100,7 +1121,7 @@ function ModalMilestone(param) {
                                             children: "Status"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 155,
+                                            lineNumber: 182,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Select$2f$Select$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Select$3e$__["Select"], {
@@ -1113,7 +1134,7 @@ function ModalMilestone(param) {
                                                     children: "Planned"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                    lineNumber: 157,
+                                                    lineNumber: 184,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1121,7 +1142,7 @@ function ModalMilestone(param) {
                                                     children: "In Progress"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                    lineNumber: 158,
+                                                    lineNumber: 185,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1129,7 +1150,7 @@ function ModalMilestone(param) {
                                                     children: "Completed"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                    lineNumber: 159,
+                                                    lineNumber: 186,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -1137,19 +1158,19 @@ function ModalMilestone(param) {
                                                     children: "Overdue"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                    lineNumber: 160,
+                                                    lineNumber: 187,
                                                     columnNumber: 17
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 156,
+                                            lineNumber: 183,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 154,
+                                    lineNumber: 181,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1164,7 +1185,7 @@ function ModalMilestone(param) {
                                     }
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 163,
+                                    lineNumber: 190,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1176,7 +1197,7 @@ function ModalMilestone(param) {
                                     fullWidth: true
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 164,
+                                    lineNumber: 191,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1189,7 +1210,7 @@ function ModalMilestone(param) {
                                             children: "Files"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 166,
+                                            lineNumber: 193,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1202,18 +1223,18 @@ function ModalMilestone(param) {
                                                 label: files.length
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                lineNumber: 168,
+                                                lineNumber: 195,
                                                 columnNumber: 17
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 167,
+                                            lineNumber: 194,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 165,
+                                    lineNumber: 192,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1226,7 +1247,7 @@ function ModalMilestone(param) {
                                             children: "Timeline"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 172,
+                                            lineNumber: 199,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1278,18 +1299,18 @@ function ModalMilestone(param) {
                                                 }
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                lineNumber: 174,
+                                                lineNumber: 201,
                                                 columnNumber: 17
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 173,
+                                            lineNumber: 200,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 171,
+                                    lineNumber: 198,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1302,7 +1323,7 @@ function ModalMilestone(param) {
                                             children: "Last updated"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 218,
+                                            lineNumber: 245,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -1311,13 +1332,13 @@ function ModalMilestone(param) {
                                             children: ((_activity_ = activity[0]) === null || _activity_ === void 0 ? void 0 : _activity_.createdAt) ? new Date(activity[0].createdAt).toLocaleString() : '—'
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 219,
+                                            lineNumber: 246,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 217,
+                                    lineNumber: 244,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1343,18 +1364,18 @@ function ModalMilestone(param) {
                                         children: "Save"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                        lineNumber: 222,
+                                        lineNumber: 249,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 221,
+                                    lineNumber: 248,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                            lineNumber: 152,
+                            lineNumber: 179,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1369,7 +1390,7 @@ function ModalMilestone(param) {
                                             label: "Updates".concat(typeof updates.length === 'number' ? " / ".concat(updates.length) : '')
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 228,
+                                            lineNumber: 255,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Tab$2f$Tab$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Tab$3e$__["Tab"], {
@@ -1377,7 +1398,7 @@ function ModalMilestone(param) {
                                             label: "Files".concat(typeof files.length === 'number' ? " / ".concat(files.length) : '')
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 229,
+                                            lineNumber: 256,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Tab$2f$Tab$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Tab$3e$__["Tab"], {
@@ -1385,13 +1406,21 @@ function ModalMilestone(param) {
                                             label: "Activity Log".concat(typeof activity.length === 'number' ? " / ".concat(activity.length) : '')
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 230,
+                                            lineNumber: 257,
+                                            columnNumber: 15
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Tab$2f$Tab$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Tab$3e$__["Tab"], {
+                                            value: "progress",
+                                            label: "Progress"
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/components/ModalMilestone.tsx",
+                                            lineNumber: 258,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 227,
+                                    lineNumber: 254,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Divider$2f$Divider$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Divider$3e$__["Divider"], {
@@ -1400,7 +1429,7 @@ function ModalMilestone(param) {
                                     }
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 232,
+                                    lineNumber: 260,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1416,12 +1445,12 @@ function ModalMilestone(param) {
                                             size: 24
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                            lineNumber: 235,
+                                            lineNumber: 263,
                                             columnNumber: 68
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                        lineNumber: 235,
+                                        lineNumber: 263,
                                         columnNumber: 17
                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Fragment"], {
                                         children: [
@@ -1451,7 +1480,7 @@ function ModalMilestone(param) {
                                                                         label: "@"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 242,
+                                                                        lineNumber: 270,
                                                                         columnNumber: 27
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Chip$2f$Chip$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Chip$3e$__["Chip"], {
@@ -1459,7 +1488,7 @@ function ModalMilestone(param) {
                                                                         label: "GIF"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 243,
+                                                                        lineNumber: 271,
                                                                         columnNumber: 27
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Chip$2f$Chip$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Chip$3e$__["Chip"], {
@@ -1467,7 +1496,7 @@ function ModalMilestone(param) {
                                                                         label: "🙂"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 244,
+                                                                        lineNumber: 272,
                                                                         columnNumber: 27
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Chip$2f$Chip$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Chip$3e$__["Chip"], {
@@ -1475,13 +1504,13 @@ function ModalMilestone(param) {
                                                                         label: "✦"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 245,
+                                                                        lineNumber: 273,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 241,
+                                                                lineNumber: 269,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1493,7 +1522,7 @@ function ModalMilestone(param) {
                                                                 minRows: 4
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 247,
+                                                                lineNumber: 275,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1509,7 +1538,7 @@ function ModalMilestone(param) {
                                                                         children: "Cancel"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 249,
+                                                                        lineNumber: 277,
                                                                         columnNumber: 27
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1519,19 +1548,19 @@ function ModalMilestone(param) {
                                                                         children: "Update"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 250,
+                                                                        lineNumber: 278,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 248,
+                                                                lineNumber: 276,
                                                                 columnNumber: 25
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 240,
+                                                        lineNumber: 268,
                                                         columnNumber: 23
                                                     }, this),
                                                     updates.length === 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -1542,7 +1571,7 @@ function ModalMilestone(param) {
                                                         children: "No updates yet"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 253,
+                                                        lineNumber: 281,
                                                         columnNumber: 48
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1575,7 +1604,7 @@ function ModalMilestone(param) {
                                                                                         ]
                                                                                     }, void 0, true, {
                                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                        lineNumber: 259,
+                                                                                        lineNumber: 287,
                                                                                         columnNumber: 33
                                                                                     }, this),
                                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -1587,13 +1616,13 @@ function ModalMilestone(param) {
                                                                                         children: new Date(u.createdAt).toLocaleString()
                                                                                     }, void 0, false, {
                                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                        lineNumber: 260,
+                                                                                        lineNumber: 288,
                                                                                         columnNumber: 33
                                                                                     }, this)
                                                                                 ]
                                                                             }, void 0, true, {
                                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                lineNumber: 258,
+                                                                                lineNumber: 286,
                                                                                 columnNumber: 31
                                                                             }, this),
                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1608,7 +1637,7 @@ function ModalMilestone(param) {
                                                                                             children: "Cancel"
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                            lineNumber: 265,
+                                                                                            lineNumber: 293,
                                                                                             columnNumber: 37
                                                                                         }, this),
                                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1619,7 +1648,7 @@ function ModalMilestone(param) {
                                                                                             children: "Save"
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                            lineNumber: 266,
+                                                                                            lineNumber: 294,
                                                                                             columnNumber: 37
                                                                                         }, this)
                                                                                     ]
@@ -1632,7 +1661,7 @@ function ModalMilestone(param) {
                                                                                             children: "Edit"
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                            lineNumber: 270,
+                                                                                            lineNumber: 298,
                                                                                             columnNumber: 37
                                                                                         }, this),
                                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1643,20 +1672,20 @@ function ModalMilestone(param) {
                                                                                             children: "Delete"
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                            lineNumber: 271,
+                                                                                            lineNumber: 299,
                                                                                             columnNumber: 37
                                                                                         }, this)
                                                                                     ]
                                                                                 }, void 0, true)
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                lineNumber: 262,
+                                                                                lineNumber: 290,
                                                                                 columnNumber: 31
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 257,
+                                                                        lineNumber: 285,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     editingId === u._id ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1670,7 +1699,7 @@ function ModalMilestone(param) {
                                                                         }
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 277,
+                                                                        lineNumber: 305,
                                                                         columnNumber: 31
                                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
                                                                         variant: "body2",
@@ -1678,25 +1707,25 @@ function ModalMilestone(param) {
                                                                         children: u.content
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 279,
+                                                                        lineNumber: 307,
                                                                         columnNumber: 31
                                                                     }, this)
                                                                 ]
                                                             }, u._id, true, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 256,
+                                                                lineNumber: 284,
                                                                 columnNumber: 27
                                                             }, this);
                                                         })
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 254,
+                                                        lineNumber: 282,
                                                         columnNumber: 23
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                lineNumber: 239,
+                                                lineNumber: 267,
                                                 columnNumber: 21
                                             }, this),
                                             tab === 'files' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1714,7 +1743,7 @@ function ModalMilestone(param) {
                                                                 children: "Files"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 289,
+                                                                lineNumber: 317,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1724,13 +1753,13 @@ function ModalMilestone(param) {
                                                                 children: showUploader ? 'Close' : 'Add file'
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 290,
+                                                                lineNumber: 318,
                                                                 columnNumber: 25
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 288,
+                                                        lineNumber: 316,
                                                         columnNumber: 23
                                                     }, this),
                                                     showUploader && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1748,7 +1777,7 @@ function ModalMilestone(param) {
                                                                 children: "Upload a file"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 296,
+                                                                lineNumber: 324,
                                                                 columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -1757,7 +1786,7 @@ function ModalMilestone(param) {
                                                                 children: "Max 20MB. Images and documents are supported."
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 297,
+                                                                lineNumber: 325,
                                                                 columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1773,7 +1802,7 @@ function ModalMilestone(param) {
                                                                         size: "small"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 299,
+                                                                        lineNumber: 327,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1783,7 +1812,7 @@ function ModalMilestone(param) {
                                                                         size: "small"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 300,
+                                                                        lineNumber: 328,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1793,7 +1822,7 @@ function ModalMilestone(param) {
                                                                         size: "small"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 301,
+                                                                        lineNumber: 329,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1803,7 +1832,7 @@ function ModalMilestone(param) {
                                                                         size: "small"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 302,
+                                                                        lineNumber: 330,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$TextField$2f$TextField$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__TextField$3e$__["TextField"], {
@@ -1819,13 +1848,13 @@ function ModalMilestone(param) {
                                                                         }
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 303,
+                                                                        lineNumber: 331,
                                                                         columnNumber: 29
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 298,
+                                                                lineNumber: 326,
                                                                 columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1876,20 +1905,20 @@ function ModalMilestone(param) {
                                                                                 }
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                                lineNumber: 308,
+                                                                                lineNumber: 336,
                                                                                 columnNumber: 31
                                                                             }, this)
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 306,
+                                                                        lineNumber: 334,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     uploading && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$CircularProgress$2f$CircularProgress$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__CircularProgress$3e$__["CircularProgress"], {
                                                                         size: 20
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 331,
+                                                                        lineNumber: 359,
                                                                         columnNumber: 43
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1898,19 +1927,19 @@ function ModalMilestone(param) {
                                                                         children: "Cancel"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                        lineNumber: 332,
+                                                                        lineNumber: 360,
                                                                         columnNumber: 29
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                lineNumber: 305,
+                                                                lineNumber: 333,
                                                                 columnNumber: 27
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 295,
+                                                        lineNumber: 323,
                                                         columnNumber: 25
                                                     }, this),
                                                     files.length === 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -1919,7 +1948,7 @@ function ModalMilestone(param) {
                                                         children: "No files"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 336,
+                                                        lineNumber: 364,
                                                         columnNumber: 46
                                                     }, this),
                                                     files.map((f)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1941,7 +1970,7 @@ function ModalMilestone(param) {
                                                                             children: f.title
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                            lineNumber: 340,
+                                                                            lineNumber: 368,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -1950,13 +1979,13 @@ function ModalMilestone(param) {
                                                                             children: new Date(f.createdAt).toLocaleString()
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                            lineNumber: 341,
+                                                                            lineNumber: 369,
                                                                             columnNumber: 29
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                    lineNumber: 339,
+                                                                    lineNumber: 367,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -1968,19 +1997,19 @@ function ModalMilestone(param) {
                                                                     children: "Open"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                    lineNumber: 343,
+                                                                    lineNumber: 371,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             ]
                                                         }, f._id, true, {
                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                            lineNumber: 338,
+                                                            lineNumber: 366,
                                                             columnNumber: 25
                                                         }, this))
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                lineNumber: 287,
+                                                lineNumber: 315,
                                                 columnNumber: 21
                                             }, this),
                                             tab === 'activity' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -1994,7 +2023,7 @@ function ModalMilestone(param) {
                                                         children: "No activity"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                        lineNumber: 350,
+                                                        lineNumber: 378,
                                                         columnNumber: 49
                                                     }, this),
                                                     activity.map((a)=>{
@@ -2017,7 +2046,7 @@ function ModalMilestone(param) {
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                    lineNumber: 353,
+                                                                    lineNumber: 381,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -2027,44 +2056,44 @@ function ModalMilestone(param) {
                                                                     children: a.action
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                                    lineNumber: 354,
+                                                                    lineNumber: 382,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             ]
                                                         }, a._id, true, {
                                                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                            lineNumber: 352,
+                                                            lineNumber: 380,
                                                             columnNumber: 25
                                                         }, this);
                                                     })
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                                                lineNumber: 349,
+                                                lineNumber: 377,
                                                 columnNumber: 21
                                             }, this)
                                         ]
                                     }, void 0, true)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                                    lineNumber: 233,
+                                    lineNumber: 261,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/ModalMilestone.tsx",
-                            lineNumber: 226,
+                            lineNumber: 253,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                    lineNumber: 151,
+                    lineNumber: 178,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                lineNumber: 150,
+                lineNumber: 177,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$DialogActions$2f$DialogActions$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__DialogActions$3e$__["DialogActions"], {
@@ -2073,22 +2102,22 @@ function ModalMilestone(param) {
                     children: "Close"
                 }, void 0, false, {
                     fileName: "[project]/src/components/ModalMilestone.tsx",
-                    lineNumber: 366,
+                    lineNumber: 394,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/components/ModalMilestone.tsx",
-                lineNumber: 365,
+                lineNumber: 393,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/ModalMilestone.tsx",
-        lineNumber: 148,
+        lineNumber: 175,
         columnNumber: 5
     }, this);
 }
-_s(ModalMilestone, "y5bTQZdy+W8NhZCAb3k/hTKwIw4=");
+_s(ModalMilestone, "PGAQZiuGQ2o4z5USakezt7+TNkM=");
 _c1 = ModalMilestone;
 var _c, _c1;
 __turbopack_context__.k.register(_c, "Section");
@@ -2152,7 +2181,23 @@ function ProjectDetailPage() {
                     try {
                         const res = await __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones"));
                         console.log(res.data);
-                        setMilestones(Array.isArray(res.data) ? res.data : []);
+                        const milestonesData = Array.isArray(res.data) ? res.data : [];
+                        // Lấy tiến độ chi tiết cho từng milestone
+                        const milestonesWithProgress = await Promise.all(milestonesData.map({
+                            "ProjectDetailPage.useEffect": async (milestone)=>{
+                                try {
+                                    const progressRes = await __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].get("/api/projects/".concat(projectId, "/milestones/").concat(milestone._id, "/progress"));
+                                    return {
+                                        ...milestone,
+                                        progress: progressRes.data.progress
+                                    };
+                                } catch (e) {
+                                    console.log("Không thể lấy tiến độ cho milestone ".concat(milestone._id, ":"), e);
+                                    return milestone;
+                                }
+                            }
+                        }["ProjectDetailPage.useEffect"]));
+                        setMilestones(milestonesWithProgress);
                     } catch (e) {
                         var _e_response_data, _e_response;
                         setError((e === null || e === void 0 ? void 0 : (_e_response = e.response) === null || _e_response === void 0 ? void 0 : (_e_response_data = _e_response.data) === null || _e_response_data === void 0 ? void 0 : _e_response_data.message) || 'Không thể tải milestone');
@@ -2170,7 +2215,7 @@ function ProjectDetailPage() {
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ResponsiveSidebar$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                lineNumber: 49,
+                lineNumber: 87,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -2189,7 +2234,7 @@ function ProjectDetailPage() {
                                             children: "Dự án"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 54,
+                                            lineNumber: 92,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -2197,13 +2242,13 @@ function ProjectDetailPage() {
                                             children: "Milestones"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 55,
+                                            lineNumber: 93,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 53,
+                                    lineNumber: 91,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2214,14 +2259,14 @@ function ProjectDetailPage() {
                                             size: "medium",
                                             startIcon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$icons$2d$material$2f$esm$2f$Add$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                                                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                lineNumber: 58,
+                                                lineNumber: 96,
                                                 columnNumber: 68
                                             }, void 0),
                                             onClick: ()=>router.push("/projects/".concat(projectId, "/milestones/new")),
                                             children: "Thêm Milestone"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 58,
+                                            lineNumber: 96,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -2231,7 +2276,7 @@ function ProjectDetailPage() {
                                             children: "Features"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 61,
+                                            lineNumber: 99,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -2239,26 +2284,26 @@ function ProjectDetailPage() {
                                             size: "medium",
                                             startIcon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$icons$2d$material$2f$esm$2f$ArrowBack$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                                                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                lineNumber: 64,
+                                                lineNumber: 102,
                                                 columnNumber: 67
                                             }, void 0),
                                             onClick: ()=>router.back(),
                                             children: "Quay lại"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 64,
+                                            lineNumber: 102,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 57,
+                                    lineNumber: 95,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 52,
+                            lineNumber: 90,
                             columnNumber: 11
                         }, this),
                         loading ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2268,34 +2313,34 @@ function ProjectDetailPage() {
                                     className: "h-6 w-32 rounded bg-foreground/10 mb-4"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 72,
+                                    lineNumber: 110,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                     className: "h-4 w-48 rounded bg-foreground/10 mb-2"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 73,
+                                    lineNumber: 111,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                     className: "h-72 w-full rounded bg-foreground/10"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 74,
+                                    lineNumber: 112,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 71,
+                            lineNumber: 109,
                             columnNumber: 13
                         }, this) : error ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 p-4",
                             children: error
                         }, void 0, false, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 77,
+                            lineNumber: 115,
                             columnNumber: 13
                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(Timeline, {
                             milestones: milestones || [],
@@ -2303,24 +2348,24 @@ function ProjectDetailPage() {
                             onLocalUpdate: setMilestones
                         }, void 0, false, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 81,
+                            lineNumber: 119,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                    lineNumber: 51,
+                    lineNumber: 89,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                lineNumber: 50,
+                lineNumber: 88,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/projects/[id]/page.tsx",
-        lineNumber: 48,
+        lineNumber: 86,
         columnNumber: 5
     }, this);
 }
@@ -2354,7 +2399,7 @@ function Timeline(param) {
             children: "Chưa có milestone nào."
         }, void 0, false, {
             fileName: "[project]/src/app/projects/[id]/page.tsx",
-            lineNumber: 103,
+            lineNumber: 141,
             columnNumber: 12
         }, this);
     }
@@ -2379,7 +2424,7 @@ function Timeline(param) {
                                     children: "Days"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 116,
+                                    lineNumber: 154,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2387,7 +2432,7 @@ function Timeline(param) {
                                     children: "Weeks"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 117,
+                                    lineNumber: 155,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2395,7 +2440,7 @@ function Timeline(param) {
                                     children: "Months"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 118,
+                                    lineNumber: 156,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$MenuItem$2f$MenuItem$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__MenuItem$3e$__["MenuItem"], {
@@ -2403,13 +2448,13 @@ function Timeline(param) {
                                     children: "Quarters"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 119,
+                                    lineNumber: 157,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 110,
+                            lineNumber: 148,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$FormControlLabel$2f$FormControlLabel$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__FormControlLabel$3e$__["FormControlLabel"], {
@@ -2420,7 +2465,7 @@ function Timeline(param) {
                                 onChange: (e)=>setAutoFit(e.target.checked)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                lineNumber: 123,
+                                lineNumber: 161,
                                 columnNumber: 22
                             }, void 0),
                             label: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Typography$2f$Typography$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Typography$3e$__["Typography"], {
@@ -2428,12 +2473,12 @@ function Timeline(param) {
                                 children: "Auto Fit"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                lineNumber: 124,
+                                lineNumber: 162,
                                 columnNumber: 20
                             }, void 0)
                         }, void 0, false, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 121,
+                            lineNumber: 159,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2449,7 +2494,7 @@ function Timeline(param) {
                                     children: "Bộ lọc"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 127,
+                                    lineNumber: 165,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Popover$2f$Popover$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Popover$3e$__["Popover"], {
@@ -2481,7 +2526,7 @@ function Timeline(param) {
                                             children: "Trạng thái"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 142,
+                                            lineNumber: 180,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$FormGroup$2f$FormGroup$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__FormGroup$3e$__["FormGroup"], {
@@ -2502,18 +2547,18 @@ function Timeline(param) {
                                                                 }))
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                        lineNumber: 147,
+                                                        lineNumber: 185,
                                                         columnNumber: 30
                                                     }, void 0),
                                                     label: s
                                                 }, s, false, {
                                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                    lineNumber: 145,
+                                                    lineNumber: 183,
                                                     columnNumber: 19
                                                 }, this))
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 143,
+                                            lineNumber: 181,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Box$2f$Box$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Box$3e$__["Box"], {
@@ -2536,7 +2581,7 @@ function Timeline(param) {
                                                     children: "Chọn hết"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                    lineNumber: 153,
+                                                    lineNumber: 191,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -2551,7 +2596,7 @@ function Timeline(param) {
                                                     children: "Bỏ hết"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                    lineNumber: 154,
+                                                    lineNumber: 192,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$mui$2f$material$2f$esm$2f$Button$2f$Button$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Button$3e$__["Button"], {
@@ -2561,36 +2606,36 @@ function Timeline(param) {
                                                     children: "Áp dụng"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                                    lineNumber: 155,
+                                                    lineNumber: 193,
                                                     columnNumber: 17
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                            lineNumber: 152,
+                                            lineNumber: 190,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                                    lineNumber: 134,
+                                    lineNumber: 172,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/page.tsx",
-                            lineNumber: 126,
+                            lineNumber: 164,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                    lineNumber: 109,
+                    lineNumber: 147,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                lineNumber: 108,
+                lineNumber: 146,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2625,17 +2670,17 @@ function Timeline(param) {
                             })
                     }, void 0, false, {
                         fileName: "[project]/src/app/projects/[id]/page.tsx",
-                        lineNumber: 164,
+                        lineNumber: 202,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/projects/[id]/page.tsx",
-                    lineNumber: 163,
+                    lineNumber: 201,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                lineNumber: 162,
+                lineNumber: 200,
                 columnNumber: 7
             }, this),
             openModal.open && openModal.milestoneId && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ModalMilestone$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
@@ -2647,13 +2692,13 @@ function Timeline(param) {
                 milestoneId: openModal.milestoneId
             }, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/page.tsx",
-                lineNumber: 193,
+                lineNumber: 231,
                 columnNumber: 9
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/projects/[id]/page.tsx",
-        lineNumber: 107,
+        lineNumber: 145,
         columnNumber: 5
     }, this);
 }

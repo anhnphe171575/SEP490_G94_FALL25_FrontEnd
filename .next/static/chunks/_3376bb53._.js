@@ -547,12 +547,20 @@ function NewMilestonePage() {
     const params = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useParams"])();
     const projectId = Array.isArray(params === null || params === void 0 ? void 0 : params.id) ? params === null || params === void 0 ? void 0 : params.id[0] : params === null || params === void 0 ? void 0 : params.id;
     const [title, setTitle] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
+    const [code, setCode] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
     const [startDate, setStartDate] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
     const [deadline, setDeadline] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
+    const [actualDate, setActualDate] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
     const [description, setDescription] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
+    const [notes, setNotes] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
+    const [estimatedEffort, setEstimatedEffort] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(0);
+    const [actualEffort, setActualEffort] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(0);
+    const [duration, setDuration] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(0);
+    const [tags, setTags] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
     const [status, setStatus] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("Planned");
     const [parentId, setParentId] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
     const [parentOptions, setParentOptions] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
+    const [successCriteria, setSuccessCriteria] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
     const [submitting, setSubmitting] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [error, setError] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
@@ -594,6 +602,29 @@ function NewMilestonePage() {
         startDate,
         deadline
     ]);
+    const addSuccessCriterion = ()=>{
+        setSuccessCriteria([
+            ...successCriteria,
+            {
+                title: "",
+                description: "",
+                status: "pending"
+            }
+        ]);
+    };
+    const removeSuccessCriterion = (index)=>{
+        setSuccessCriteria(successCriteria.filter((_, i)=>i !== index));
+    };
+    const updateSuccessCriterion = (index, field, value)=>{
+        const updated = [
+            ...successCriteria
+        ];
+        updated[index] = {
+            ...updated[index],
+            [field]: value
+        };
+        setSuccessCriteria(updated);
+    };
     const onSubmit = async (e)=>{
         e.preventDefault();
         try {
@@ -605,10 +636,18 @@ function NewMilestonePage() {
             }
             const body = {
                 title,
+                code: code || undefined,
                 start_date: startDate,
                 deadline,
+                actual_date: actualDate || undefined,
                 description,
-                status
+                notes: notes || undefined,
+                estimated_effort: estimatedEffort || 0,
+                actual_effort: actualEffort || 0,
+                duration: duration || 0,
+                tags: tags ? tags.split(',').map((t)=>t.trim()).filter(Boolean) : [],
+                status,
+                success_criteria: successCriteria.filter((sc)=>sc.title.trim())
             };
             if (parentId) body.parent_id = parentId;
             const res = await __TURBOPACK__imported__module__$5b$project$5d2f$ultis$2f$axios$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].post("/api/projects/".concat(projectId, "/milestones"), body);
@@ -627,7 +666,7 @@ function NewMilestonePage() {
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ResponsiveSidebar$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                lineNumber: 70,
+                lineNumber: 112,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -643,7 +682,7 @@ function NewMilestonePage() {
                             children: "Thêm Milestone"
                         }, void 0, false, {
                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                            lineNumber: 73,
+                            lineNumber: 115,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("form", {
@@ -655,255 +694,740 @@ function NewMilestonePage() {
                                     children: error
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                    lineNumber: 75,
+                                    lineNumber: 117,
                                     columnNumber: 22
                                 }, this) : null,
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                    className: "grid grid-cols-1 md:grid-cols-2 gap-4",
+                                    className: "border-b pb-4",
                                     children: [
-                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                            className: "md:col-span-2",
-                                            children: [
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                    className: "text-sm",
-                                                    children: "Tiêu đề"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 78,
-                                                    columnNumber: 17
-                                                }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                    required: true,
-                                                    value: title,
-                                                    onChange: (e)=>setTitle(e.target.value),
-                                                    className: "mt-1 w-full border rounded-lg px-3 py-2",
-                                                    placeholder: "Ví dụ: Sprint 1"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 79,
-                                                    columnNumber: 17
-                                                }, this)
-                                            ]
-                                        }, void 0, true, {
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
+                                            className: "text-lg font-semibold mb-3",
+                                            style: {
+                                                color: 'var(--primary)'
+                                            },
+                                            children: "Thông tin cơ bản"
+                                        }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 77,
+                                            lineNumber: 121,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "grid grid-cols-1 md:grid-cols-2 gap-4",
                                             children: [
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                    className: "text-sm",
-                                                    children: "Bắt đầu"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 88,
-                                                    columnNumber: 17
-                                                }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                    required: true,
-                                                    type: "date",
-                                                    value: startDate,
-                                                    onChange: (e)=>setStartDate(e.target.value),
-                                                    className: "mt-1 w-full border rounded-lg px-3 py-2 ".concat(validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? 'border-red-500' : '')
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 89,
-                                                    columnNumber: 17
-                                                }, this)
-                                            ]
-                                        }, void 0, true, {
-                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 87,
-                                            columnNumber: 15
-                                        }, this),
-                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                            children: [
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                    className: "text-sm",
-                                                    children: "Hạn"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 98,
-                                                    columnNumber: 17
-                                                }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                    required: true,
-                                                    type: "date",
-                                                    value: deadline,
-                                                    onChange: (e)=>setDeadline(e.target.value),
-                                                    className: "mt-1 w-full border rounded-lg px-3 py-2 ".concat(validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? 'border-red-500' : '')
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 99,
-                                                    columnNumber: 17
-                                                }, this),
-                                                validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                    className: "text-xs text-red-600 mt-1",
-                                                    children: "Ngày bắt đầu phải trước hoặc bằng hạn"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 107,
-                                                    columnNumber: 19
-                                                }, this) : null
-                                            ]
-                                        }, void 0, true, {
-                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 97,
-                                            columnNumber: 15
-                                        }, this),
-                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                            children: [
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                    className: "text-sm",
-                                                    children: "Trạng thái"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 111,
-                                                    columnNumber: 17
-                                                }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
-                                                    value: status,
-                                                    onChange: (e)=>setStatus(e.target.value),
-                                                    className: "mt-1 w-full border rounded-lg px-3 py-2 bg-transparent",
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    className: "md:col-span-2",
                                                     children: [
-                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
-                                                            value: "Planned",
-                                                            children: "Planned"
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm font-semibold",
+                                                            children: "Tiêu đề *"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                            lineNumber: 117,
+                                                            lineNumber: 124,
                                                             columnNumber: 19
                                                         }, this),
-                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
-                                                            value: "In Progress",
-                                                            children: "In Progress"
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            required: true,
+                                                            value: title,
+                                                            onChange: (e)=>setTitle(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            placeholder: "Ví dụ: Sprint 1"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                            lineNumber: 118,
-                                                            columnNumber: 19
-                                                        }, this),
-                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
-                                                            value: "Completed",
-                                                            children: "Completed"
-                                                        }, void 0, false, {
-                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                            lineNumber: 119,
-                                                            columnNumber: 19
-                                                        }, this),
-                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
-                                                            value: "Overdue",
-                                                            children: "Overdue"
-                                                        }, void 0, false, {
-                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                            lineNumber: 120,
+                                                            lineNumber: 125,
                                                             columnNumber: 19
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 112,
-                                                    columnNumber: 17
-                                                }, this)
-                                            ]
-                                        }, void 0, true, {
-                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 110,
-                                            columnNumber: 15
-                                        }, this),
-                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                            children: [
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                    className: "text-sm",
-                                                    children: "Thuộc milestone"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 124,
+                                                    lineNumber: 123,
                                                     columnNumber: 17
                                                 }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
-                                                    value: parentId,
-                                                    onChange: (e)=>setParentId(e.target.value),
-                                                    className: "mt-1 w-full border rounded-lg px-3 py-2 bg-transparent",
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                     children: [
-                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
-                                                            value: "",
-                                                            children: "— Không —"
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Mã Milestone"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                            lineNumber: 130,
+                                                            lineNumber: 135,
                                                             columnNumber: 19
                                                         }, this),
-                                                        parentOptions.map((m)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
-                                                                value: m._id,
-                                                                children: m.title
-                                                            }, m._id, false, {
-                                                                fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                                lineNumber: 132,
-                                                                columnNumber: 21
-                                                            }, this))
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            value: code,
+                                                            onChange: (e)=>setCode(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            placeholder: "Ví dụ: MS-001"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 136,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: "Tùy chọn. Mã định danh duy nhất."
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 142,
+                                                            columnNumber: 19
+                                                        }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 125,
+                                                    lineNumber: 134,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                    className: "text-xs opacity-70 mt-1",
-                                                    children: "Tùy chọn. Dùng để tạo cấu trúc cha/con."
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 135,
-                                                    columnNumber: 17
-                                                }, this)
-                                            ]
-                                        }, void 0, true, {
-                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 123,
-                                            columnNumber: 15
-                                        }, this),
-                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                            className: "md:col-span-2",
-                                            children: [
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                    className: "text-sm",
-                                                    children: "Mô tả"
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 138,
-                                                    columnNumber: 17
-                                                }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
-                                                    value: description,
-                                                    onChange: (e)=>setDescription(e.target.value),
-                                                    className: "mt-1 w-full border rounded-lg px-3 py-2",
-                                                    rows: 4,
-                                                    placeholder: "Ghi chú phạm vi, tiêu chí, rủi ro..."
-                                                }, void 0, false, {
-                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 139,
-                                                    columnNumber: 17
-                                                }, this),
-                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                    className: "text-xs opacity-70 mt-1",
                                                     children: [
-                                                        description.length,
-                                                        "/1000"
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Trạng thái"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 146,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
+                                                            value: status,
+                                                            onChange: (e)=>setStatus(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2 bg-transparent",
+                                                            children: [
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                    value: "Planned",
+                                                                    children: "Planned"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 152,
+                                                                    columnNumber: 21
+                                                                }, this),
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                    value: "In Progress",
+                                                                    children: "In Progress"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 153,
+                                                                    columnNumber: 21
+                                                                }, this),
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                    value: "Completed",
+                                                                    children: "Completed"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 154,
+                                                                    columnNumber: 21
+                                                                }, this),
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                    value: "Overdue",
+                                                                    children: "Overdue"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 155,
+                                                                    columnNumber: 21
+                                                                }, this)
+                                                            ]
+                                                        }, void 0, true, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 147,
+                                                            columnNumber: 19
+                                                        }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                                    lineNumber: 146,
+                                                    lineNumber: 145,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    className: "md:col-span-2",
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Thuộc milestone"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 160,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
+                                                            value: parentId,
+                                                            onChange: (e)=>setParentId(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2 bg-transparent",
+                                                            children: [
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                    value: "",
+                                                                    children: "— Không —"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 166,
+                                                                    columnNumber: 21
+                                                                }, this),
+                                                                parentOptions.map((m)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                        value: m._id,
+                                                                        children: m.title
+                                                                    }, m._id, false, {
+                                                                        fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                        lineNumber: 168,
+                                                                        columnNumber: 23
+                                                                    }, this))
+                                                            ]
+                                                        }, void 0, true, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 161,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: "Tùy chọn. Dùng để tạo cấu trúc cha/con."
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 171,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 159,
                                                     columnNumber: 17
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 137,
+                                            lineNumber: 122,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                    lineNumber: 76,
+                                    lineNumber: 120,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "border-b pb-4",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
+                                            className: "text-lg font-semibold mb-3",
+                                            style: {
+                                                color: 'var(--primary)'
+                                            },
+                                            children: "Thời gian"
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 178,
+                                            columnNumber: 15
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "grid grid-cols-1 md:grid-cols-2 gap-4",
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm font-semibold",
+                                                            children: "Bắt đầu *"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 181,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            required: true,
+                                                            type: "date",
+                                                            value: startDate,
+                                                            onChange: (e)=>setStartDate(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2 ".concat(validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? 'border-red-500' : '')
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 182,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 180,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm font-semibold",
+                                                            children: "Hạn chót *"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 191,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            required: true,
+                                                            type: "date",
+                                                            value: deadline,
+                                                            onChange: (e)=>setDeadline(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2 ".concat(validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? 'border-red-500' : '')
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 192,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs text-red-600 mt-1",
+                                                            children: "Ngày bắt đầu phải trước hoặc bằng hạn"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 200,
+                                                            columnNumber: 21
+                                                        }, this) : null
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 190,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Ngày hoàn thành thực tế"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 204,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            type: "date",
+                                                            value: actualDate,
+                                                            onChange: (e)=>setActualDate(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 205,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: "Ngày hoàn thành milestone (nếu đã xong)"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 211,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 203,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Thời lượng (ngày)"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 214,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            type: "number",
+                                                            min: "0",
+                                                            value: duration,
+                                                            onChange: (e)=>setDuration(Number(e.target.value)),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            placeholder: "VD: 14"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 215,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: "Thời lượng dự kiến"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 223,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 213,
+                                                    columnNumber: 17
+                                                }, this)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 179,
+                                            columnNumber: 15
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                    lineNumber: 177,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "border-b pb-4",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
+                                            className: "text-lg font-semibold mb-3",
+                                            style: {
+                                                color: 'var(--primary)'
+                                            },
+                                            children: "Công sức"
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 230,
+                                            columnNumber: 15
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "grid grid-cols-1 md:grid-cols-2 gap-4",
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Ước tính công sức (giờ)"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 233,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            type: "number",
+                                                            min: "0",
+                                                            step: "0.5",
+                                                            value: estimatedEffort,
+                                                            onChange: (e)=>setEstimatedEffort(Number(e.target.value)),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            placeholder: "VD: 80"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 234,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 232,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Công sức thực tế (giờ)"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 245,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            type: "number",
+                                                            min: "0",
+                                                            step: "0.5",
+                                                            value: actualEffort,
+                                                            onChange: (e)=>setActualEffort(Number(e.target.value)),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            placeholder: "VD: 85"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 246,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 244,
+                                                    columnNumber: 17
+                                                }, this)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 231,
+                                            columnNumber: 15
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                    lineNumber: 229,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "border-b pb-4",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "flex items-center justify-between mb-3",
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
+                                                    className: "text-lg font-semibold",
+                                                    style: {
+                                                        color: 'var(--primary)'
+                                                    },
+                                                    children: "Tiêu chí thành công"
+                                                }, void 0, false, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 262,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                    type: "button",
+                                                    onClick: addSuccessCriterion,
+                                                    className: "px-3 py-1 text-sm rounded-lg bg-[var(--primary)] text-white",
+                                                    children: "+ Thêm tiêu chí"
+                                                }, void 0, false, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 263,
+                                                    columnNumber: 17
+                                                }, this)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 261,
+                                            columnNumber: 15
+                                        }, this),
+                                        successCriteria.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "text-sm opacity-70 text-center py-4",
+                                            children: 'Chưa có tiêu chí nào. Nhấn "Thêm tiêu chí" để thêm.'
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 272,
+                                            columnNumber: 17
+                                        }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "space-y-3",
+                                            children: successCriteria.map((sc, idx)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    className: "border rounded-lg p-3 space-y-2",
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "flex items-start justify-between gap-2",
+                                                            children: [
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                                    value: sc.title,
+                                                                    onChange: (e)=>updateSuccessCriterion(idx, "title", e.target.value),
+                                                                    className: "flex-1 border rounded px-2 py-1 text-sm",
+                                                                    placeholder: "Tiêu đề tiêu chí *"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 278,
+                                                                    columnNumber: 25
+                                                                }, this),
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
+                                                                    value: sc.status,
+                                                                    onChange: (e)=>updateSuccessCriterion(idx, "status", e.target.value),
+                                                                    className: "border rounded px-2 py-1 text-sm bg-transparent",
+                                                                    children: [
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                            value: "pending",
+                                                                            children: "Pending"
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                            lineNumber: 289,
+                                                                            columnNumber: 27
+                                                                        }, this),
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                            value: "in-review",
+                                                                            children: "In Review"
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                            lineNumber: 290,
+                                                                            columnNumber: 27
+                                                                        }, this),
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                            value: "verified",
+                                                                            children: "Verified"
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                            lineNumber: 291,
+                                                                            columnNumber: 27
+                                                                        }, this),
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                                            value: "rejected",
+                                                                            children: "Rejected"
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                            lineNumber: 292,
+                                                                            columnNumber: 27
+                                                                        }, this)
+                                                                    ]
+                                                                }, void 0, true, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 284,
+                                                                    columnNumber: 25
+                                                                }, this),
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                                    type: "button",
+                                                                    onClick: ()=>removeSuccessCriterion(idx),
+                                                                    className: "text-red-600 hover:text-red-800 text-sm px-2",
+                                                                    children: "✕"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                                    lineNumber: 294,
+                                                                    columnNumber: 25
+                                                                }, this)
+                                                            ]
+                                                        }, void 0, true, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 277,
+                                                            columnNumber: 23
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                            value: sc.description,
+                                                            onChange: (e)=>updateSuccessCriterion(idx, "description", e.target.value),
+                                                            className: "w-full border rounded px-2 py-1 text-sm",
+                                                            rows: 2,
+                                                            placeholder: "Mô tả chi tiết tiêu chí..."
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 302,
+                                                            columnNumber: 23
+                                                        }, this)
+                                                    ]
+                                                }, idx, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 276,
+                                                    columnNumber: 21
+                                                }, this))
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 274,
+                                            columnNumber: 17
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                    lineNumber: 260,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
+                                            className: "text-lg font-semibold mb-3",
+                                            style: {
+                                                color: 'var(--primary)'
+                                            },
+                                            children: "Mô tả & Tags"
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 317,
+                                            columnNumber: 15
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "space-y-4",
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Tags"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 320,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                                                            value: tags,
+                                                            onChange: (e)=>setTags(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            placeholder: "Nhập các tag, cách nhau bởi dấu phẩy"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 321,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: "VD: backend, api, critical"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 327,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 319,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Mô tả"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 331,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                            value: description,
+                                                            onChange: (e)=>setDescription(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            rows: 3,
+                                                            placeholder: "Mô tả tổng quan về milestone..."
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 332,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: [
+                                                                description.length,
+                                                                "/1000"
+                                                            ]
+                                                        }, void 0, true, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 339,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 330,
+                                                    columnNumber: 17
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                                                            className: "text-sm",
+                                                            children: "Ghi chú"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 343,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
+                                                            value: notes,
+                                                            onChange: (e)=>setNotes(e.target.value),
+                                                            className: "mt-1 w-full border rounded-lg px-3 py-2",
+                                                            rows: 3,
+                                                            placeholder: "Ghi chú phạm vi, tiêu chí, rủi ro..."
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 344,
+                                                            columnNumber: 19
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                            className: "text-xs opacity-70 mt-1",
+                                                            children: [
+                                                                notes.length,
+                                                                "/1000"
+                                                            ]
+                                                        }, void 0, true, {
+                                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                            lineNumber: 351,
+                                                            columnNumber: 19
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                                    lineNumber: 342,
+                                                    columnNumber: 17
+                                                }, this)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                            lineNumber: 318,
+                                            columnNumber: 15
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
+                                    lineNumber: 316,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -919,7 +1443,7 @@ function NewMilestonePage() {
                                             children: "Hủy"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 150,
+                                            lineNumber: 356,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -929,40 +1453,40 @@ function NewMilestonePage() {
                                             children: submitting ? 'Đang tạo...' : 'Tạo milestone'
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                            lineNumber: 151,
+                                            lineNumber: 357,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                                    lineNumber: 149,
+                                    lineNumber: 355,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                            lineNumber: 74,
+                            lineNumber: 116,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                    lineNumber: 72,
+                    lineNumber: 114,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-                lineNumber: 71,
+                lineNumber: 113,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/projects/[id]/milestones/new/page.tsx",
-        lineNumber: 69,
+        lineNumber: 111,
         columnNumber: 5
     }, this);
 }
-_s(NewMilestonePage, "MXoCNyMsmfPysBpthmNUGNxaRpc=", false, function() {
+_s(NewMilestonePage, "wFO1R1zM3xN0WYnukJ5tkvYJl+o=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"],
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useParams"]
