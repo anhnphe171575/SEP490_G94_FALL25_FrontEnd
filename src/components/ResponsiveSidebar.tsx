@@ -17,11 +17,7 @@ const navItems = [
       <path d="M6.143 0H1.857A1.857 1.857 0 0 0 0 1.857v4.286C0 7.169.831 8 1.857 8h4.286A1.857 1.857 0 0 0 8 6.143V1.857A1.857 1.857 0 0 0 6.143 0Zm10 0h-4.286A1.857 1.857 0 0 0 10 1.857v4.286C10 7.169 10.831 8 11.857 8h4.286A1.857 1.857 0 0 0 18 6.143V1.857A1.857 1.857 0 0 0 16.143 0Zm-10 10H1.857A1.857 1.857 0 0 0 0 11.857v4.286C0 17.169.831 18 1.857 18h4.286A1.857 1.857 0 0 0 8 16.143v-4.286A1.857 1.857 0 0 0 6.143 10Zm10 0h-4.286A1.857 1.857 0 0 0 10 11.857v4.286c0 1.026.831 1.857 1.857 1.857h4.286A1.857 1.857 0 0 0 18 16.143v-4.286A1.857 1.857 0 0 0 16.143 10Z"/>
     </svg>
   )},
-  { href: "/myprofile", label: "Users", icon: (
-    <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18">
-      <path d="M14 2a3.963 3.963 0 0 0-1.4.267 6.439 6.439 0 0 1-1.331 6.638A4 4 0 1 0 14 2Zm1 9h-1.264A6.957 6.957 0 0 1 15 15v2a2.97 2.97 0 0 1-.184 1H19a1 1 0 0 0 1-1v-1a5.006 5.006 0 0 0-5-5ZM6.5 9a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM8 10H5a5.006 5.006 0 0 0-5 5v2a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-2a5.006 5.006 0 0 0-5-5Z"/>
-    </svg>
-  )},
+ 
 ];
 
 export default function ResponsiveSidebar() {
@@ -29,9 +25,11 @@ export default function ResponsiveSidebar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [me, setMe] = useState<{ full_name?: string; email?: string; avatar?: string } | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     setOpen(false);
+    setShowDropdown(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -53,6 +51,25 @@ export default function ResponsiveSidebar() {
       localStorage.removeItem('token');
     }
     router.replace('/login');
+  };
+
+  const handleAvatarClick = () => {
+    setShowDropdown(!showDropdown);
+  };
+
+  const handleProfileClick = () => {
+    router.push('/myprofile');
+    setShowDropdown(false);
+  };
+
+  const handleChangePasswordClick = () => {
+    router.push('/change-password');
+    setShowDropdown(false);
+  };
+
+  const handleLogoutClick = () => {
+    onLogout();
+    setShowDropdown(false);
   };
 
   return (
@@ -77,19 +94,63 @@ export default function ResponsiveSidebar() {
       >
         <div className="h-full px-3 py-4 overflow-y-auto glass">
           {me ? (
-            <div className="mb-4 flex items-center gap-3 p-3 card">
-              <div className="h-10 w-10 rounded-full flex items-center justify-center overflow-hidden bg-gray-100">
-                {me.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-sm font-semibold text-gray-600">{(me.full_name?.[0] || me.email?.[0] || 'U').toUpperCase()}</span>
-                )}
+            <div className="mb-4 relative">
+              <div 
+                className="flex items-center gap-3 p-3 card cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={handleAvatarClick}
+              >
+                <div className="h-10 w-10 rounded-full flex items-center justify-center overflow-hidden bg-gray-100">
+                  {me.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-semibold text-gray-600">{(me.full_name?.[0] || me.email?.[0] || 'U').toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="truncate">
+                  <div className="text-sm font-medium truncate">{me.full_name || 'User'}</div>
+                  <div className="text-xs text-gray-500 truncate">{me.email || ''}</div>
+                </div>
+                <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
               </div>
-              <div className="truncate">
-                <div className="text-sm font-medium truncate">{me.full_name || 'User'}</div>
-                <div className="text-xs text-gray-500 truncate">{me.email || ''}</div>
-              </div>
+
+              {/* Dropdown Menu */}
+              {showDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                  <div className="py-1">
+                    <button
+                      onClick={handleProfileClick}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                      </svg>
+                      Thông tin cá nhân
+                    </button>
+                    <button
+                      onClick={handleChangePasswordClick}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                      </svg>
+                      Thay đổi mật khẩu
+                    </button>
+                    <div className="border-t border-gray-100 my-1"></div>
+                    <button
+                      onClick={handleLogoutClick}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                      </svg>
+                      Đăng xuất
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -108,18 +169,6 @@ export default function ResponsiveSidebar() {
                 </li>
               );
             })}
-            <li>
-              <button
-                onClick={onLogout}
-                className="w-full text-left flex items-center p-2 rounded-lg border hover:bg-[var(--muted)] text-gray-900 transition-colors"
-                style={{borderColor: 'var(--border)'}}
-              >
-                <svg className="w-5 h-5 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 16">
-                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M1 8h11m0 0L8 4m4 4-4 4m4-11h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-3"/>
-                </svg>
-                <span className="ms-3">Đăng xuất</span>
-              </button>
-            </li>
           </ul>
         </div>
       </aside>

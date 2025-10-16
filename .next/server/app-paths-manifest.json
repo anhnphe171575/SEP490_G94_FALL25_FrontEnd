@@ -1,7 +1,10 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/change-password/page": "app/change-password/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/forgotpassword/page": "app/forgotpassword/page.js",
   "/login/page": "app/login/page.js",
-  "/page": "app/page.js",
-  "/verify-otp/page": "app/verify-otp/page.js"
+  "/myprofile/page": "app/myprofile/page.js",
+  "/page": "app/page.js"
 }
