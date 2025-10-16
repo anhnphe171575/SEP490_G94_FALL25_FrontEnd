@@ -36,10 +36,12 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Alert,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import CreateMilestoneFromFeatures from "@/components/CreateMilestoneFromFeatures";
 
 type Milestone = {
   _id: string;
@@ -49,21 +51,34 @@ type Milestone = {
   status?: string;
 };
 
+type Setting = {
+  _id: string;
+  name: string;
+  value?: string;
+};
+
+type User = {
+  _id: string;
+  full_name?: string;
+  email?: string;
+};
+
 type Feature = {
   _id?: string;
   title: string;
-  code: string;
   description?: string;
-  project_id: string;
-  milestone_id?: string | null;
-  creator_id: string;
-  assignee_id?: string | null;
-  function_ids?: string[];
-  status: 'planning' | 'in-progress' | 'testing' | 'completed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  estimated_effort?: string;
+  plan_effort?: string;
+  estimated_hours?: number;
+  actual_effort?: number;
+  priority_id?: Setting | string;
+  status_id?: Setting | string;
+  complexity_id?: Setting | string;
+  created_by?: User | string;
+  reviewer_id?: User | string;
+  last_updated_by?: User | string;
   start_date?: string;
-  end_date?: string;
+  due_date?: string;
+  tags?: string[];
   createdAt?: string;
   updatedAt?: string;
   // UI-only convenience
@@ -71,16 +86,7 @@ type Feature = {
 };
 
 // Mock data for display
-const MOCK_MILESTONES: Milestone[] = [
-  { _id: "ms-1", title: "Thiết kế kiến trúc", start_date: new Date().toISOString(), deadline: new Date(Date.now() + 7*86400000).toISOString() },
-  { _id: "ms-2", title: "Phát triển tính năng cốt lõi", start_date: new Date().toISOString(), deadline: new Date(Date.now() + 14*86400000).toISOString() },
-];
 
-const MOCK_FEATURES = (projectId: string): Feature[] => [
-  { _id: "ft-1", code: "FT-1", title: "Đăng nhập OAuth", description: "Hỗ trợ Google SSO", project_id: projectId, creator_id: "u-1", status: 'planning', priority: 'medium', estimated_effort: "8", milestone_ids: ["ms-1"] },
-  { _id: "ft-2", code: "FT-2", title: "Bảng điều khiển", description: "Hiển thị KPI chính", project_id: projectId, creator_id: "u-1", status: 'in-progress', priority: 'high', estimated_effort: "13", milestone_ids: ["ms-1","ms-2"] },
-  { _id: "ft-3", code: "FT-3", title: "Quản lý người dùng", description: "CRUD và phân quyền", project_id: projectId, creator_id: "u-1", status: 'testing', priority: 'medium', estimated_effort: "21", milestone_ids: ["ms-2"] },
-];
 
 export default function ProjectFeaturesPage() {
   const router = useRouter();
@@ -91,9 +97,23 @@ export default function ProjectFeaturesPage() {
   const [features, setFeatures] = useState<Feature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Settings for dropdowns
+  const [priorities, setPriorities] = useState<Setting[]>([]);
+  const [statuses, setStatuses] = useState<Setting[]>([]);
+  const [complexities, setComplexities] = useState<Setting[]>([]);
 
   const [openForm, setOpenForm] = useState(false);
-  const [form, setForm] = useState<Feature>({ title: "", code: "", description: "", project_id: projectId, creator_id: "", status: 'planning', priority: 'medium', milestone_ids: [] });
+  const [form, setForm] = useState<Feature>({ 
+    title: "", 
+    description: "", 
+    plan_effort: "",
+    estimated_hours: 0,
+    milestone_ids: [],
+    start_date: "",
+    due_date: "",
+    tags: []
+  });
 
   // Chart controls
   const [weekStart, setWeekStart] = useState<Date>(getStartOfWeekUTC(new Date()));
@@ -105,18 +125,21 @@ export default function ProjectFeaturesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
-    title: string;
-    code: string;
+    title?: string;
     description?: string;
-    assignee_id?: string;
-    status?: Feature['status'];
-    priority?: Feature['priority'];
-    estimated_effort?: string;
+    plan_effort?: string;
+    estimated_hours?: number;
     start_date?: string;
-    end_date?: string;
-    milestone_id?: string;
-    function_ids_csv?: string; // CSV for inline editing
-  }>({ title: "", code: "", description: "", assignee_id: "", status: 'planning', priority: 'medium', estimated_effort: "", start_date: "", end_date: "", milestone_id: "", function_ids_csv: "" });
+    due_date?: string;
+  }>({ title: "", description: "", plan_effort: "", estimated_hours: 0, start_date: "", due_date: "" });
+
+  // Feature selection for milestone creation
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState<string[]>([]);
+  const [openMilestoneFromFeaturesDialog, setOpenMilestoneFromFeaturesDialog] = useState(false);
+  
+  // Feature detail dialog
+  const [selectedFeatureDetail, setSelectedFeatureDetail] = useState<Feature | null>(null);
+  const [openFeatureDetail, setOpenFeatureDetail] = useState(false);
 
   const formatRelative = (iso?: string) => {
     if (!iso) return '';
@@ -141,7 +164,7 @@ export default function ProjectFeaturesPage() {
           axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: null })),
         ]);
-        const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : MOCK_MILESTONES;
+        const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
         setMilestones(milestonesList);
 
         if (Array.isArray(featureRes.data)) {
@@ -150,12 +173,15 @@ export default function ProjectFeaturesPage() {
             featureRes.data.map(async (f: any) => {
               try {
                 const linkRes = await axiosInstance.get(`/api/features/${f._id}/milestones`);
-                return { ...f, milestone_ids: Array.isArray(linkRes.data) ? linkRes.data : [] } as Feature;
+                // Loại bỏ duplicates
+                const uniqueMilestoneIds = Array.isArray(linkRes.data) ? [...new Set(linkRes.data)] : [];
+                return { ...f, milestone_ids: uniqueMilestoneIds } as Feature;
               } catch {
                 return { ...f, milestone_ids: [] } as Feature;
               }
             })
           );
+          console.log('Enriched features:', enriched);
           setFeatures(enriched);
         } else {
           // Fallback: localStorage or mock
@@ -163,14 +189,11 @@ export default function ProjectFeaturesPage() {
           const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
           if (raw) {
             setFeatures(JSON.parse(raw) as Feature[]);
-          } else {
-            setFeatures(MOCK_FEATURES(projectId));
-          }
+          } 
         }
       } catch (e: any) {
         // Fallback to mock data
-        setMilestones(MOCK_MILESTONES);
-        setFeatures(MOCK_FEATURES(projectId));
+      
         setError(null);
       } finally {
         setLoading(false);
@@ -251,31 +274,65 @@ export default function ProjectFeaturesPage() {
   }, [detailMode, featureBars, features, milestones]);
 
   const handleOpenForm = () => {
-    setForm({ title: "", code: "", description: "", project_id: projectId, creator_id: "", status: 'planning', priority: 'medium', milestone_ids: [] });
+    setForm({ 
+      title: "", 
+      description: "", 
+      plan_effort: "",
+      estimated_hours: 0,
+      milestone_ids: [],
+      start_date: "",
+      due_date: "",
+      tags: []
+    });
     setOpenForm(true);
   };
 
   const handleCreateFeature = async () => {
     try {
-      // Gọi backend tạo feature và liên kết milestones
-      const res = await axiosInstance.post(`/api/projects/${projectId}/features`, {
+      // Gọi backend tạo feature
+      const payload = {
         title: form.title,
-        code: form.code,
         description: form.description,
-        creator_id: form.creator_id,
-        status: form.status,
-        priority: form.priority,
-        estimated_effort: form.estimated_effort,
-        milestone_id: form.milestone_id,
-      });
+        plan_effort: form.plan_effort,
+        estimated_hours: form.estimated_hours || 0,
+        priority_id: form.priority_id,
+        status_id: form.status_id,
+        complexity_id: form.complexity_id,
+        reviewer_id: form.reviewer_id,
+        start_date: form.start_date,
+        due_date: form.due_date,
+        tags: form.tags || [],
+        milestone_ids: form.milestone_ids || [],
+      };
+      console.log('Creating feature with payload:', payload);
+      const res = await axiosInstance.post(`/api/projects/${projectId}/features`, payload);
+      console.log('Feature created response:', res.data);
       const created = res.data;
-      let milestone_ids: string[] = [];
-      try {
-        const linkRes = await axiosInstance.get(`/api/features/${created._id}/milestones`);
-        milestone_ids = Array.isArray(linkRes.data) ? linkRes.data : [];
-      } catch {}
+      
+      // Link milestones nếu có
+      let milestone_ids: string[] = form.milestone_ids || [];
+      if (milestone_ids.length > 0) {
+        try {
+          await axiosInstance.post(`/api/features/${created._id}/milestones`, {
+            milestone_ids: milestone_ids
+          });
+        } catch (err) {
+          console.error('Error linking milestones:', err);
+        }
+      }
+      
       setFeatures(prev => [{ ...created, milestone_ids }, ...prev]);
       setOpenForm(false);
+      setForm({ 
+        title: "", 
+        description: "", 
+        plan_effort: "",
+        estimated_hours: 0,
+        milestone_ids: [],
+        start_date: "",
+        due_date: "",
+        tags: []
+      });
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tạo feature");
     }
@@ -286,53 +343,61 @@ export default function ProjectFeaturesPage() {
     setEditingField(field);
     setEditDraft({
       title: f.title,
-      code: f.code,
       description: f.description,
-      assignee_id: f.assignee_id || "",
-      status: f.status,
-      priority: f.priority,
-      estimated_effort: f.estimated_effort || "",
+      plan_effort: f.plan_effort,
+      estimated_hours: f.estimated_hours,
       start_date: f.start_date,
-      end_date: f.end_date,
-      milestone_id: f.milestone_id || "",
-      function_ids_csv: (f.function_ids || []).join(',')
+      due_date: f.due_date
     });
   };
   const cancelEditRow = () => {
     setEditingId(null);
     setEditingField(null);
-    setEditDraft({ title: "", code: "", description: "", assignee_id: "", status: 'planning', priority: 'medium', estimated_effort: "", start_date: "", end_date: "", milestone_id: "", function_ids_csv: "" });
+    setEditDraft({ title: "", description: "", plan_effort: "", estimated_hours: 0, start_date: "", due_date: "" });
   };
   const saveEditRow = async (id: string) => {
     try {
       const all: any = {
         title: editDraft.title,
-        code: editDraft.code,
         description: editDraft.description,
-        assignee_id: editDraft.assignee_id || null,
-        status: editDraft.status,
-        priority: editDraft.priority,
-        estimated_effort: editDraft.estimated_effort,
+        plan_effort: editDraft.plan_effort,
+        estimated_hours: editDraft.estimated_hours,
         start_date: editDraft.start_date,
-        end_date: editDraft.end_date,
-        milestone_id: editDraft.milestone_id || null,
-        function_ids: (editDraft.function_ids_csv || '').split(',').map(s => s.trim()).filter(Boolean),
+        due_date: editDraft.due_date
       };
-      const payload: any = editingField ? { [editingField === 'function_ids_csv' ? 'function_ids' : editingField]:
-        editingField === 'function_ids_csv' ? all.function_ids : all[editingField] } : all;
+      const payload: any = editingField ? { [editingField]: all[editingField] } : all;
       await axiosInstance.patch(`/api/features/${id}`, payload).catch(() => null);
       setFeatures(prev => prev.map(x => {
         if (x._id !== id) return x as Feature;
         const updated: any = { ...x, updatedAt: new Date().toISOString() };
         if (editingField) {
-          if (editingField === 'function_ids_csv') updated.function_ids = all.function_ids;
-          else (updated as any)[editingField] = (all as any)[editingField];
-        } else Object.assign(updated, all);
+          (updated as any)[editingField] = (all as any)[editingField];
+        } else {
+          Object.assign(updated, all);
+        }
         return updated;
       }));
       cancelEditRow();
     } catch {}
   };
+
+  const handleToggleFeatureSelection = (featureId: string) => {
+    setSelectedFeatureIds(prev => 
+      prev.includes(featureId) 
+        ? prev.filter(id => id !== featureId)
+        : [...prev, featureId]
+    );
+  };
+
+  const handleToggleAllFeatures = () => {
+    if (selectedFeatureIds.length === features.length) {
+      setSelectedFeatureIds([]);
+    } else {
+      setSelectedFeatureIds(features.map(f => f._id as string));
+    }
+  };
+
+  const selectedFeatures = features.filter(f => selectedFeatureIds.includes(f._id as string));
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -343,8 +408,25 @@ export default function ProjectFeaturesPage() {
             <div className="space-y-1">
               <div className="text-[10px] md:text-xs uppercase tracking-wider text-foreground/60">Dự án</div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">Features</h1>
+              {selectedFeatureIds.length > 0 && (
+                <Chip 
+                  label={`${selectedFeatureIds.length} features đã chọn`} 
+                  color="primary" 
+                  size="small"
+                  onDelete={() => setSelectedFeatureIds([])}
+                />
+              )}
             </div>
             <div className="flex items-center gap-2">
+              {selectedFeatureIds.length > 0 && (
+                <Button 
+                  variant="contained" 
+                  color="secondary"
+                  onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
+                >
+                  Tạo Milestone từ Features
+                </Button>
+              )}
               <Button variant="contained" onClick={handleOpenForm}>Tạo Feature</Button>
               <Button variant="outlined" onClick={() => router.push(`/projects/${projectId}`)}>Milestones</Button>
               <Button variant="outlined" onClick={() => router.back()}>Quay lại</Button>
@@ -448,16 +530,22 @@ export default function ProjectFeaturesPage() {
                 <Table size="small" sx={{ minWidth: 1400, '& td, & th': { borderColor: 'var(--border)' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ width: 44 }}></TableCell>
-                      <TableCell>Code</TableCell>
+                      <TableCell sx={{ width: 44 }}>
+                        <Checkbox 
+                          size="small" 
+                          checked={selectedFeatureIds.length === features.length && features.length > 0}
+                          indeterminate={selectedFeatureIds.length > 0 && selectedFeatureIds.length < features.length}
+                          onChange={handleToggleAllFeatures}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ width: 60 }}>STT</TableCell>
                       <TableCell>Title</TableCell>
                       <TableCell>Status</TableCell>
-                      <TableCell>Start date</TableCell>
-                      <TableCell>End date</TableCell>
                       <TableCell>Priority</TableCell>
-                      <TableCell>Estimated effort</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>Milestone</TableCell>
+                      <TableCell>Estimated hours</TableCell>
+                      <TableCell>Start - Due</TableCell>
                       <TableCell>Description</TableCell>
-                      <TableCell>Last updated</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -477,27 +565,51 @@ export default function ProjectFeaturesPage() {
                         }, undefined);
                         return latest;
                       })();
-                      const dueDateText = due ? new Date(due).toLocaleString('en-US', { month: 'short', day: 'numeric' }) : '-';
+                      const dueDateText = due ? new Date(due).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+                      const statusName = typeof f.status_id === 'object' ? f.status_id?.name : '';
+                      const priorityName = typeof f.priority_id === 'object' ? f.priority_id?.name : '';
                       const statusChip = (
                         <Chip
                           size="small"
-                          label={f.status}
+                          label={statusName || '-'}
                           sx={{
                             color: '#fff',
-                            bgcolor: f.status === 'completed' ? '#22c55e' : f.status === 'in-progress' ? '#f59e0b' : '#3b82f6',
+                            bgcolor: statusName === 'completed' ? '#22c55e' : statusName === 'in-progress' ? '#f59e0b' : '#3b82f6',
                             fontWeight: 600,
                           }}
                         />
                       );
                       return (
                         <TableRow key={f._id || idx} hover>
-                          <TableCell><Checkbox size="small" /></TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => startEditCell(f, 'code')}>
-                            {editingId === f._id && editingField === 'code' ? (
-                              <TextField size="small" value={editDraft.code} onChange={(e) => setEditDraft(s => ({ ...s, code: e.target.value }))} fullWidth onBlur={() => saveEditRow(f._id as string)} />
-                            ) : (
-                              (f.code || '-')
-                            )}
+                          <TableCell>
+                            <Checkbox 
+                              size="small" 
+                              checked={selectedFeatureIds.includes(f._id as string)}
+                              onChange={() => handleToggleFeatureSelection(f._id as string)}
+                            />
+                          </TableCell>
+                          <TableCell 
+                            sx={{ 
+                              fontWeight: 600, 
+                              cursor: 'pointer',
+                              color: 'primary.main',
+                              '&:hover': { textDecoration: 'underline' }
+                            }}
+                            onClick={async () => {
+                              try {
+                                // Gọi API để lấy feature detail với đầy đủ populate
+                                const res = await axiosInstance.get(`/api/features/${f._id}`);
+                                setSelectedFeatureDetail(res.data);
+                                setOpenFeatureDetail(true);
+                              } catch (err) {
+                                console.error('Error loading feature detail:', err);
+                                // Fallback to current data
+                                setSelectedFeatureDetail(f);
+                                setOpenFeatureDetail(true);
+                              }
+                            }}
+                          >
+                            {idx + 1}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => startEditCell(f, 'title')}>
                             {editingId === f._id && editingField === 'title' ? (
@@ -513,53 +625,107 @@ export default function ProjectFeaturesPage() {
                             )}
                           </TableCell>
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'status')}>
-                            {editingId === f._id && editingField === 'status' ? (
-                              <Select size="small" value={editDraft.status || 'planning'} onChange={(e) => setEditDraft(s => ({ ...s, status: e.target.value as any }))} fullWidth onClose={() => saveEditRow(f._id as string)}>
-                                <MenuItem value="planning">planning</MenuItem>
-                                <MenuItem value="in-progress">in-progress</MenuItem>
-                                <MenuItem value="testing">testing</MenuItem>
-                                <MenuItem value="completed">completed</MenuItem>
-                                <MenuItem value="cancelled">cancelled</MenuItem>
+                          <TableCell>
+                            {statusChip}
+                          </TableCell>
+                          
+                          <TableCell>
+                            <Chip
+                              label={priorityName || '-'}
+                              size="small"
+                              color={
+                                priorityName === 'critical' ? 'error' :
+                                priorityName === 'high' ? 'warning' :
+                                priorityName === 'medium' ? 'primary' : 'default'
+                              }
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          
+                          <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
+                            {editingId === f._id && editingField === 'milestone_ids' ? (
+                              <Select
+                                size="small"
+                                multiple
+                                value={f.milestone_ids || []}
+                                onChange={async (e) => {
+                                  const newMilestoneIds = e.target.value as string[];
+                                  try {
+                                    // Xóa tất cả liên kết cũ và tạo mới
+                                    await axiosInstance.delete(`/api/features/${f._id}/milestones`).catch(() => null);
+                                    if (newMilestoneIds.length > 0) {
+                                      await axiosInstance.post(`/api/features/${f._id}/milestones`, {
+                                        milestone_ids: newMilestoneIds
+                                      });
+                                    }
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, milestone_ids: newMilestoneIds } : x
+                                    ));
+                                    setEditingId(null);
+                                    setEditingField(null);
+                                  } catch (err) {
+                                    console.error('Error updating milestones:', err);
+                                  }
+                                }}
+                                renderValue={(selected) => (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {(selected as string[]).map((id) => {
+                                      const m = milestones.find(m => m._id === id);
+                                      return <Chip key={id} label={m?.title || id} size="small" />;
+                                    })}
+                                  </Box>
+                                )}
+                              >
+                                {milestones.map((m) => (
+                                  <MenuItem key={m._id} value={m._id}>
+                                    <Checkbox checked={(f.milestone_ids || []).includes(m._id)} />
+                                    {m.title}
+                                  </MenuItem>
+                                ))}
                               </Select>
                             ) : (
-                              statusChip
-                            )}
-                          </TableCell>
-                          <TableCell onDoubleClick={() => startEditCell(f, 'start_date')}>
-                            {editingId === f._id && editingField === 'start_date' ? (
-                              <TextField size="small" type="date" value={editDraft.start_date?.slice(0,10) || ''} onChange={(e) => setEditDraft(s => ({ ...s, start_date: e.target.value }))} fullWidth onBlur={() => saveEditRow(f._id as string)} />
-                            ) : (
-                              <Typography variant="body2">{f.start_date ? new Date(f.start_date).toLocaleDateString() : '—'}</Typography>
-                            )}
-                          </TableCell>
-                          <TableCell onDoubleClick={() => startEditCell(f, 'end_date')}>
-                            {editingId === f._id && editingField === 'end_date' ? (
-                              <TextField size="small" type="date" value={editDraft.end_date?.slice(0,10) || ''} onChange={(e) => setEditDraft(s => ({ ...s, end_date: e.target.value }))} fullWidth onBlur={() => saveEditRow(f._id as string)} />
-                            ) : (
-                              <Typography variant="body2">{f.end_date ? new Date(f.end_date).toLocaleDateString() : '—'}</Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {f.milestone_ids && f.milestone_ids.length > 0 ? (
+                                  [...new Set(f.milestone_ids)].map((mid) => {
+                                    const m = milestones.find(m => m._id === mid);
+                                    return (
+                                      <Chip
+                                        key={mid}
+                                        label={m?.title || mid}
+                                        size="small"
+                                        color="primary"
+                                        variant="outlined"
+                                      />
+                                    );
+                                  })
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">—</Typography>
+                                )}
+                              </Box>
                             )}
                           </TableCell>
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'priority')}>
-                            {editingId === f._id && editingField === 'priority' ? (
-                              <Select size="small" value={editDraft.priority || 'medium'} onChange={(e) => setEditDraft(s => ({ ...s, priority: e.target.value as any }))} fullWidth onClose={() => saveEditRow(f._id as string)}>
-                                <MenuItem value="low">low</MenuItem>
-                                <MenuItem value="medium">medium</MenuItem>
-                                <MenuItem value="high">high</MenuItem>
-                                <MenuItem value="critical">critical</MenuItem>
-                              </Select>
+                          <TableCell onDoubleClick={() => startEditCell(f, 'estimated_hours')}>
+                            {editingId === f._id && editingField === 'estimated_hours' ? (
+                              <TextField size="small" type="number" value={editDraft.estimated_hours || 0} onChange={(e) => setEditDraft(s => ({ ...s, estimated_hours: Number(e.target.value) }))} fullWidth onBlur={() => saveEditRow(f._id as string)} />
                             ) : (
-                              <Typography variant="body2">{f.priority}</Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {f.estimated_hours !== undefined && f.estimated_hours !== null ? `${f.estimated_hours}h` : '-'}
+                              </Typography>
                             )}
                           </TableCell>
-                          <TableCell onDoubleClick={() => startEditCell(f, 'estimated_effort')}>
-                            {editingId === f._id && editingField === 'estimated_effort' ? (
-                              <TextField size="small" value={editDraft.estimated_effort || ''} onChange={(e) => setEditDraft(s => ({ ...s, estimated_effort: e.target.value }))} fullWidth onBlur={() => saveEditRow(f._id as string)} />
-                            ) : (
-                              <Typography variant="body2">{f.estimated_effort || '-'}</Typography>
-                            )}
+                          
+                          <TableCell>
+                            <Stack direction="column" spacing={0.5}>
+                              <Typography variant="caption" color="text.secondary">
+                                {f.start_date ? new Date(f.start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {f.due_date ? new Date(f.due_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              </Typography>
+                            </Stack>
                           </TableCell>
+                          
                           <TableCell onDoubleClick={() => startEditCell(f, 'description')}>
                             {editingId === f._id && editingField === 'description' ? (
                               <TextField
@@ -569,16 +735,10 @@ export default function ProjectFeaturesPage() {
                                 fullWidth onBlur={() => saveEditRow(f._id as string)}
                               />
                             ) : (
-                              <Typography variant="body2" sx={{ opacity: .9 }}>
+                              <Typography variant="body2" sx={{ opacity: .9, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {f.description || '—'}
                               </Typography>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Avatar sx={{ width: 26, height: 26 }}>A</Avatar>
-                              <Typography variant="body2" sx={{ color: 'text.secondary' }}>{formatRelative((f as any).updatedAt)}</Typography>
-                            </Stack>
                           </TableCell>
                         </TableRow>
                       );
@@ -597,58 +757,310 @@ export default function ProjectFeaturesPage() {
             </Stack>
           )}
 
-          <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="sm">
-            <DialogTitle>Tạo Feature</DialogTitle>
+          <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="md">
+            <DialogTitle sx={{ fontWeight: 'bold' }}>
+              Tạo Feature Mới - Lên Kế Hoạch
+              <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary', fontWeight: 'normal', mt: 0.5 }}>
+                Tạo feature và gắn vào milestone để lên kế hoạch dự án
+              </Box>
+            </DialogTitle>
             <DialogContent>
-              <Stack spacing={2} sx={{ mt: 1 }}>
+              <Stack spacing={3} sx={{ mt: 2 }}>
                 <TextField
-                  label="Tiêu đề"
+                  label="Tiêu đề *"
                   value={form.title}
                   onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
                   fullWidth
+                  placeholder="VD: User Authentication"
                 />
+                
                 <TextField
                   label="Mô tả"
                   value={form.description}
                   onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
                   fullWidth
                   multiline
-                  minRows={3}
+                  rows={3}
+                  placeholder="Mô tả chi tiết về feature này..."
                 />
+                
                 <TextField
-                  label="Mã (code)"
-                  value={form.code}
-                  onChange={(e) => setForm(prev => ({ ...prev, code: e.target.value }))}
+                  label="Plan Effort"
+                  value={form.plan_effort || ''}
+                  onChange={(e) => setForm(prev => ({ ...prev, plan_effort: e.target.value }))}
                   fullWidth
+                  placeholder="VD: Sprint 1, Q1 2024"
                 />
+                
                 <Divider />
+                
+                <Stack direction="row" spacing={2}>
+                  <TextField
+                    label="Estimated Hours (giờ)"
+                    type="number"
+                    value={form.estimated_hours || 0}
+                    onChange={(e) => setForm(prev => ({ ...prev, estimated_hours: Number(e.target.value) }))}
+                    fullWidth
+                    placeholder="VD: 40"
+                  />
+                  <TextField
+                    label="Start Date"
+                    type="date"
+                    value={form.start_date || ''}
+                    onChange={(e) => setForm(prev => ({ ...prev, start_date: e.target.value }))}
+                    fullWidth
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  <TextField
+                    label="Due Date"
+                    type="date"
+                    value={form.due_date || ''}
+                    onChange={(e) => setForm(prev => ({ ...prev, due_date: e.target.value }))}
+                    fullWidth
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Stack>
+                
+                <Divider>
+                  <Chip label="Gắn vào Milestone" size="small" />
+                </Divider>
+                
                 <FormControl fullWidth>
-                  <InputLabel id="milestone-select-label">Milestones</InputLabel>
+                  <InputLabel id="milestone-select-label">Chọn Milestones</InputLabel>
                   <Select
                     labelId="milestone-select-label"
-                    label="Milestones"
+                    label="Chọn Milestones"
                     multiple
                     value={form.milestone_ids || []}
                     onChange={(e) => setForm(prev => ({ ...prev, milestone_ids: e.target.value as string[] }))}
                     renderValue={(selected) => (
-                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                      <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
                         {(selected as string[]).map((id) => {
                           const m = milestoneOptions.find(o => o.id === id);
-                          return <Chip key={id} label={m?.label || id} size="small" />;
+                          return <Chip key={id} label={m?.label || id} size="small" color="primary" />;
                         })}
                       </Stack>
                     )}
                   >
                     {milestoneOptions.map((m) => (
-                      <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                      <MenuItem key={m.id} value={m.id}>
+                        <Checkbox checked={(form.milestone_ids || []).includes(m.id)} />
+                        {m.label}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
+                
+                {(form.milestone_ids || []).length === 0 && (
+                  <Alert severity="info">
+                    💡 Tip: Gắn feature vào milestone để dễ quản lý timeline và theo dõi tiến độ
+                  </Alert>
+                )}
               </Stack>
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setOpenForm(false)}>Hủy</Button>
-              <Button variant="contained" onClick={handleCreateFeature}>Tạo</Button>
+              <Button 
+                variant="contained" 
+                onClick={handleCreateFeature}
+                disabled={!form.title}
+              >
+                Tạo Feature
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <CreateMilestoneFromFeatures
+            open={openMilestoneFromFeaturesDialog}
+            onClose={() => setOpenMilestoneFromFeaturesDialog(false)}
+            projectId={projectId}
+            selectedFeatures={selectedFeatures.filter(f => f._id) as any}
+            onSuccess={() => {
+              setSelectedFeatureIds([]);
+              // Optionally reload milestones or navigate
+            }}
+          />
+
+          {/* Feature Detail Dialog */}
+          <Dialog 
+            open={openFeatureDetail} 
+            onClose={() => {
+              setOpenFeatureDetail(false);
+              setSelectedFeatureDetail(null);
+            }} 
+            maxWidth="md" 
+            fullWidth
+          >
+            <DialogTitle sx={{ fontWeight: 'bold' }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box component="span">Chi tiết Feature</Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => router.push(`/projects/${projectId}/features/${selectedFeatureDetail?._id}`)}
+                >
+                  Xem Breakdown
+                </Button>
+              </Stack>
+            </DialogTitle>
+            <DialogContent>
+            {selectedFeatureDetail && (
+              <Stack spacing={3} sx={{ mt: 1 }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                    Title
+                  </Typography>
+                  <Typography variant="h6" fontWeight={600}>
+                    {selectedFeatureDetail.title}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                    Description
+                  </Typography>
+                  <Typography variant="body1">
+                    {selectedFeatureDetail.description || '—'}
+                  </Typography>
+                </Box>
+
+                <Stack direction="row" spacing={3}>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Status
+                    </Typography>
+                    <Chip
+                      label={typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-'}
+                      size="medium"
+                      sx={{
+                        color: '#fff',
+                        bgcolor: (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'completed') ? '#22c55e' : 
+                                 (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'in-progress') ? '#f59e0b' : 
+                                 (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'testing') ? '#8b5cf6' : '#3b82f6',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Box>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Priority
+                    </Typography>
+                    <Chip
+                      label={typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-'}
+                      size="medium"
+                      color={
+                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'critical') ? 'error' :
+                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'high') ? 'warning' :
+                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'medium') ? 'primary' : 'default'
+                      }
+                      variant="outlined"
+                    />
+                  </Box>
+                </Stack>
+
+                <Stack direction="row" spacing={3}>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Estimated Hours
+                    </Typography>
+                    <Typography variant="h6" fontWeight={600}>
+                      {selectedFeatureDetail.estimated_hours ? `${selectedFeatureDetail.estimated_hours} giờ` : '—'}
+                    </Typography>
+                  </Box>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Actual Effort
+                    </Typography>
+                    <Typography variant="h6" fontWeight={600}>
+                      {selectedFeatureDetail.actual_effort ? `${selectedFeatureDetail.actual_effort} giờ` : '—'}
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <Stack direction="row" spacing={3}>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Start Date
+                    </Typography>
+                    <Typography variant="body1">
+                      {selectedFeatureDetail.start_date ? new Date(selectedFeatureDetail.start_date).toLocaleDateString('vi-VN') : '—'}
+                    </Typography>
+                  </Box>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Due Date
+                    </Typography>
+                    <Typography variant="body1">
+                      {selectedFeatureDetail.due_date ? new Date(selectedFeatureDetail.due_date).toLocaleDateString('vi-VN') : '—'}
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                    Creator
+                  </Typography>
+                  <Typography variant="body1">
+                    {typeof selectedFeatureDetail.created_by === 'object' ? selectedFeatureDetail.created_by?.full_name : '—'}
+                  </Typography>
+                </Box>
+
+                  <Stack direction="row" spacing={3}>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Created At
+                      </Typography>
+                      <Typography variant="body2">
+                        {selectedFeatureDetail.createdAt ? new Date(selectedFeatureDetail.createdAt).toLocaleString('vi-VN') : '—'}
+                      </Typography>
+                    </Box>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Updated At
+                      </Typography>
+                      <Typography variant="body2">
+                        {selectedFeatureDetail.updatedAt ? new Date(selectedFeatureDetail.updatedAt).toLocaleString('vi-VN') : '—'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  {selectedFeatureDetail.milestone_ids && selectedFeatureDetail.milestone_ids.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                        Linked Milestones
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                        {[...new Set(selectedFeatureDetail.milestone_ids)].map((milestoneId) => {
+                          const milestone = milestones.find(m => m._id === milestoneId);
+                          return (
+                            <Chip
+                              key={milestoneId}
+                              label={milestone?.title || milestoneId}
+                              size="small"
+                              variant="outlined"
+                              color="primary"
+                            />
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+                  )}
+                </Stack>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => {
+                setOpenFeatureDetail(false);
+                setSelectedFeatureDetail(null);
+              }}>
+                Đóng
+              </Button>
+              <Button 
+                variant="contained" 
+                onClick={() => router.push(`/projects/${projectId}/features/${selectedFeatureDetail?._id}`)}
+              >
+                Xem Breakdown
+              </Button>
             </DialogActions>
           </Dialog>
         </div>

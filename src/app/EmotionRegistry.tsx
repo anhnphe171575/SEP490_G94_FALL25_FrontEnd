@@ -21,7 +21,7 @@ export default function EmotionRegistry({ children }: { children: React.ReactNod
       if (cache.inserted[serialized.name] === undefined) {
         inserted.push(serialized.name);
       }
-      return prevInsert(...args);
+      return prevInsert(...(args as Parameters<typeof prevInsert>));
     };
     const flush = () => {
       const prev = inserted;
