@@ -530,7 +530,8 @@ export default function ProjectDetailPage() {
                 </Button>
               <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
                 Monitoring
-
+              <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
+                Monitoring
               </Button>
               <Button variant="outlined" size="medium" startIcon={<ArrowBackIcon />} onClick={() => router.back()}>
                 Quay lại

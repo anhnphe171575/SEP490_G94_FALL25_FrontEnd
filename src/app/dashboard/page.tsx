@@ -31,6 +31,7 @@ import {
   Group as GroupIcon
 } from "@mui/icons-material";
 
+
 type Project = {
   _id: string;
   topic: string;
@@ -68,6 +69,7 @@ export default function DashboardPage() {
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
@@ -134,6 +136,7 @@ export default function DashboardPage() {
     setJoinError(null);
     setJoinSuccess(null);
   };
+
 
   // Filter projects based on search term
   const filteredProjects = projects?.filter(project =>
@@ -644,7 +647,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
       {/* Join Project Dialog */}
       <Dialog open={openJoinDialog} onClose={handleCloseJoinDialog} maxWidth="sm" fullWidth>
         <DialogTitle className="flex items-center justify-between">
@@ -727,6 +729,7 @@ export default function DashboardPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
     </div>
   );
 }
