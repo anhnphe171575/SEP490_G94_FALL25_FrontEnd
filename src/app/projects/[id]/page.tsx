@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar"; 
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, Popover, FormGroup, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip } from "@mui/material";
+import { Button, Popover, FormGroup, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -24,6 +24,11 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import DateRangeIcon from "@mui/icons-material/DateRange";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 
 type User = {
   _id: string;
@@ -93,9 +98,35 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [milestoneFeatures, setMilestoneFeatures] = useState<Record<string, any[]>>({});
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchType, setSearchType] = useState<"all" | "milestone" | "feature">("all");
   const [selectedMilestones, setSelectedMilestones] = useState<Set<string>>(new Set());
   const [showToolbar, setShowToolbar] = useState(false);
+  
+  // Advanced filter states
+  const [statusFilter, setStatusFilter] = useState<Record<string, boolean>>({
+    Planned: true,
+    'In Progress': true,
+    Completed: true,
+    Overdue: true,
+  });
+  const [dateRangeFilter, setDateRangeFilter] = useState<{
+    startDate: string;
+    endDate: string;
+    enabled: boolean;
+  }>({
+    startDate: '',
+    endDate: '',
+    enabled: false,
+  });
+  const [progressFilter, setProgressFilter] = useState<{
+    min: number;
+    max: number;
+    enabled: boolean;
+  }>({
+    min: 0,
+    max: 100,
+    enabled: false,
+  });
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -159,19 +190,24 @@ export default function ProjectDetailPage() {
 
   // Filter functions
   const getFilteredMilestones = () => {
-    if (!milestones || !searchTerm) return milestones || [];
+    if (!milestones) return [];
     
-    const term = searchTerm.toLowerCase();
+    let filtered = [...milestones];
     
-    if (searchType === "milestone") {
-      return milestones.filter(milestone => 
-        milestone.title.toLowerCase().includes(term) ||
-        milestone.description?.toLowerCase().includes(term)
-      );
-    }
-    
-    if (searchType === "feature") {
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
       const filteredMilestoneIds = new Set<string>();
+      
+      // Search in milestone titles/descriptions
+      filtered.forEach(milestone => {
+        if (milestone.title.toLowerCase().includes(term) ||
+            milestone.description?.toLowerCase().includes(term)) {
+          filteredMilestoneIds.add(milestone._id);
+        }
+      });
+      
+      // Search in features
       Object.entries(milestoneFeatures).forEach(([milestoneId, features]) => {
         const hasMatchingFeature = features.some(feature =>
           feature.feature_title.toLowerCase().includes(term)
@@ -181,50 +217,58 @@ export default function ProjectDetailPage() {
         }
       });
       
-      return milestones.filter(milestone => filteredMilestoneIds.has(milestone._id));
+      filtered = filtered.filter(milestone => filteredMilestoneIds.has(milestone._id));
     }
     
-    // searchType === "all"
-    const filteredMilestoneIds = new Set<string>();
-    
-    // Search in milestone titles/descriptions
-    milestones.forEach(milestone => {
-      if (milestone.title.toLowerCase().includes(term) ||
-          milestone.description?.toLowerCase().includes(term)) {
-        filteredMilestoneIds.add(milestone._id);
-      }
+    // Apply status filter
+    filtered = filtered.filter(milestone => {
+      const status = milestone.status || 'Planned';
+      return statusFilter[status] !== false;
     });
     
-    // Search in features
-    Object.entries(milestoneFeatures).forEach(([milestoneId, features]) => {
-      const hasMatchingFeature = features.some(feature =>
-        feature.feature_title.toLowerCase().includes(term)
-      );
-      if (hasMatchingFeature) {
-        filteredMilestoneIds.add(milestoneId);
-      }
-    });
+    // Apply date range filter
+    if (dateRangeFilter.enabled && (dateRangeFilter.startDate || dateRangeFilter.endDate)) {
+      filtered = filtered.filter(milestone => {
+        const milestoneStart = milestone.start_date ? new Date(milestone.start_date) : null;
+        const milestoneEnd = milestone.deadline ? new Date(milestone.deadline) : null;
+        
+        if (dateRangeFilter.startDate) {
+          const filterStart = new Date(dateRangeFilter.startDate);
+          if (milestoneEnd && milestoneEnd < filterStart) return false;
+        }
+        
+        if (dateRangeFilter.endDate) {
+          const filterEnd = new Date(dateRangeFilter.endDate);
+          if (milestoneStart && milestoneStart > filterEnd) return false;
+        }
+        
+        return true;
+      });
+    }
     
-    return milestones.filter(milestone => filteredMilestoneIds.has(milestone._id));
+    // Apply progress filter
+    if (progressFilter.enabled) {
+      filtered = filtered.filter(milestone => {
+        const progress = milestone.progress?.overall || 0;
+        return progress >= progressFilter.min && progress <= progressFilter.max;
+      });
+    }
+    
+    return filtered;
   };
 
   const getFilteredMilestoneFeatures = () => {
-    if (!searchTerm || searchType === "milestone") return milestoneFeatures;
+    if (!searchTerm) return milestoneFeatures;
     
     const term = searchTerm.toLowerCase();
     const filtered: Record<string, any[]> = {};
     
     Object.entries(milestoneFeatures).forEach(([milestoneId, features]) => {
-      if (searchType === "feature") {
-        const matchingFeatures = features.filter(feature =>
-          feature.feature_title.toLowerCase().includes(term)
-        );
-        if (matchingFeatures.length > 0) {
-          filtered[milestoneId] = matchingFeatures;
-        }
-      } else {
-        // searchType === "all" - include all features for matching milestones
-        filtered[milestoneId] = features;
+      const matchingFeatures = features.filter(feature =>
+        feature.feature_title.toLowerCase().includes(term)
+      );
+      if (matchingFeatures.length > 0) {
+        filtered[milestoneId] = matchingFeatures;
       }
     });
     
@@ -490,67 +534,6 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-                <Tooltip title="Ctrl+K để focus, Esc để xóa">
-                  <TextField
-                    fullWidth
-                    placeholder="Tìm kiếm milestone hoặc feature... (Ctrl+K)"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                      endAdornment: searchTerm && (
-                        <InputAdornment position="end">
-                          <Button
-                            size="small"
-                            onClick={() => setSearchTerm("")}
-                            sx={{ minWidth: 'auto', p: 0.5 }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </Button>
-                        </InputAdornment>
-                      ),
-                    }}
-                    size="small"
-                  />
-                </Tooltip>
-                <MUISelect
-                  value={searchType}
-                  onChange={(e) => setSearchType(e.target.value as any)}
-                  size="small"
-                  sx={{ minWidth: 140 }}
-                >
-                  <MenuItem value="all">Tất cả</MenuItem>
-                  <MenuItem value="milestone">Milestone</MenuItem>
-                  <MenuItem value="feature">Feature</MenuItem>
-                </MUISelect>
-                {searchTerm && (
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <Typography variant="body2" color="text.secondary">
-                      Tìm kiếm: "{searchTerm}"
-                    </Typography>
-                    <Chip 
-                      label={`${getFilteredMilestones().length} milestone${getFilteredMilestones().length !== 1 ? 's' : ''}`}
-                      size="small"
-                      variant="outlined"
-                    />
-                    <Chip 
-                      label={`${Object.values(getFilteredMilestoneFeatures()).flat().length} feature${Object.values(getFilteredMilestoneFeatures()).flat().length !== 1 ? 's' : ''}`}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Stack>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
 
           {/* Action Toolbar */}
           {showToolbar && (
@@ -710,6 +693,17 @@ export default function ProjectDetailPage() {
                     highlightText={highlightText}
                     selectedMilestones={selectedMilestones}
                     setSelectedMilestones={setSelectedMilestones}
+                    statusFilter={statusFilter}
+                    setStatusFilter={setStatusFilter}
+                    dateRangeFilter={dateRangeFilter}
+                    setDateRangeFilter={setDateRangeFilter}
+                    progressFilter={progressFilter}
+                    setProgressFilter={setProgressFilter}
+                    showAdvancedFilters={showAdvancedFilters}
+                    setShowAdvancedFilters={setShowAdvancedFilters}
+                    getFilteredMilestones={getFilteredMilestones}
+                    getFilteredMilestoneFeatures={getFilteredMilestoneFeatures}
+                    setSearchTerm={setSearchTerm}
                   />
                 </>
               )}
@@ -726,14 +720,6 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
   const [weekStart, setWeekStart] = useState<Date>(getStartOfWeekUTC(new Date()));
   const [viewMode, setViewMode] = useState<'Days' | 'Weeks' | 'Months' | 'Quarters'>('Days');
   const [autoFit, setAutoFit] = useState<boolean>(true);
-  const [statusFilter, setStatusFilter] = useState<Record<string, boolean>>({
-    Planned: true,
-    'In Progress': true,
-    Completed: true,
-    Overdue: true,
-  });
-  const [filterOpen, setFilterOpen] = useState<boolean>(false);
-  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [openModal, setOpenModal] = useState<{open: boolean; milestoneId?: string}>({open:false});
   if (!milestones || milestones.length === 0) {
     return <div className="opacity-70">Chưa có milestone nào.</div>;
@@ -759,46 +745,13 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
             control={<MUICheckbox size="small" checked={autoFit} onChange={(e: any) =>setAutoFit(e.target.checked)} />}
             label={<Typography variant="body2">Auto Fit</Typography>}
           />
-          <div className="md:ml-2">
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={(e: any)=>{ setFilterAnchor(e.currentTarget); setFilterOpen(true); }}
-            >
-              Bộ lọc
-            </Button>
-            <Popover
-              open={filterOpen}
-              anchorEl={filterAnchor}
-              onClose={()=>setFilterOpen(false)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-              slotProps={{ paper: { sx: { p: 2, width: 280 } } }}
-            >
-              <Typography variant="overline" sx={{ opacity: 0.7 }}>Trạng thái</Typography>
-              <FormGroup sx={{ mt: 1 }}>
-                {['Planned','In Progress','Completed','Overdue'].map(s => (
-                  <FormControlLabel
-                    key={s}
-                    control={<MUICheckbox checked={!!statusFilter[s]} onChange={(e: any)=> setStatusFilter(prev => ({...prev, [s]: e.target.checked}))} />}
-                    label={s}
-                  />
-                ))}
-              </FormGroup>
-              <Box sx={{ display:'flex', justifyContent:'flex-end', gap:1, mt:2 }}>
-                <Button size="small" variant="outlined" onClick={()=>setStatusFilter({Planned:true,'In Progress':true,Completed:true,Overdue:true})}>Chọn hết</Button>
-                <Button size="small" variant="outlined" onClick={()=>setStatusFilter({Planned:false,'In Progress':false,Completed:false,Overdue:false})}>Bỏ hết</Button>
-                <Button size="small" variant="contained" onClick={()=>setFilterOpen(false)}>Áp dụng</Button>
-              </Box>
-            </Popover>
-          </div>
         </div>
       </div>
 
       <div className="rounded-xl border border-[var(--border)] bg-[color-mix(in_olab,_var(--accent)_8%,_var(--background))] shadow-sm">
         <div>
           <GanttChart
-            milestones={(milestones || []).filter(m => m.status ? statusFilter[m.status] : true)}
+            milestones={milestones || []}
             viewMode={viewMode as any}
             startDate={weekStart}
             autoFit={autoFit}
@@ -868,6 +821,40 @@ function MilestoneFeaturesTable({
   projectId: string;
 }) {
   const router = useRouter();
+  const [featureSearchTerm, setFeatureSearchTerm] = useState("");
+  const [featureStatusFilter, setFeatureStatusFilter] = useState<Record<string, boolean>>({
+    '0-25': true,
+    '26-50': true,
+    '51-75': true,
+    '76-100': true,
+  });
+  const [showFeatureFilters, setShowFeatureFilters] = useState(false);
+
+  // Filter functions for features
+  const getFilteredFeatures = (features: any[]) => {
+    let filtered = [...features];
+    
+    // Apply search filter
+    if (featureSearchTerm) {
+      const term = featureSearchTerm.toLowerCase();
+      filtered = filtered.filter(feature =>
+        feature.feature_title.toLowerCase().includes(term)
+      );
+    }
+    
+    // Apply progress filter
+    filtered = filtered.filter(feature => {
+      const progress = feature.percentage || 0;
+      if (progress >= 0 && progress <= 25) return featureStatusFilter['0-25'];
+      if (progress >= 26 && progress <= 50) return featureStatusFilter['26-50'];
+      if (progress >= 51 && progress <= 75) return featureStatusFilter['51-75'];
+      if (progress >= 76 && progress <= 100) return featureStatusFilter['76-100'];
+      return true;
+    });
+    
+    return filtered;
+  };
+
   const getProgressColor = (percentage: number) => {
     if (percentage >= 80) return "success";
     if (percentage >= 50) return "warning";
@@ -911,8 +898,141 @@ function MilestoneFeaturesTable({
           Tổng cộng {totalFeatures} features được phân bổ trong {milestones.length} milestones
         </Typography>
 
+        {/* Feature Search and Filter Bar */}
+        <Box sx={{ mb: 3 }}>
+          <Stack spacing={2}>
+            {/* Main Search Row */}
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+              <Tooltip title="Tìm kiếm trong features">
+                <TextField
+                  fullWidth
+                  placeholder="Tìm kiếm feature..."
+                  value={featureSearchTerm}
+                  onChange={(e) => setFeatureSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: featureSearchTerm && (
+                      <InputAdornment position="end">
+                        <Button
+                          size="small"
+                          onClick={() => setFeatureSearchTerm("")}
+                          sx={{ minWidth: 'auto', p: 0.5 }}
+                        >
+                          <ClearIcon fontSize="small" />
+                        </Button>
+                      </InputAdornment>
+                    ),
+                  }}
+                  size="small"
+                />
+              </Tooltip>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<FilterListIcon />}
+                endIcon={showFeatureFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                onClick={() => setShowFeatureFilters(!showFeatureFilters)}
+                sx={{ minWidth: 'auto' }}
+              >
+                  <Typography variant="body2">Lọc tiến độ</Typography>
+              </Button>
+            </Stack>
+
+            {/* Advanced Filters */}
+            <Collapse in={showFeatureFilters}>
+              <Box sx={{ pt: 2 }}>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={2}>
+                  {/* Progress Range Filter */}
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                      <TrendingUpIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
+                      Khoảng tiến độ (%)
+                    </Typography>
+                    <Stack direction="row" spacing={2} flexWrap="wrap">
+                      {[
+                        { key: '0-25', label: '0-25%', color: 'error' },
+                        { key: '26-50', label: '26-50%', color: 'warning' },
+                        { key: '51-75', label: '51-75%', color: 'info' },
+                        { key: '76-100', label: '76-100%', color: 'success' }
+                      ].map(range => (
+                        <FormControlLabel
+                          key={range.key}
+                          control={
+                            <MUICheckbox
+                              size="small"
+                              checked={featureStatusFilter[range.key] !== false}
+                              onChange={(e) => setFeatureStatusFilter((prev: Record<string, boolean>) => ({ ...prev, [range.key]: e.target.checked }))}
+                            />
+                          }
+                          label={range.label}
+                          sx={{ minWidth: 'auto' }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+
+                  {/* Filter Actions */}
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setFeatureStatusFilter({ '0-25': true, '26-50': true, '51-75': true, '76-100': true });
+                      }}
+                    >
+                      Reset
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => setShowFeatureFilters(false)}
+                    >
+                      Áp dụng
+                    </Button>
+                  </Box>
+                </Stack>
+              </Box>
+            </Collapse>
+
+            {/* Search Results Summary */}
+            {(featureSearchTerm || showFeatureFilters) && (
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                <Typography variant="body2" color="text.secondary">
+                  Kết quả: {Object.values(milestoneFeatures).flat().filter(feature => {
+                    const filtered = getFilteredFeatures([feature]);
+                    return filtered.length > 0;
+                  }).length} feature{Object.values(milestoneFeatures).flat().filter(feature => {
+                    const filtered = getFilteredFeatures([feature]);
+                    return filtered.length > 0;
+                  }).length !== 1 ? 's' : ''}
+                </Typography>
+                {(featureSearchTerm || Object.values(featureStatusFilter).some(v => !v)) && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      setFeatureSearchTerm("");
+                      setFeatureStatusFilter({ '0-25': true, '26-50': true, '51-75': true, '76-100': true });
+                    }}
+                    startIcon={<ClearIcon />}
+                  >
+                    Xóa bộ lọc
+                  </Button>
+                )}
+              </Stack>
+            )}
+          </Stack>
+        </Box>
+
         {milestones.map((milestone) => {
           const features = milestoneFeatures[milestone._id] || [];
+          const filteredFeatures = getFilteredFeatures(features);
+          
           if (features.length === 0) return null;
 
           return (
@@ -927,7 +1047,7 @@ function MilestoneFeaturesTable({
                   size="small"
                 />
                 <Chip
-                  label={`${features.length} features`}
+                  label={`${filteredFeatures.length}/${features.length} features`}
                   variant="outlined"
                   size="small"
                 />
@@ -953,62 +1073,72 @@ function MilestoneFeaturesTable({
                 </Button>
               </Stack>
 
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Feature Title</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Tasks</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Functions</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Tiến độ</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Progress Bar</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {features.map((feature) => (
-                      <TableRow key={feature.feature_id} hover>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                            {searchTerm && highlightText ? highlightText(feature.feature_title, searchTerm) : feature.feature_title}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" alignItems="center" spacing={1} justifyContent="center">
-                            <AssignmentIcon fontSize="small" color="info" />
-                            <Typography variant="body2">
-                              {feature.task_count > 0 ? `${feature.completed_tasks}/${feature.task_count}` : 'Chưa có task'}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" alignItems="center" spacing={1} justifyContent="center">
-                            <FunctionsIcon fontSize="small" color="secondary" />
-                            <Typography variant="body2">
-                              {feature.function_count > 0 ? `${feature.completed_functions}/${feature.function_count}` : 'Chưa có function'}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${feature.percentage}%`}
-                            color={getProgressColor(feature.percentage)}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <LinearProgress
-                            variant="determinate"
-                            value={feature.percentage}
-                            color={getProgressColor(feature.percentage)}
-                            sx={{ height: 6, borderRadius: 3 }}
-                          />
-                        </TableCell>
+              {filteredFeatures.length === 0 ? (
+                <Box textAlign="center" py={4}>
+                  <Typography variant="body2" color="text.secondary">
+                    Không có feature nào khớp với bộ lọc
+                  </Typography>
+                </Box>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Feature Title</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }} align="center">Tasks</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }} align="center">Functions</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }} align="center">Tiến độ</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }} align="center">Progress Bar</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {filteredFeatures.map((feature) => (
+                        <TableRow key={feature.feature_id} hover>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                              {(searchTerm || featureSearchTerm) && highlightText ? 
+                                highlightText(feature.feature_title, searchTerm || featureSearchTerm) : 
+                                feature.feature_title}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" alignItems="center" spacing={1} justifyContent="center">
+                              <AssignmentIcon fontSize="small" color="info" />
+                              <Typography variant="body2">
+                                {feature.task_count > 0 ? `${feature.completed_tasks}/${feature.task_count}` : 'Chưa có task'}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" alignItems="center" spacing={1} justifyContent="center">
+                              <FunctionsIcon fontSize="small" color="secondary" />
+                              <Typography variant="body2">
+                                {feature.function_count > 0 ? `${feature.completed_functions}/${feature.function_count}` : 'Chưa có function'}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={`${feature.percentage}%`}
+                              color={getProgressColor(feature.percentage)}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <LinearProgress
+                              variant="determinate"
+                              value={feature.percentage}
+                              color={getProgressColor(feature.percentage)}
+                              sx={{ height: 6, borderRadius: 3 }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Box>
           );
         })}
@@ -1023,7 +1153,18 @@ function MilestonesList({
   searchTerm,
   highlightText,
   selectedMilestones,
-  setSelectedMilestones
+  setSelectedMilestones,
+  statusFilter,
+  setStatusFilter,
+  dateRangeFilter,
+  setDateRangeFilter,
+  progressFilter,
+  setProgressFilter,
+  showAdvancedFilters,
+  setShowAdvancedFilters,
+  getFilteredMilestones,
+  getFilteredMilestoneFeatures,
+  setSearchTerm
 }: {
   milestones: Milestone[];
   projectId: string;
@@ -1031,6 +1172,17 @@ function MilestonesList({
   highlightText?: (text: string, searchTerm: string) => any;
   selectedMilestones: Set<string>;
   setSelectedMilestones: (selected: Set<string>) => void;
+  statusFilter: Record<string, boolean>;
+  setStatusFilter: (filter: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void;
+  dateRangeFilter: { startDate: string; endDate: string; enabled: boolean };
+  setDateRangeFilter: (filter: { startDate: string; endDate: string; enabled: boolean } | ((prev: { startDate: string; endDate: string; enabled: boolean }) => { startDate: string; endDate: string; enabled: boolean })) => void;
+  progressFilter: { min: number; max: number; enabled: boolean };
+  setProgressFilter: (filter: { min: number; max: number; enabled: boolean } | ((prev: { min: number; max: number; enabled: boolean }) => { min: number; max: number; enabled: boolean })) => void;
+  showAdvancedFilters: boolean;
+  setShowAdvancedFilters: (show: boolean) => void;
+  getFilteredMilestones: () => Milestone[];
+  getFilteredMilestoneFeatures: () => Record<string, any[]>;
+  setSearchTerm: (term: string) => void;
 }) {
   const router = useRouter();
   const [openModal, setOpenModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
@@ -1082,6 +1234,213 @@ function MilestonesList({
   return (
     <Card sx={{ mt: 4 }}>
       <CardContent>
+        {/* Search and Filter Bar */}
+        <Box sx={{ mb: 3 }}>
+          <Stack spacing={2}>
+            {/* Main Search Row */}
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+              <Tooltip title="Ctrl+K để focus, Esc để xóa">
+                <TextField
+                  fullWidth
+                  placeholder="Tìm kiếm milestone hoặc feature... (Ctrl+K)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchTerm && (
+                      <InputAdornment position="end">
+                        <Button
+                          size="small"
+                          onClick={() => setSearchTerm("")}
+                          sx={{ minWidth: 'auto', p: 0.5 }}
+                        >
+                          <ClearIcon fontSize="small" />
+                        </Button>
+                      </InputAdornment>
+                    ),
+                  }}
+                  size="small"
+                />
+              </Tooltip>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<FilterListIcon />}
+                endIcon={showAdvancedFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                sx={{ minWidth: 'auto' }}
+              >
+                  <Typography variant="body2">Bộ lọc</Typography>
+              </Button>
+            </Stack>
+
+            {/* Advanced Filters */}
+            <Collapse in={showAdvancedFilters}>
+              <Box sx={{ pt: 2 }}>
+                <Divider sx={{ mb: 2 }} />
+                <Stack spacing={3}>
+                  {/* Status Filter */}
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                      <FilterListIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
+                      Trạng thái
+                    </Typography>
+                    <Stack direction="row" spacing={2} flexWrap="wrap">
+                      {['Planned', 'In Progress', 'Completed', 'Overdue'].map(status => (
+                        <FormControlLabel
+                          key={status}
+                          control={
+                            <MUICheckbox
+                              size="small"
+                              checked={statusFilter[status] !== false}
+                              onChange={(e) => setStatusFilter((prev: Record<string, boolean>) => ({ ...prev, [status]: e.target.checked }))}
+                            />
+                          }
+                          label={status}
+                          sx={{ minWidth: 'auto' }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+
+                  {/* Date Range Filter */}
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                      <DateRangeIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
+                      Khoảng thời gian
+                    </Typography>
+                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                      <FormControlLabel
+                        control={
+                          <MUICheckbox
+                            size="small"
+                            checked={dateRangeFilter.enabled}
+                            onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, enabled: e.target.checked }))}
+                          />
+                        }
+                        label="Bật lọc theo ngày"
+                      />
+                      <TextField
+                        type="date"
+                        size="small"
+                        label="Từ ngày"
+                        value={dateRangeFilter.startDate}
+                        onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, startDate: e.target.value }))}
+                        disabled={!dateRangeFilter.enabled}
+                        sx={{ minWidth: 150 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <TextField
+                        type="date"
+                        size="small"
+                        label="Đến ngày"
+                        value={dateRangeFilter.endDate}
+                        onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, endDate: e.target.value }))}
+                        disabled={!dateRangeFilter.enabled}
+                        sx={{ minWidth: 150 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Stack>
+                  </Box>
+
+                  {/* Progress Filter */}
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                      <TrendingUpIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
+                      Tiến độ (%)
+                    </Typography>
+                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                      <FormControlLabel
+                        control={
+                          <MUICheckbox
+                            size="small"
+                            checked={progressFilter.enabled}
+                            onChange={(e) => setProgressFilter((prev: { min: number; max: number; enabled: boolean }) => ({ ...prev, enabled: e.target.checked }))}
+                          />
+                        }
+                        label="Bật lọc theo tiến độ"
+                      />
+                      <Box sx={{ minWidth: 200 }}>
+                        <Slider
+                          value={[progressFilter.min, progressFilter.max]}
+                          onChange={(_, newValue) => {
+                            const [min, max] = newValue as number[];
+                            setProgressFilter((prev: { min: number; max: number; enabled: boolean }) => ({ ...prev, min, max }));
+                          }}
+                          valueLabelDisplay="auto"
+                          min={0}
+                          max={100}
+                          step={5}
+                          disabled={!progressFilter.enabled}
+                          sx={{ mt: 1 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {progressFilter.min}% - {progressFilter.max}%
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+
+                  {/* Filter Actions */}
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setStatusFilter({ Planned: true, 'In Progress': true, Completed: true, Overdue: true });
+                        setDateRangeFilter({ startDate: '', endDate: '', enabled: false });
+                        setProgressFilter({ min: 0, max: 100, enabled: false });
+                      }}
+                    >
+                      Reset
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => setShowAdvancedFilters(false)}
+                    >
+                      Áp dụng
+                    </Button>
+                  </Box>
+                </Stack>
+              </Box>
+            </Collapse>
+
+            {/* Search Results Summary */}
+            {(searchTerm || showAdvancedFilters) && (
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                <Typography variant="body2" color="text.secondary">
+                  Kết quả: {getFilteredMilestones().length} milestone{getFilteredMilestones().length !== 1 ? 's' : ''}
+                </Typography>
+                <Chip 
+                  label={`${Object.values(getFilteredMilestoneFeatures()).flat().length} feature${Object.values(getFilteredMilestoneFeatures()).flat().length !== 1 ? 's' : ''}`}
+                  size="small"
+                  variant="outlined"
+                />
+                {(searchTerm || dateRangeFilter.enabled || progressFilter.enabled || Object.values(statusFilter).some(v => !v)) && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setStatusFilter({ Planned: true, 'In Progress': true, Completed: true, Overdue: true });
+                      setDateRangeFilter({ startDate: '', endDate: '', enabled: false });
+                      setProgressFilter({ min: 0, max: 100, enabled: false });
+                    }}
+                    startIcon={<ClearIcon />}
+                  >
+                    Xóa tất cả bộ lọc
+                  </Button>
+                )}
+              </Stack>
+            )}
+          </Stack>
+        </Box>
+
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Box>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
