@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"","debugId":null}},
-    {"offset": {"line": 15, "column": 0}, "map": {"version":3,"sources":["file:///D:/Github/Capstone/SEP490_G94_FE/my-app/src/app/myprofile/page.tsx"],"sourcesContent":["export default function MyProfilePage() {\r\n  return (\r\n    <main className=\"p-6\">\r\n      <h1 className=\"text-2xl font-semibold\">My Profile</h1>\r\n    </main>\r\n  );\r\n}\r\n\r\n"],"names":[],"mappings":";;;;;;AAAe,SAAS;IACtB,qBACE,8OAAC;QAAK,WAAU;kBACd,cAAA,8OAAC;YAAG,WAAU;sBAAyB;;;;;;;;;;;AAG7C","debugId":null}}]
-}
