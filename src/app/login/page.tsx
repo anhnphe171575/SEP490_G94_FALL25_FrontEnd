@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const redirectUrl = searchParams.get('redirect');
 
   // Initialize Google Identity Services
   useEffect(() => {
