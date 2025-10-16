@@ -230,6 +230,27 @@ export default function LoginPage() {
               />
             </div>
           </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full btn-primary rounded-lg py-2 disabled:opacity-60"
+          >
+            {loading ? "Đang xử lý..." : "Đăng nhập"}
+          </button>
+        </form>
+
+        <div className="mt-3 text-right">
+          <a href="/forgotpassword" className="text-sm" style={{color:'var(--primary)'}}>
+            Quên mật khẩu?
+          </a>
+        </div>
+
+        <div className="my-6 flex items-center">
+          <div className="flex-1 h-px" style={{background:'var(--border)'}} />
+          <span className="px-3 text-xs" style={{color:'var(--primary-700)'}}>hoặc</span>
+          <div className="flex-1 h-px" style={{background:'var(--border)'}} />
+        </div>
+
 
           {/* Footer - thu nhỏ */}
           <div className="text-center mt-4 sm:mt-6">

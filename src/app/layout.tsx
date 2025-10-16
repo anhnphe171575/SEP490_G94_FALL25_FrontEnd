@@ -4,6 +4,7 @@ import "./globals.css";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
 import MuiProvider from "./MuiProvider";
 import EmotionRegistry from "./EmotionRegistry";
+
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
