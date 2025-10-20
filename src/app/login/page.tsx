@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const redirectUrl = searchParams.get('redirect');
 
   // Initialize Google Identity Services
   useEffect(() => {
@@ -104,31 +107,31 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-screen relative overflow-hidden flex flex-col">
+    <div className="min-h-screen relative overflow-hidden flex flex-col">
       {/* Background với gradient động */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-orange-100 dark:from-gray-900 dark:via-gray-800 dark:to-orange-900">
-        {/* Các hình tròn trang trí - thu nhỏ cho màn hình nhỏ */}
-        <div className="absolute top-10 left-10 w-48 h-48 sm:w-72 sm:h-72 bg-orange-200 dark:bg-orange-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob"></div>
-        <div className="absolute top-20 right-10 w-48 h-48 sm:w-72 sm:h-72 bg-yellow-200 dark:bg-yellow-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-4 left-20 w-48 h-48 sm:w-72 sm:h-72 bg-pink-200 dark:bg-pink-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob animation-delay-4000"></div>
+        {/* Các hình tròn trang trí - tối ưu cho mobile */}
+        <div className="absolute top-5 left-5 w-32 h-32 sm:w-48 sm:h-48 lg:w-72 lg:h-72 bg-orange-200 dark:bg-orange-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob"></div>
+        <div className="absolute top-10 right-5 w-32 h-32 sm:w-48 sm:h-48 lg:w-72 lg:h-72 bg-yellow-200 dark:bg-yellow-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-2 left-10 w-32 h-32 sm:w-48 sm:h-48 lg:w-72 lg:h-72 bg-pink-200 dark:bg-pink-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob animation-delay-4000"></div>
       </div>
 
-      {/* Nội dung chính - sử dụng flex để căn giữa */}
-      <div className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-sm sm:max-w-md">
-          {/* Logo hoặc tiêu đề - thu nhỏ */}
-          <div className="text-center mb-4 sm:mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-orange-500 to-pink-500 rounded-xl sm:rounded-2xl mb-3 sm:mb-4 shadow-lg">
-              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Nội dung chính - căn giữa hoàn hảo */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
+        <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
+          {/* Logo hoặc tiêu đề - căn giữa hoàn hảo */}
+          <div className="text-center mb-6 sm:mb-8 lg:mb-10">
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-18 lg:h-18 bg-gradient-to-r from-orange-500 to-pink-500 rounded-xl sm:rounded-2xl mb-4 sm:mb-5 lg:mb-6 shadow-lg">
+              <svg className="w-7 h-7 sm:w-8 sm:h-8 lg:w-9 lg:h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Chào mừng trở lại</h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Đăng nhập để tiếp tục công việc của bạn</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3">Chào mừng trở lại</h1>
+            <p className="text-sm sm:text-base lg:text-lg text-gray-600 dark:text-gray-400">Đăng nhập để tiếp tục công việc của bạn</p>
           </div>
 
-          {/* Form đăng nhập - thu nhỏ padding */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl border border-white/20 dark:border-gray-700/20">
+          {/* Form đăng nhập - padding tối ưu */}
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-9 shadow-2xl border border-white/20 dark:border-gray-700/20">
             {error && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
                 <div className="flex items-center">
@@ -140,14 +143,14 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
-              <div className="space-y-1 sm:space-y-2">
-                <label htmlFor="email" className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <form onSubmit={onSubmit} className="space-y-5 sm:space-y-6 lg:space-y-7">
+              <div className="space-y-2 sm:space-y-3">
+                <label htmlFor="email" className="block text-sm sm:text-base font-semibold text-gray-700 dark:text-gray-300">
                   Địa chỉ Email
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                     </svg>
                   </div>
@@ -157,19 +160,19 @@ export default function LoginPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 text-sm sm:text-base"
+                    className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-4 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 text-sm sm:text-base"
                     placeholder="you@example.com"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1 sm:space-y-2">
-                <label htmlFor="password" className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <div className="space-y-2 sm:space-y-3">
+                <label htmlFor="password" className="block text-sm sm:text-base font-semibold text-gray-700 dark:text-gray-300">
                   Mật khẩu
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   </div>
@@ -179,7 +182,7 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 text-sm sm:text-base"
+                    className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-4 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 text-sm sm:text-base"
                     placeholder="••••••••"
                   />
                 </div>
@@ -188,7 +191,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-semibold py-2.5 sm:py-3 px-4 rounded-lg sm:rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-lg text-sm sm:text-base"
+                className="w-full bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-semibold py-3 sm:py-4 px-4 rounded-lg sm:rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-lg text-sm sm:text-base lg:text-lg"
               >
                 {loading ? (
                   <div className="flex items-center justify-center">
@@ -205,9 +208,9 @@ export default function LoginPage() {
             </form>
 
             {/* Đường phân cách */}
-            <div className="my-4 sm:my-6 flex items-center">
+            <div className="my-6 sm:my-8 lg:my-10 flex items-center">
               <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
-              <span className="px-3 sm:px-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-medium">hoặc</span>
+              <span className="px-4 sm:px-5 text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">hoặc</span>
               <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
             </div>
 
@@ -231,9 +234,16 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Footer - thu nhỏ */}
-          <div className="text-center mt-4 sm:mt-6">
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          {/* Forgot Password Link */}
+          <div className="mt-6 sm:mt-8 text-right">
+            <a href="/forgotpassword" className="text-sm sm:text-base text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200">
+              Quên mật khẩu?
+            </a>
+          </div>
+
+          {/* Footer - căn giữa hoàn hảo */}
+          <div className="text-center mt-6 sm:mt-8 lg:mt-10">
+            <p className="text-sm sm:text-base lg:text-lg text-gray-600 dark:text-gray-400">
               Bạn chưa có tài khoản?{" "}
               <a href="#" className="font-semibold text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200">
                 Đăng ký ngay

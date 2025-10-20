@@ -8,7 +8,7 @@ import axiosInstance from "../../ultis/axios";
 const navItems = [
   { 
     href: "/dashboard", 
-    label: "Bảng điều khiển", 
+    label: "Dashboard", 
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
@@ -41,9 +41,11 @@ export default function ResponsiveSidebar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [me, setMe] = useState<{ full_name?: string; email?: string; avatar?: string } | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     setOpen(false);
+    setShowDropdown(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -65,6 +67,25 @@ export default function ResponsiveSidebar() {
       localStorage.removeItem('token');
     }
     router.replace('/login');
+  };
+
+  const handleAvatarClick = () => {
+    setShowDropdown(!showDropdown);
+  };
+
+  const handleProfileClick = () => {
+    router.push('/myprofile');
+    setShowDropdown(false);
+  };
+
+  const handleChangePasswordClick = () => {
+    router.push('/change-password');
+    setShowDropdown(false);
+  };
+
+  const handleLogoutClick = () => {
+    onLogout();
+    setShowDropdown(false);
   };
 
   return (
@@ -287,6 +308,7 @@ export default function ResponsiveSidebar() {
               </button>
             </div>
           </div>
+
         </div>
       </aside>
     </>

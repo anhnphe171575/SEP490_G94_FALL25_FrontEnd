@@ -4,6 +4,33 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import {
+  Box,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  CardHeader,
+  Chip,
+  Container,
+  Grid,
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  CircularProgress,
+  IconButton
+} from "@mui/material";
+import {
+  Add as AddIcon,
+  Login as LoginIcon,
+  Close as CloseIcon,
+  Group as GroupIcon
+} from "@mui/icons-material";
+
 
 type Project = {
   _id: string;
@@ -94,7 +121,7 @@ const ProjectCard = ({ project, onEdit, onDelete, router }: {
         </svg>
         {project.updateAt ? new Date(project.updateAt).toLocaleDateString('vi-VN') : 'Vừa cập nhật'}
       </div>
-      
+
       {/* Action buttons row */}
       <div className="flex items-center gap-2 mb-3">
         <button
@@ -135,7 +162,7 @@ const ProjectCard = ({ project, onEdit, onDelete, router }: {
           Chi tiết
         </button>
       </div>
-      
+
       {/* Open project button */}
       <button
         onClick={(e) => {
@@ -158,7 +185,7 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<string>("all");
   const [semesterGroups, setSemesterGroups] = useState<SemesterGroup[]>([]);
-  
+
   // Edit/Delete states
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
@@ -168,7 +195,15 @@ export default function DashboardPage() {
     description: ''
   });
   const [submitting, setSubmitting] = useState(false);
-  
+
+
+  // Join project dialog states
+  const [openJoinDialog, setOpenJoinDialog] = useState(false);
+  const [teamCode, setTeamCode] = useState("");
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
@@ -181,7 +216,7 @@ export default function DashboardPage() {
         // Assuming endpoint exists: /api/projects (adjust if different)
         const response = await axiosInstance.get('/api/projects');
         const data = response.data;
-        
+
         // Xử lý dữ liệu từ API
         if (data.statistics?.bySemester) {
           // API mới: sử dụng dữ liệu đã được nhóm sẵn
@@ -206,14 +241,14 @@ export default function DashboardPage() {
             return;
           }
           setProjects(list);
-          
+
           const groups = list.reduce((acc: { [key: string]: Project[] }, project: Project) => {
             const semester = project.semester || 'Unknown';
             if (!acc[semester]) acc[semester] = [];
             acc[semester].push(project);
             return acc;
           }, {});
-          
+
           const semesterGroups = Object.keys(groups).map(semester => ({
             semester,
             count: groups[semester].length,
@@ -243,7 +278,7 @@ export default function DashboardPage() {
   // Filter projects based on search term and semester
   const filteredProjects = projects?.filter(project => {
     const matchesSearch = (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesSemester = selectedSemester === "all" || project.semester === selectedSemester;
     return matchesSearch && matchesSemester;
   }).sort((a, b) => {
@@ -251,6 +286,49 @@ export default function DashboardPage() {
     const dateB = new Date(b.createAt || b.updateAt || 0);
     return dateB.getTime() - dateA.getTime();
   }) || [];
+  // Handle join project by team code
+  const handleJoinProject = async () => {
+    if (!teamCode.trim()) {
+      setJoinError("Vui lòng nhập mã nhóm");
+      return;
+    }
+
+    setJoinLoading(true);
+    setJoinError(null);
+
+    try {
+      const response = await axiosInstance.post(`/api/team/join/${teamCode.trim()}`);
+
+      setJoinSuccess("Tham gia nhóm thành công!");
+      setTeamCode("");
+
+      // Redirect to the project after 2 seconds
+      setTimeout(() => {
+        const projectId = response.data.data.team.project_id._id;
+        router.push(`/projects/${projectId}`);
+      }, 2000);
+
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.message || "Không thể tham gia nhóm";
+      setJoinError(errorMessage);
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  const handleCloseJoinDialog = () => {
+    setOpenJoinDialog(false);
+    setTeamCode("");
+    setJoinError(null);
+    setJoinSuccess(null);
+  };
+
+
+  // Filter projects based on search term
+  const filteredProjects = projects?.filter(project =>
+    (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  ) || [];
 
   // Edit project handlers
   const handleEditProject = (project: Project) => {
@@ -269,7 +347,7 @@ export default function DashboardPage() {
     try {
       setSubmitting(true);
       await axiosInstance.put(`/api/projects/${editingProject._id}`, editForm);
-      
+
       // Update local state
       setProjects(prev => prev?.map(p => p._id === editingProject._id ? { ...p, ...editForm } : p) || null);
       setEditingProject(null);
@@ -290,7 +368,7 @@ export default function DashboardPage() {
     try {
       setSubmitting(true);
       await axiosInstance.delete(`/api/projects/${deletingProject._id}`);
-      
+
       // Update local state
       setProjects(prev => prev?.filter(p => p._id !== deletingProject._id) || null);
       setDeletingProject(null);
@@ -454,7 +532,7 @@ export default function DashboardPage() {
                 className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-500 transition-all duration-200"
               />
             </div>
-            
+
             {/* Semester Filter */}
             <div className="md:w-64">
               <select
@@ -518,13 +596,13 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Projects Grid for this semester */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {group.projects
                       .filter(project => {
                         const matchesSearch = (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                                             (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+                          (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase());
                         return matchesSearch;
                       })
                       .map((project) => (
@@ -705,10 +783,10 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
               </div>
-              
+
               <h2 className="text-xl font-bold text-gray-900 text-center mb-2">Xóa dự án</h2>
               <p className="text-gray-600 text-center mb-6">
-                Bạn có chắc chắn muốn xóa dự án <strong>&ldquo;{deletingProject.topic}&rdquo;</strong>? 
+                Bạn có chắc chắn muốn xóa dự án <strong>&ldquo;{deletingProject.topic}&rdquo;</strong>?
                 Hành động này không thể hoàn tác.
               </p>
 
@@ -731,6 +809,89 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {/* Join Project Dialog */}
+      <Dialog open={openJoinDialog} onClose={handleCloseJoinDialog} maxWidth="sm" fullWidth>
+        <DialogTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GroupIcon className="text-blue-500" />
+            <span>Tham gia dự án</span>
+          </div>
+          <IconButton onClick={handleCloseJoinDialog} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <div className="space-y-4 pt-4">
+            {/* Success Message */}
+            {joinSuccess && (
+              <Alert severity="success" onClose={() => setJoinSuccess(null)}>
+                {joinSuccess}
+                <Typography variant="body2" className="mt-1">
+                  Đang chuyển hướng đến dự án...
+                </Typography>
+              </Alert>
+            )}
+
+            {/* Error Message */}
+            {joinError && (
+              <Alert severity="error" onClose={() => setJoinError(null)}>
+                {joinError}
+              </Alert>
+            )}
+
+            <TextField
+              fullWidth
+              label="Mã nhóm"
+              value={teamCode}
+              onChange={(e) => {
+                setTeamCode(e.target.value);
+                // Clear error when user starts typing
+                if (joinError) setJoinError(null);
+              }}
+              placeholder="Nhập mã nhóm để tham gia dự án"
+              required
+              disabled={joinLoading}
+              helperText="Nhập mã nhóm được chia sẻ bởi trưởng nhóm"
+              sx={{
+                '& .MuiInputBase-input': {
+                  fontFamily: 'monospace',
+                  fontSize: '1.1rem',
+                  letterSpacing: '0.1em'
+                }
+              }}
+            />
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+              <div className="flex items-start gap-2">
+                <GroupIcon className="w-4 h-4 mt-0.5 text-blue-500" />
+                <div>
+                  <Typography variant="body2" color="text.secondary" component="div">
+                    <strong>Hướng dẫn:</strong>
+                  </Typography>
+                  <ul className="mt-1 ml-4 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                    <li>• Nhập mã nhóm chính xác để tham gia dự án</li>
+                    <li>• Liên hệ trưởng nhóm để lấy mã nhóm</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseJoinDialog} disabled={joinLoading}>
+            Hủy
+          </Button>
+          <Button
+            onClick={handleJoinProject}
+            variant="contained"
+            disabled={!teamCode.trim() || joinLoading}
+            startIcon={joinLoading ? <CircularProgress size={16} /> : <LoginIcon />}
+          >
+            {joinLoading ? "Đang tham gia..." : "Tham gia"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </div>
   );
 }
