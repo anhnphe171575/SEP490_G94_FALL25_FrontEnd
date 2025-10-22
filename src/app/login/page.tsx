@@ -62,9 +62,10 @@ export default function LoginPage() {
       const idToken = response?.credential;
       if (!idToken) throw new Error("Không nhận được phản hồi từ Google");
       
-      // Decode JWT token để lấy thông tin email
+      // Decode JWT token để lấy thông tin email và ảnh đại diện từ Google
       const payload = JSON.parse(atob(idToken.split('.')[1]));
       const email = payload.email;
+      const picture = payload.picture as string | undefined;
       
       // Kiểm tra domain email
       if (!email || (!email.endsWith('@fpt.edu.vn') && !email.includes('he'))) {
@@ -76,6 +77,13 @@ export default function LoginPage() {
       if (token) {
         sessionStorage.setItem("token", token);
         localStorage.setItem("token", token); // keep both for existing interceptor behavior
+        // Lưu avatar Google để dùng hiển thị nếu backend chưa có avatar
+        if (picture) {
+          try {
+            sessionStorage.setItem("googleAvatar", picture);
+            localStorage.setItem("googleAvatar", picture);
+          } catch {}
+        }
       }
       router.replace("/dashboard");
     } catch (e: unknown) {

@@ -42,6 +42,7 @@ export default function ResponsiveSidebar() {
   const [open, setOpen] = useState(false);
   const [me, setMe] = useState<{ full_name?: string; email?: string; avatar?: string } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [googleAvatar, setGoogleAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     setOpen(false);
@@ -61,10 +62,19 @@ export default function ResponsiveSidebar() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ga = sessionStorage.getItem('googleAvatar') || localStorage.getItem('googleAvatar');
+      if (ga) setGoogleAvatar(ga);
+    }
+  }, []);
+
   const onLogout = () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('token');
       localStorage.removeItem('token');
+      sessionStorage.removeItem('googleAvatar');
+      localStorage.removeItem('googleAvatar');
     }
     router.replace('/login');
   };
@@ -145,13 +155,13 @@ export default function ResponsiveSidebar() {
           </div>
 
           {/* User Info */}
-          {me && (
+              {me && (
             <div className="px-4 py-4 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center overflow-hidden">
-                  {me.avatar ? (
+                    <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center overflow-hidden">
+                  {googleAvatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                    <img src={googleAvatar as string} alt="avatar" className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-sm font-semibold text-white">
                       {(me.full_name?.[0] || me.email?.[0] || 'U').toUpperCase()}
@@ -275,9 +285,9 @@ export default function ResponsiveSidebar() {
                 <div className="px-3 py-3 bg-gray-50 rounded-lg mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center overflow-hidden">
-                      {me.avatar ? (
+                      {googleAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={me.avatar} alt="avatar" className="h-full w-full object-cover" />
+                        <img src={googleAvatar as string} alt="avatar" className="h-full w-full object-cover" />
                       ) : (
                         <span className="text-xs font-semibold text-white">
                           {(me.full_name?.[0] || me.email?.[0] || 'U').toUpperCase()}
