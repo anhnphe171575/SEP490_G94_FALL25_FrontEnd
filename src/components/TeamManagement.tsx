@@ -28,7 +28,6 @@ import {
   Add as AddIcon,
   Person as PersonIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
   MoreVert as MoreVertIcon,
   SupervisorAccount as SupervisorAccountIcon,
   Group as GroupIcon,
@@ -36,8 +35,11 @@ import {
   Phone as PhoneIcon,
   School as SchoolIcon,
   ExitToApp as ExitToAppIcon,
+  Visibility as VisibilityIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import axiosInstance from "../../ultis/axios";
+import MemberDetail from "./MemberDetail";
 
 type TeamMember = {
   _id: string;
@@ -118,6 +120,8 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [openMemberDetail, setOpenMemberDetail] = useState(false);
+  const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<TeamMember | null>(null);
   
   // Edit team form
   const [teamName, setTeamName] = useState(safeTeam.name);
@@ -148,23 +152,6 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
     }
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await axiosInstance.delete(`/api/team/${projectId}/members/${userId}`);
-      onTeamUpdate(response.data.data.team);
-      setAnchorEl(null);
-      setSelectedMember(null);
-      setSuccess("Xóa thành viên thành công!");
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể xóa thành viên");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePromoteToLeader = async (userId: string) => {
     setLoading(true);
@@ -181,6 +168,24 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
       setTimeout(() => setSuccess(null), 3000);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể cập nhật vai trò");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await axiosInstance.delete(`/api/team/${projectId}/members/${userId}`);
+      onTeamUpdate(response.data.data.team);
+      setAnchorEl(null);
+      setSelectedMember(null);
+      setSuccess("Đã xóa thành viên khỏi nhóm!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Không thể xóa thành viên");
     } finally {
       setLoading(false);
     }
@@ -248,6 +253,18 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
     setSelectedMember(null);
   };
 
+  const handleViewMemberDetail = (member: TeamMember) => {
+    setSelectedMemberForDetail(member);
+    setOpenMemberDetail(true);
+    setAnchorEl(null);
+    setSelectedMember(null);
+  };
+
+  const handleCloseMemberDetail = () => {
+    setOpenMemberDetail(false);
+    setSelectedMemberForDetail(null);
+  };
+
   const handleCloseInviteDialog = () => {
     setOpenInviteByEmail(false);
     setInviteError(null);
@@ -292,7 +309,7 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
       {/* Team Leader Notice */}
       {!isCurrentUserTeamLeader && currentUserId && (
         <Alert severity="info">
-          Chỉ trưởng nhóm mới có thể mời thành viên, xóa thành viên hoặc phong trưởng nhóm mới.
+          Chỉ trưởng nhóm mới có thể mời thành viên, phong trưởng nhóm mới . Tất cả thành viên đều có thể xem chi tiết thành viên khác.
         </Alert>
       )}
 
@@ -440,14 +457,12 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
                         </div>
                       </div>
                     </div>
-                    {isCurrentUserTeamLeader && (
-                      <IconButton
-                        onClick={(e) => handleMenuClick(e, member)}
-                        disabled={loading}
-                      >
-                        <MoreVertIcon />
-                      </IconButton>
-                    )}
+                    <IconButton
+                      onClick={(e) => handleMenuClick(e, member)}
+                      disabled={loading}
+                    >
+                      <MoreVertIcon />
+                    </IconButton>
                   </div>
                   {index < validMembers.length - 1 && <Divider className="my-2" />}
                 </div>
@@ -592,12 +607,27 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
       </Dialog>
 
 
+      {/* Member Detail Dialog */}
+      <MemberDetail
+        open={openMemberDetail}
+        onClose={handleCloseMemberDetail}
+        memberId={selectedMemberForDetail?.user_id._id || ""}
+        projectId={projectId}
+        memberName={selectedMemberForDetail?.user_id.full_name || ""}
+      />
+
       {/* Member Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
+        <MenuItem onClick={() => selectedMember && handleViewMemberDetail(selectedMember)}>
+          <ListItemIcon>
+            <VisibilityIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Xem chi tiết</ListItemText>
+        </MenuItem>
         {isCurrentUserTeamLeader && selectedMember?.team_leader === 0 && (
           <MenuItem onClick={() => selectedMember && handlePromoteToLeader(selectedMember.user_id._id)}>
             <ListItemIcon>
@@ -606,13 +636,10 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
             <ListItemText>Phong trưởng nhóm</ListItemText>
           </MenuItem>
         )}
-        {isCurrentUserTeamLeader && (
-          <MenuItem 
-            onClick={() => selectedMember && handleRemoveMember(selectedMember.user_id._id)}
-            className="text-red-600"
-          >
+        {isCurrentUserTeamLeader && selectedMember?.team_leader === 0 && (
+          <MenuItem onClick={() => selectedMember && handleRemoveMember(selectedMember.user_id._id)}>
             <ListItemIcon>
-              <DeleteIcon fontSize="small" className="text-red-600" />
+              <DeleteIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Xóa khỏi nhóm</ListItemText>
           </MenuItem>
