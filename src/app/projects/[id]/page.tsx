@@ -528,6 +528,9 @@ export default function ProjectDetailPage() {
               <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/team`)}>
                 Quản lý nhóm
                 </Button>
+                <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/defect`)}>
+                  Lỗi
+                </Button>
               <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
                 Monitoring
               </Button>
