@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../ultis/axios";
-import { getStartOfWeekUTC, addDays } from "@/lib/timeline";  
-import ResponsiveSidebar from "@/components/ResponsiveSidebar"; 
+import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
+import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
 import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider } from "@mui/material";
@@ -108,7 +108,7 @@ export default function ProjectDetailPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMilestones, setSelectedMilestones] = useState<Set<string>>(new Set());
   const [showToolbar, setShowToolbar] = useState(false);
-  
+
   // Advanced filter states
   const [statusFilter, setStatusFilter] = useState<Record<string, boolean>>({
     Planned: true,
@@ -142,7 +142,7 @@ export default function ProjectDetailPage() {
       try {
         const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
         const milestonesData = Array.isArray(res.data) ? res.data : [];
-        
+
         // Lấy tiến độ chi tiết cho từng milestone
         const milestonesWithProgress = await Promise.all(
           milestonesData.map(async (milestone: Milestone) => {
@@ -155,7 +155,7 @@ export default function ProjectDetailPage() {
             }
           })
         );
-        
+
         setMilestones(milestonesWithProgress);
 
         // Lấy thông tin features cho từng milestone
@@ -208,22 +208,22 @@ export default function ProjectDetailPage() {
   // Filter functions
   const getFilteredMilestones = () => {
     if (!milestones) return [];
-    
+
     let filtered = [...milestones];
-    
+
     // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const filteredMilestoneIds = new Set<string>();
-      
+
       // Search in milestone titles/descriptions
       filtered.forEach(milestone => {
         if (milestone.title.toLowerCase().includes(term) ||
-            milestone.description?.toLowerCase().includes(term)) {
+          milestone.description?.toLowerCase().includes(term)) {
           filteredMilestoneIds.add(milestone._id);
         }
       });
-      
+
       // Search in features
       Object.entries(milestoneFeatures).forEach(([milestoneId, features]) => {
         const hasMatchingFeature = features.some(feature =>
@@ -233,36 +233,36 @@ export default function ProjectDetailPage() {
           filteredMilestoneIds.add(milestoneId);
         }
       });
-      
+
       filtered = filtered.filter(milestone => filteredMilestoneIds.has(milestone._id));
     }
-    
+
     // Apply status filter
     filtered = filtered.filter(milestone => {
       const status = milestone.status || 'Planned';
       return statusFilter[status] !== false;
     });
-    
+
     // Apply date range filter
     if (dateRangeFilter.enabled && (dateRangeFilter.startDate || dateRangeFilter.endDate)) {
       filtered = filtered.filter(milestone => {
         const milestoneStart = milestone.start_date ? new Date(milestone.start_date) : null;
         const milestoneEnd = milestone.deadline ? new Date(milestone.deadline) : null;
-        
+
         if (dateRangeFilter.startDate) {
           const filterStart = new Date(dateRangeFilter.startDate);
           if (milestoneEnd && milestoneEnd < filterStart) return false;
         }
-        
+
         if (dateRangeFilter.endDate) {
           const filterEnd = new Date(dateRangeFilter.endDate);
           if (milestoneStart && milestoneStart > filterEnd) return false;
         }
-        
+
         return true;
       });
     }
-    
+
     // Apply progress filter
     if (progressFilter.enabled) {
       filtered = filtered.filter(milestone => {
@@ -270,13 +270,13 @@ export default function ProjectDetailPage() {
         return progress >= progressFilter.min && progress <= progressFilter.max;
       });
     }
-    
+
     return filtered;
   };
 
   const getFilteredMilestoneFeatures = () => {
     if (!searchTerm) return milestoneFeatures;
-    
+
     const term = searchTerm.toLowerCase();
     const filtered: Record<string, Array<{
       feature_id: string;
@@ -287,7 +287,7 @@ export default function ProjectDetailPage() {
       completed_functions: number;
       percentage: number;
     }>> = {};
-    
+
     Object.entries(milestoneFeatures).forEach(([milestoneId, features]) => {
       const matchingFeatures = features.filter(feature =>
         feature.feature_title.toLowerCase().includes(term)
@@ -296,18 +296,18 @@ export default function ProjectDetailPage() {
         filtered[milestoneId] = matchingFeatures;
       }
     });
-    
+
     return filtered;
   };
 
   // Helper function to highlight search terms
   const highlightText = (text: string, searchTerm: string) => {
     if (!searchTerm) return text;
-    
+
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
         <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
           {part}
@@ -325,21 +325,21 @@ export default function ProjectDetailPage() {
 
       // Show loading toast
       loadingToast = toast.loading(`Đang sao chép ${selectedIds.length} milestone(s)...`);
-      
+
       // Show loading state
       setLoading(true);
 
       // Duplicate each selected milestone
-      const duplicatePromises = selectedIds.map(milestoneId => 
+      const duplicatePromises = selectedIds.map(milestoneId =>
         axiosInstance.post(`/api/projects/${projectId}/milestones/${milestoneId}/duplicate`)
       );
 
       const results = await Promise.all(duplicatePromises);
-      
+
       // Refresh milestones list
       const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
       const milestonesData = Array.isArray(res.data) ? res.data : [];
-      
+
       // Get progress for all milestones
       const milestonesWithProgress = await Promise.all(
         milestonesData.map(async (milestone: Milestone) => {
@@ -352,12 +352,12 @@ export default function ProjectDetailPage() {
           }
         })
       );
-      
+
       setMilestones(milestonesWithProgress);
-      
+
       // Clear selection
       setSelectedMilestones(new Set());
-      
+
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã sao chép thành công ${results.length} milestone(s)`);
@@ -385,7 +385,7 @@ export default function ProjectDetailPage() {
         const response = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/export?format=excel`, {
           responseType: 'blob'
         });
-        
+
         // Create download link
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
@@ -396,7 +396,7 @@ export default function ProjectDetailPage() {
         link.remove();
         window.URL.revokeObjectURL(url);
       }
-      
+
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã xuất thành công ${selectedIds.length} milestone(s) dưới dạng Excel`);
@@ -419,21 +419,21 @@ export default function ProjectDetailPage() {
 
       // Show loading toast
       loadingToast = toast.loading(`Đang lưu trữ ${selectedIds.length} milestone(s)...`);
-      
+
       // Show loading state
       setLoading(true);
 
       // Archive each selected milestone
-      const archivePromises = selectedIds.map(milestoneId => 
+      const archivePromises = selectedIds.map(milestoneId =>
         axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}/archive`, { archived: true })
       );
 
       await Promise.all(archivePromises);
-      
+
       // Refresh milestones list
       const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
       const milestonesData = Array.isArray(res.data) ? res.data : [];
-      
+
       // Get progress for all milestones
       const milestonesWithProgress = await Promise.all(
         milestonesData.map(async (milestone: Milestone) => {
@@ -446,12 +446,12 @@ export default function ProjectDetailPage() {
           }
         })
       );
-      
+
       setMilestones(milestonesWithProgress);
-      
+
       // Clear selection
       setSelectedMilestones(new Set());
-      
+
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã lưu trữ thành công ${selectedIds.length} milestone(s)`);
@@ -479,21 +479,21 @@ export default function ProjectDetailPage() {
 
       // Show loading toast
       loadingToast = toast.loading(`Đang xóa ${selectedIds.length} milestone(s)...`);
-      
+
       // Show loading state
       setLoading(true);
 
       // Delete each selected milestone
-      const deletePromises = selectedIds.map(milestoneId => 
+      const deletePromises = selectedIds.map(milestoneId =>
         axiosInstance.delete(`/api/projects/${projectId}/milestones/${milestoneId}?force=true`)
       );
 
       await Promise.all(deletePromises);
-      
+
       // Refresh milestones list
       const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
       const milestonesData = Array.isArray(res.data) ? res.data : [];
-      
+
       // Get progress for all milestones
       const milestonesWithProgress = await Promise.all(
         milestonesData.map(async (milestone: Milestone) => {
@@ -506,12 +506,12 @@ export default function ProjectDetailPage() {
           }
         })
       );
-      
+
       setMilestones(milestonesWithProgress);
-      
+
       // Clear selection
       setSelectedMilestones(new Set());
-      
+
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã xóa thành công ${selectedIds.length} milestone(s)`);
@@ -572,9 +572,9 @@ export default function ProjectDetailPage() {
 
           {/* Action Toolbar */}
           {showToolbar && (
-            <Card sx={{ 
-              mb: 3, 
-              bgcolor: '#E3F2FD', 
+            <Card sx={{
+              mb: 3,
+              bgcolor: '#E3F2FD',
               color: '#1976D2',
               position: 'fixed',
               bottom: 0,
@@ -608,7 +608,7 @@ export default function ProjectDetailPage() {
                       Milestone{selectedMilestones.size !== 1 ? 's' : ''} selected
                     </Typography>
                   </Box>
-                  
+
                   <Button
                     variant="text"
                     size="small"
@@ -620,7 +620,7 @@ export default function ProjectDetailPage() {
                       Duplicate
                     </Typography>
                   </Button>
-                  
+
                   <Button
                     variant="text"
                     size="small"
@@ -632,7 +632,7 @@ export default function ProjectDetailPage() {
                       Export
                     </Typography>
                   </Button>
-                  
+
                   <Button
                     variant="text"
                     size="small"
@@ -644,7 +644,7 @@ export default function ProjectDetailPage() {
                       Archive
                     </Typography>
                   </Button>
-                  
+
                   <Button
                     variant="text"
                     size="small"
@@ -656,10 +656,10 @@ export default function ProjectDetailPage() {
                       Delete
                     </Typography>
                   </Button>
-                  
-                  
+
+
                   <Box sx={{ flexGrow: 1 }} />
-                  
+
                   <Button
                     variant="text"
                     size="small"
@@ -696,8 +696,8 @@ export default function ProjectDetailPage() {
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Không có milestone hoặc feature nào khớp với từ khóa &ldquo;{searchTerm}&rdquo;
                       </Typography>
-                      <Button 
-                        variant="outlined" 
+                      <Button
+                        variant="outlined"
                         onClick={() => setSearchTerm("")}
                         startIcon={<ClearIcon />}
                       >
@@ -708,20 +708,20 @@ export default function ProjectDetailPage() {
                 </Card>
               ) : (
                 <>
-                  <                  Timeline 
-                    milestones={getFilteredMilestones()} 
-                    projectId={projectId} 
+                  <                  Timeline
+                    milestones={getFilteredMilestones()}
+                    projectId={projectId}
                     onLocalUpdate={setMilestones}
                     searchTerm={searchTerm}
                   />
-                  <MilestoneFeaturesTable 
-                    milestones={getFilteredMilestones()} 
+                  <MilestoneFeaturesTable
+                    milestones={getFilteredMilestones()}
                     milestoneFeatures={getFilteredMilestoneFeatures()}
                     searchTerm={searchTerm}
                     highlightText={highlightText}
                     projectId={projectId}
                   />
-                  <MilestonesList 
+                  <MilestonesList
                     milestones={getFilteredMilestones()}
                     projectId={projectId}
                     searchTerm={searchTerm}
@@ -754,7 +754,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
   const [weekStart, setWeekStart] = useState<Date>(getStartOfWeekUTC(new Date()));
   const [viewMode, setViewMode] = useState<'Days' | 'Weeks' | 'Months' | 'Quarters'>('Days');
   const [autoFit, setAutoFit] = useState<boolean>(true);
-  const [openModal, setOpenModal] = useState<{open: boolean; milestoneId?: string}>({open:false});
+  const [openModal, setOpenModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
   if (!milestones || milestones.length === 0) {
     return <div className="opacity-70">Chưa có milestone nào.</div>;
   }
@@ -776,7 +776,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
           </MUISelect>
           <FormControlLabel
             className="ml-2"
-            control={<MUICheckbox size="small" checked={autoFit} onChange={(e) =>setAutoFit(e.target.checked)} />}
+            control={<MUICheckbox size="small" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} />}
             label={<Typography variant="body2">Auto Fit</Typography>}
           />
         </div>
@@ -808,7 +808,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
                 }) : m);
               });
             }}
-            onMilestoneClick={(id) => setOpenModal({open:true, milestoneId: id})}
+            onMilestoneClick={(id) => setOpenModal({ open: true, milestoneId: id })}
             searchTerm={searchTerm}
           />
         </div>
@@ -817,7 +817,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
       {openModal.open && openModal.milestoneId && (
         <ModalMilestone
           open={openModal.open}
-          onClose={() => setOpenModal({open:false})}
+          onClose={() => setOpenModal({ open: false })}
           projectId={projectId}
           milestoneId={openModal.milestoneId}
           onUpdate={async () => {
@@ -829,7 +829,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
               ]);
               const updatedMilestone = { ...milestoneRes.data, progress: progressRes.data?.progress || null };
               // Update the milestone in the list
-              onLocalUpdate((prev) => 
+              onLocalUpdate((prev) =>
                 prev ? prev.map(m => m._id === openModal.milestoneId ? updatedMilestone : m) : prev
               );
             } catch (e) {
@@ -842,14 +842,14 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
   );
 }
 
-function MilestoneFeaturesTable({ 
-  milestones, 
-  milestoneFeatures, 
-  searchTerm, 
+function MilestoneFeaturesTable({
+  milestones,
+  milestoneFeatures,
+  searchTerm,
   highlightText,
   projectId
-}: { 
-  milestones: Milestone[]; 
+}: {
+  milestones: Milestone[];
   milestoneFeatures: Record<string, Array<{
     feature_id: string;
     feature_title: string;
@@ -858,7 +858,7 @@ function MilestoneFeaturesTable({
     completed_tasks: number;
     completed_functions: number;
     percentage: number;
-  }>>; 
+  }>>;
   searchTerm?: string;
   highlightText?: (text: string, searchTerm: string) => React.ReactNode;
   projectId: string;
@@ -884,7 +884,7 @@ function MilestoneFeaturesTable({
     percentage: number;
   }>) => {
     let filtered = [...features];
-    
+
     // Apply search filter
     if (featureSearchTerm) {
       const term = featureSearchTerm.toLowerCase();
@@ -892,7 +892,7 @@ function MilestoneFeaturesTable({
         feature.feature_title.toLowerCase().includes(term)
       );
     }
-    
+
     // Apply progress filter
     filtered = filtered.filter(feature => {
       const progress = feature.percentage || 0;
@@ -902,7 +902,7 @@ function MilestoneFeaturesTable({
       if (progress >= 76 && progress <= 100) return featureStatusFilter['76-100'];
       return true;
     });
-    
+
     return filtered;
   };
 
@@ -989,7 +989,7 @@ function MilestoneFeaturesTable({
                 onClick={() => setShowFeatureFilters(!showFeatureFilters)}
                 sx={{ minWidth: 'auto' }}
               >
-                  <Typography variant="body2">Lọc tiến độ</Typography>
+                <Typography variant="body2">Lọc tiến độ</Typography>
               </Button>
             </Stack>
 
@@ -1083,7 +1083,7 @@ function MilestoneFeaturesTable({
         {milestones.map((milestone) => {
           const features = milestoneFeatures[milestone._id] || [];
           const filteredFeatures = getFilteredFeatures(features);
-          
+
           if (features.length === 0) return null;
 
           return (
@@ -1147,8 +1147,8 @@ function MilestoneFeaturesTable({
                         <TableRow key={feature.feature_id} hover>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                              {(searchTerm || featureSearchTerm) && highlightText ? 
-                                highlightText(feature.feature_title, searchTerm || featureSearchTerm) : 
+                              {(searchTerm || featureSearchTerm) && highlightText ?
+                                highlightText(feature.feature_title, searchTerm || featureSearchTerm) :
                                 feature.feature_title}
                             </Typography>
                           </TableCell>
@@ -1333,7 +1333,7 @@ function MilestonesList({
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                 sx={{ minWidth: 'auto' }}
               >
-                  <Typography variant="body2">Bộ lọc</Typography>
+                <Typography variant="body2">Bộ lọc</Typography>
               </Button>
             </Stack>
 
@@ -1475,7 +1475,7 @@ function MilestonesList({
                 <Typography variant="body2" color="text.secondary">
                   Kết quả: {getFilteredMilestones().length} milestone{getFilteredMilestones().length !== 1 ? 's' : ''}
                 </Typography>
-                <Chip 
+                <Chip
                   label={`${Object.values(getFilteredMilestoneFeatures()).flat().length} feature${Object.values(getFilteredMilestoneFeatures()).flat().length !== 1 ? 's' : ''}`}
                   size="small"
                   variant="outlined"
