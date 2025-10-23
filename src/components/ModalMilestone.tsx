@@ -61,6 +61,13 @@ type MilestoneProgress = {
   };
 };
 
+type StatusOption = {
+  _id: string;
+  value: string;
+  name: string;
+  priority: string;
+};
+
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -84,7 +91,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState("Planned");
+  const [statusId, setStatusId] = useState("");
+  const [statuses, setStatuses] = useState<StatusOption[]>([]);
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
   const [estimatedEffort, setEstimatedEffort] = useState<number>(0);
@@ -139,19 +147,30 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     (async () => {
       setLoading(true);
       try {
-        const [m, u, f, a, p] = await Promise.all([
+        const [m, u, f, a, p, statusList] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/comments`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/files`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } })),
+          axiosInstance.get('/api/projects/milestones/statuses').catch(() => ({ data: { data: [] } }))
         ]);
         const md = m.data || {};
         setTitle(md.title || "");
         setCode(md.code || "");
         setDescription(md.description || "");
         setNotes(md.notes || "");
-        setStatus(md.status || "Planned");
+        
+        // Debug: Check status data
+        console.log('Milestone data:', md);
+        console.log('Status ID:', md.status_id);
+        console.log('Statuses list:', statusList.data?.data);
+        
+        // status_id có thể là object (populated) hoặc string (_id)
+        const extractedStatusId = typeof md.status_id === 'object' ? md.status_id?._id : md.status_id;
+        console.log('Extracted status_id:', extractedStatusId);
+        setStatusId(extractedStatusId || "");
+        setStatuses(statusList.data?.data || []);
         setStartDate(md.start_date ? md.start_date.substring(0,10) : "");
         setDeadline(md.deadline ? md.deadline.substring(0,10) : "");
         setEstimatedEffort(md.estimated_effort || 0);
@@ -255,11 +274,22 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
             />
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
-              <Select label="Status" value={status} onChange={(e)=>setStatus(e.target.value as string)}>
-                <MenuItem value="Planned">Planned</MenuItem>
-                <MenuItem value="In Progress">In Progress</MenuItem>
-                <MenuItem value="Completed">Completed</MenuItem>
-                <MenuItem value="Overdue">Overdue</MenuItem>
+              <Select 
+                label="Status" 
+                value={statusId || ""} 
+                onChange={(e)=>setStatusId(e.target.value as string)}
+                displayEmpty
+              >
+                {statuses.length === 0 && (
+                  <MenuItem value="" disabled>
+                    Loading statuses...
+                  </MenuItem>
+                )}
+                {statuses.map((s) => (
+                  <MenuItem key={s._id} value={s._id}>
+                   {s.value}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
             
@@ -520,7 +550,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                       code: code || undefined,
                       description, 
                       notes: notes || undefined,
-                      status, 
+                      status_id: statusId, 
                       start_date: startDate ? new Date(startDate).toISOString() : undefined, 
                       deadline: deadline ? new Date(deadline).toISOString() : undefined,
                       actual_date: actualDate ? new Date(actualDate).toISOString() : undefined,
@@ -533,17 +563,28 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                     // Refresh activity logs to show the update
                     const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
                     setActivity(Array.isArray(a.data) ? a.data : []);
+                    const statusName = statuses.find(s => s._id === statusId)?.name || statusId;
                     toast.success('Milestone đã được cập nhật thành công!', {
-                      description: `${title} - ${status}`,
+                      description: `${title} - ${statusName}`,
                       duration: 3000,
                     });
                     // Notify parent to refresh data/charts
                     if (onUpdate) onUpdate();
                   } catch (error: any) {
-                    toast.error('Không thể cập nhật milestone', {
-                      description: error?.response?.data?.message || error?.message || 'Lỗi không xác định',
-                      duration: 4000,
-                    });
+                    const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi không xác định';
+                    const errorDetails = error?.response?.data?.errors;
+                    
+                    if (Array.isArray(errorDetails) && errorDetails.length > 0) {
+                      toast.error('Business Rules Violation', {
+                        description: errorDetails.slice(0, 3).join('\n'),
+                        duration: 5000,
+                      });
+                    } else {
+                      toast.error('Không thể cập nhật milestone', {
+                        description: errorMessage,
+                        duration: 4000,
+                      });
+                    }
                   } finally { 
                     setSaving(false); 
                   } 

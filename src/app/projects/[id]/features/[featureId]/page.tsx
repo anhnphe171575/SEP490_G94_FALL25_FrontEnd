@@ -43,22 +43,29 @@ type Feature = {
   title: string;
   description?: string;
   project_id: string;
-  status: string;
-  priority: string;
+  status_id?: Setting | string;
+  priority_id?: Setting | string;
+  complexity_id?: Setting | string;
   estimated_hours?: number;
   actual_effort?: number;
   start_date?: string;
   due_date?: string;
 };
 
+type Setting = {
+  _id: string;
+  name: string;
+  value?: string;
+};
+
 type FunctionType = {
   _id: string;
   title: string;
   feature_id: string;
-  type_id: any;
+  complexity_id?: Setting | string;
   estimated_effort: number;
   actual_effort: number;
-  status: string;
+  status: Setting | string;
   description?: string;
   start_date?: string;
   deadline?: string;
@@ -70,7 +77,7 @@ type Task = {
   feature_id: string;
   assignee_id?: any;
   assigner_id?: any;
-  status: string;
+  status: Setting | string;
   description?: string;
   deadline?: string;
 };
@@ -90,6 +97,8 @@ export default function FeatureBreakdownPage() {
 
   const [openFunctionDialog, setOpenFunctionDialog] = useState(false);
   const [openTaskDialog, setOpenTaskDialog] = useState(false);
+  const [openFunctionDetailDialog, setOpenFunctionDetailDialog] = useState(false);
+  const [selectedFunction, setSelectedFunction] = useState<FunctionType | null>(null);
 
   const [functionForm, setFunctionForm] = useState({
     title: "",
@@ -182,6 +191,16 @@ export default function FeatureBreakdownPage() {
       loadFeatureBreakdown();
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tính toán effort");
+    }
+  };
+
+  const handleOpenFunctionDetail = async (functionId: string) => {
+    try {
+      const res = await axiosInstance.get(`/api/functions/${functionId}`);
+      setSelectedFunction(res.data);
+      setOpenFunctionDetailDialog(true);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Không thể tải chi tiết function");
     }
   };
 
@@ -355,23 +374,44 @@ export default function FeatureBreakdownPage() {
               </TableHead>
               <TableBody>
                 {functions.map((fn) => (
-                  <TableRow key={fn._id}>
-                    <TableCell>
-                      <Typography fontWeight="medium">{fn.title}</Typography>
+                  <TableRow key={fn._id} hover>
+                    <TableCell 
+                      sx={{ 
+                        cursor: 'pointer',
+                        '&:hover': { 
+                          bgcolor: 'action.hover' 
+                        }
+                      }}
+                      onClick={() => handleOpenFunctionDetail(fn._id)}
+                    >
+                      <Typography 
+                        fontWeight="medium" 
+                        sx={{ 
+                          color: 'primary.main',
+                          '&:hover': { textDecoration: 'underline' }
+                        }}
+                      >
+                        {fn.title}
+                      </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {fn.description}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={fn.status}
-                        size="small"
-                        sx={{
-                          bgcolor: getStatusColor(fn.status),
-                          color: "#fff",
-                          fontWeight: 600,
-                        }}
-                      />
+                      {(() => {
+                        const statusName = typeof fn.status === 'object' ? fn.status?.name : fn.status;
+                        return (
+                          <Chip
+                            label={statusName || '-'}
+                            size="small"
+                            sx={{
+                              bgcolor: getStatusColor(statusName || ''),
+                              color: "#fff",
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>{fn.estimated_effort}</TableCell>
                     <TableCell>{fn.actual_effort}</TableCell>
@@ -434,15 +474,20 @@ export default function FeatureBreakdownPage() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={task.status}
-                        size="small"
-                        sx={{
-                          bgcolor: getStatusColor(task.status),
-                          color: "#fff",
-                          fontWeight: 600,
-                        }}
-                      />
+                      {(() => {
+                        const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
+                        return (
+                          <Chip
+                            label={statusName || '-'}
+                            size="small"
+                            sx={{
+                              bgcolor: getStatusColor(statusName || ''),
+                              color: "#fff",
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {task.assignee_id?.full_name || "-"}
@@ -539,6 +584,143 @@ export default function FeatureBreakdownPage() {
               <Button onClick={() => setOpenTaskDialog(false)}>Hủy</Button>
               <Button variant="contained" onClick={handleCreateTask}>
                 Tạo
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Function Detail Dialog */}
+          <Dialog 
+            open={openFunctionDetailDialog} 
+            onClose={() => {
+              setOpenFunctionDetailDialog(false);
+              setSelectedFunction(null);
+            }} 
+            maxWidth="md" 
+            fullWidth
+          >
+            <DialogTitle sx={{ fontWeight: 'bold' }}>
+              Chi tiết Function
+            </DialogTitle>
+            <DialogContent>
+              {selectedFunction && (
+                <Stack spacing={3} sx={{ mt: 1 }}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Tên Function
+                    </Typography>
+                    <Typography variant="h6" fontWeight={600}>
+                      {selectedFunction.title}
+                    </Typography>
+                  </Box>
+
+                  {selectedFunction.description && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Mô tả
+                      </Typography>
+                      <Typography variant="body1">
+                        {selectedFunction.description}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  <Stack direction="row" spacing={3}>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Trạng thái
+                      </Typography>
+                      <Chip
+                        label={selectedFunction.status}
+                        size="medium"
+                        sx={{
+                          bgcolor: getStatusColor(selectedFunction.status),
+                          color: "#fff",
+                          fontWeight: 600,
+                        }}
+                      />
+                    </Box>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Type
+                      </Typography>
+                      <Chip
+                        label={typeof selectedFunction.type_id === 'object' ? selectedFunction.type_id?.name : '-'}
+                        size="medium"
+                        color="primary"
+                      />
+                    </Box>
+                  </Stack>
+
+                  <Stack direction="row" spacing={3}>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Estimated Effort
+                      </Typography>
+                      <Typography variant="h6" fontWeight={600}>
+                        {selectedFunction.estimated_effort} giờ
+                      </Typography>
+                    </Box>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Actual Effort
+                      </Typography>
+                      <Typography variant="h6" fontWeight={600} color={selectedFunction.actual_effort > selectedFunction.estimated_effort ? "error.main" : "text.primary"}>
+                        {selectedFunction.actual_effort} giờ
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  <Stack direction="row" spacing={3}>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Start Date
+                      </Typography>
+                      <Typography variant="body1">
+                        {selectedFunction.start_date ? new Date(selectedFunction.start_date).toLocaleDateString('vi-VN') : '—'}
+                      </Typography>
+                    </Box>
+                    <Box flex={1}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                        Deadline
+                      </Typography>
+                      <Typography variant="body1">
+                        {selectedFunction.deadline ? new Date(selectedFunction.deadline).toLocaleDateString('vi-VN') : '—'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  <Divider />
+
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Tiến độ
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={selectedFunction.estimated_effort > 0 
+                          ? Math.min(100, Math.round((selectedFunction.actual_effort / selectedFunction.estimated_effort) * 100))
+                          : 0
+                        }
+                        sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                      />
+                      <Typography variant="body2" fontWeight={600}>
+                        {selectedFunction.estimated_effort > 0 
+                          ? Math.min(100, Math.round((selectedFunction.actual_effort / selectedFunction.estimated_effort) * 100))
+                          : 0
+                        }%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Stack>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => {
+                setOpenFunctionDetailDialog(false);
+                setSelectedFunction(null);
+              }}>
+                Đóng
               </Button>
             </DialogActions>
           </Dialog>

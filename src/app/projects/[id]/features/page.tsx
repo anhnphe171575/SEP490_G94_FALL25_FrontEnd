@@ -41,6 +41,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import FunctionsIcon from "@mui/icons-material/Functions";
 import CreateMilestoneFromFeatures from "@/components/CreateMilestoneFromFeatures";
 
 type Milestone = {
@@ -85,7 +86,7 @@ type Feature = {
   milestone_ids?: string[];
 };
 
-// Mock data for display
+// Mock data for display  
 
 
 export default function ProjectFeaturesPage() {
@@ -102,6 +103,12 @@ export default function ProjectFeaturesPage() {
   const [priorities, setPriorities] = useState<Setting[]>([]);
   const [statuses, setStatuses] = useState<Setting[]>([]);
   const [complexities, setComplexities] = useState<Setting[]>([]);
+  
+  // Project data with man_days
+  const [projectData, setProjectData] = useState<{ man_days?: number; topic?: string; start_date?: string; end_date?: string } | null>(null);
+  
+  // Team data for capacity calculation
+  const [teamData, setTeamData] = useState<{ team_members?: { total?: number } } | null>(null);
 
   const [openForm, setOpenForm] = useState(false);
   const [form, setForm] = useState<Feature>({ 
@@ -140,6 +147,31 @@ export default function ProjectFeaturesPage() {
   // Feature detail dialog
   const [selectedFeatureDetail, setSelectedFeatureDetail] = useState<Feature | null>(null);
   const [openFeatureDetail, setOpenFeatureDetail] = useState(false);
+  
+  // Effort allocation suggestions
+  const [allocationSuggestions, setAllocationSuggestions] = useState<any>(null);
+  const [openAllocationDialog, setOpenAllocationDialog] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  
+  // Estimated hours suggestion based on complexity
+  const getEstimatedHoursByComplexity = (complexityId: string | Setting | undefined) => {
+    if (!complexityId) return 0;
+    
+    // Handle both string ID and Setting object
+    const id = typeof complexityId === 'string' ? complexityId : complexityId._id;
+    const complexity = complexities.find(c => c._id === id);
+    if (!complexity || !complexity.value) return 0;
+    
+    // Map complexity to estimated hours
+    const hoursByComplexity: { [key: string]: number } = {
+      'simple': 20,      // Simple: 20h (2-3 days)
+      'medium': 40,      // Medium: 40h (1 week)
+      'complex': 80,     // Complex: 80h (2 weeks)
+      'very-complex': 160 // Very Complex: 160h (4 weeks)
+    };
+    
+    return hoursByComplexity[complexity.value] || 0;
+  };
 
   const formatRelative = (iso?: string) => {
     if (!iso) return '';
@@ -160,12 +192,40 @@ export default function ProjectFeaturesPage() {
     (async () => {
       try {
         setLoading(true);
-        const [milestoneRes, featureRes] = await Promise.all([
+        const [projectRes, teamRes, milestoneRes, featureRes, priorityRes, statusRes, complexityRes] = await Promise.all([
+          axiosInstance.get(`/api/projects/${projectId}`).catch(() => ({ data: null })),
+          axiosInstance.get(`/api/projects/${projectId}/team-members`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: null })),
+          axiosInstance.get(`/api/settings/by-type/1`).catch(() => ({ data: [] })), // Priority
+          axiosInstance.get(`/api/settings/by-type/2`).catch(() => ({ data: [] })), // Status
+          axiosInstance.get(`/api/settings/by-type/3`).catch(() => ({ data: [] })), // Complexity
         ]);
+        
+        // Set project data
+        setProjectData(projectRes.data);
+        
+        // Set team data
+        setTeamData(teamRes.data || null);
+        
+        // Debug logging
+        console.log('🔍 Team data:', teamRes.data);
+        console.log('🔍 Project data:', projectRes.data);
+        
         const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
         setMilestones(milestonesList);
+
+        // Set settings
+        setPriorities(Array.isArray(priorityRes.data) ? priorityRes.data : []);
+        setStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
+        setComplexities(Array.isArray(complexityRes.data) ? complexityRes.data : []);
+        
+        // Debug logging
+        console.log('Settings loaded:', {
+          priorities: priorityRes.data,
+          statuses: statusRes.data,
+          complexities: complexityRes.data
+        });
 
         if (Array.isArray(featureRes.data)) {
           // Enrich features with linked milestone ids
@@ -213,6 +273,34 @@ export default function ProjectFeaturesPage() {
   }, [projectId, features]);
 
   const milestoneOptions = useMemo(() => milestones.map(m => ({ id: m._id, label: m.title })), [milestones]);
+
+  // Calculate project capacity and usage
+  const capacityInfo = useMemo(() => {
+    const hoursPerDay = projectData?.man_days || 0; // Giờ làm việc mỗi ngày của 1 người
+    const teamMemberCount = teamData?.team_members?.total || 0; // Số người trong team
+    
+    // Tính số ngày dự án
+    const projectDurationDays = projectData?.start_date && projectData?.end_date 
+      ? Math.ceil((new Date(projectData.end_date).getTime() - new Date(projectData.start_date).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    
+    // Total Capacity = số người × giờ mỗi ngày × số ngày dự án
+    const totalCapacityHours = teamMemberCount * hoursPerDay * projectDurationDays;
+    
+    const usedHours = features.reduce((sum, f) => sum + (f.estimated_hours || 0), 0);
+    const remainingHours = totalCapacityHours - usedHours;
+    const usagePercentage = totalCapacityHours > 0 ? (usedHours / totalCapacityHours) * 100 : 0;
+    
+    return {
+      hoursPerDay,
+      teamMemberCount,
+      projectDurationDays,
+      totalCapacityHours,
+      usedHours,
+      remainingHours,
+      usagePercentage
+    };
+  }, [projectData, teamData, features]);
 
   // Compute progress per feature: % milestones completed
   const featureProgress = useMemo(() => {
@@ -399,6 +487,96 @@ export default function ProjectFeaturesPage() {
 
   const selectedFeatures = features.filter(f => selectedFeatureIds.includes(f._id as string));
 
+  // Fetch effort allocation suggestions
+  const fetchAllocationSuggestions = async (mode: 'complexity' | 'hybrid' = 'complexity') => {
+    try {
+      setLoadingSuggestions(true);
+      const res = await axiosInstance.post(
+        `/api/projects/${projectId}/suggest-feature-allocation?mode=${mode}`
+      );
+      setAllocationSuggestions(res.data);
+      setOpenAllocationDialog(true);
+    } catch (err: any) {
+      const errorData = err?.response?.data;
+      let errorMessage = errorData?.message || 'Không thể lấy gợi ý phân bổ';
+      
+      // Add suggestion if available
+      if (errorData?.suggestion) {
+        errorMessage += `\n\n💡 ${errorData.suggestion}`;
+      }
+      
+      // Add details for debugging
+      if (errorData?.details) {
+        console.log('❌ Allocation Error Details:', errorData.details);
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // Apply suggestion to a feature
+  const applySuggestion = async (featureId: string, suggestedHours: number) => {
+    try {
+      await axiosInstance.patch(`/api/features/${featureId}`, {
+        estimated_hours: suggestedHours
+      });
+      
+      // Update local state
+      setFeatures(prev => prev.map(f => 
+        f._id === featureId ? { ...f, estimated_hours: suggestedHours } : f
+      ));
+      
+      // Refresh suggestions
+      await fetchAllocationSuggestions();
+    } catch (err: any) {
+      console.error('❌ Error applying suggestion:', err?.response?.data || err);
+      setError(err?.response?.data?.message || err?.response?.data?.errors?.join(', ') || 'Không thể apply suggestion');
+    }
+  };
+
+  // Apply all suggestions
+  const applyAllSuggestions = async () => {
+    if (!allocationSuggestions?.suggestions) return;
+    
+    try {
+      setLoadingSuggestions(true);
+      
+      await Promise.all(
+        allocationSuggestions.suggestions.map((s: any) =>
+          axiosInstance.patch(`/api/features/${s.feature_id}`, {
+            estimated_hours: s.suggested_hours
+          })
+        )
+      );
+      
+      // Refresh features
+      const res = await axiosInstance.get(`/api/projects/${projectId}/features`);
+      if (Array.isArray(res.data)) {
+        const enriched: Feature[] = await Promise.all(
+          res.data.map(async (f: any) => {
+            try {
+              const linkRes = await axiosInstance.get(`/api/features/${f._id}/milestones`);
+              const uniqueMilestoneIds = Array.isArray(linkRes.data) ? [...new Set(linkRes.data)] : [];
+              return { ...f, milestone_ids: uniqueMilestoneIds } as Feature;
+            } catch {
+              return { ...f, milestone_ids: [] } as Feature;
+            }
+          })
+        );
+        setFeatures(enriched);
+      }
+      
+      setOpenAllocationDialog(false);
+      setAllocationSuggestions(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Không thể apply suggestions');
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <ResponsiveSidebar />
@@ -427,6 +605,14 @@ export default function ProjectFeaturesPage() {
                   Tạo Milestone từ Features
                 </Button>
               )}
+              <Button 
+                variant="outlined" 
+                color="info"
+                onClick={() => fetchAllocationSuggestions('complexity')}
+                disabled={loadingSuggestions}
+              >
+                💡 Gợi ý phân bổ
+              </Button>
               <Button variant="contained" onClick={handleOpenForm}>Tạo Feature</Button>
               <Button variant="outlined" onClick={() => router.push(`/projects/${projectId}`)}>Milestones</Button>
               <Button variant="outlined" onClick={() => router.back()}>Quay lại</Button>
@@ -443,6 +629,136 @@ export default function ProjectFeaturesPage() {
             </Box>
           ) : (
             <Stack spacing={3}>
+              {/* Project Capacity Card */}
+              {projectData && (
+                <Paper variant="outlined" sx={{ p: 3, bgcolor: 'background.paper' }}>
+                  <Stack spacing={2}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="h6" fontWeight={600}>
+                        📊 Công suất dự án
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <Chip 
+                          label={`${capacityInfo.teamMemberCount} thành viên`}
+                          color={capacityInfo.teamMemberCount > 0 ? "primary" : "error"}
+                          size="small"
+                        />
+                        <Chip 
+                          label={`${capacityInfo.hoursPerDay}h/ngày`}
+                          color={capacityInfo.hoursPerDay > 0 ? "secondary" : "error"}
+                          size="small"
+                        />
+                        <Chip 
+                          label={`${capacityInfo.projectDurationDays} ngày`}
+                          color={capacityInfo.projectDurationDays > 0 ? "info" : "error"}
+                          size="small"
+                        />
+                      </Stack>
+                    </Stack>
+                    
+                    {capacityInfo.totalCapacityHours > 0 ? (
+                      <>
+                        <Alert severity="info" sx={{ mb: 1 }}>
+                          💡 Công thức: {capacityInfo.teamMemberCount} người × {capacityInfo.hoursPerDay}h/ngày × {capacityInfo.projectDurationDays} ngày = <strong>{capacityInfo.totalCapacityHours} giờ</strong>
+                        </Alert>
+                      </>
+                    ) : (
+                      <Alert severity="warning">
+                        ⚠️ Không thể tính capacity. Vui lòng kiểm tra:
+                        {capacityInfo.teamMemberCount === 0 && <div>• Chưa có team members (vào trang Team để thêm)</div>}
+                        {!projectData.start_date && <div>• Project chưa có start_date</div>}
+                        {!projectData.end_date && <div>• Project chưa có end_date</div>}
+                        {capacityInfo.hoursPerDay === 0 && <div>• Project chưa có man_days (giờ làm việc/ngày)</div>}
+                      </Alert>
+                    )}
+                    
+                    {capacityInfo.totalCapacityHours > 0 && (
+                      <>
+                      <Stack direction="row" spacing={4} alignItems="center">
+                        <Box flex={1}>
+                          <Typography variant="caption" color="text.secondary">
+                            Tổng công suất
+                          </Typography>
+                          <Typography variant="h5" fontWeight={600}>
+                            {capacityInfo.totalCapacityHours} giờ
+                          </Typography>
+                        </Box>
+                        
+                        <Divider orientation="vertical" flexItem />
+                        
+                        <Box flex={1}>
+                          <Typography variant="caption" color="text.secondary">
+                            Đã phân bổ
+                          </Typography>
+                          <Typography variant="h5" fontWeight={600} color="primary.main">
+                            {capacityInfo.usedHours} giờ
+                          </Typography>
+                        </Box>
+                        
+                        <Divider orientation="vertical" flexItem />
+                        
+                        <Box flex={1}>
+                          <Typography variant="caption" color="text.secondary">
+                            Còn lại
+                          </Typography>
+                          <Typography 
+                            variant="h5" 
+                            fontWeight={600}
+                            color={capacityInfo.remainingHours < 0 ? 'error.main' : 'success.main'}
+                          >
+                            {capacityInfo.remainingHours} giờ
+                          </Typography>
+                        </Box>
+                        
+                        <Divider orientation="vertical" flexItem />
+                        
+                        <Box flex={1}>
+                          <Typography variant="caption" color="text.secondary">
+                            Tỷ lệ sử dụng
+                          </Typography>
+                          <Typography 
+                            variant="h5" 
+                            fontWeight={600}
+                            color={
+                              capacityInfo.usagePercentage > 100 ? 'error.main' : 
+                            capacityInfo.usagePercentage > 80 ? 'warning.main' : 
+                            'text.primary'
+                          }
+                        >
+                          {capacityInfo.usagePercentage.toFixed(1)}%
+                        </Typography>
+                      </Box>
+                      </Stack>
+                      
+                        <Box sx={{ width: '100%' }}>
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={Math.min(capacityInfo.usagePercentage, 100)} 
+                            color={
+                              capacityInfo.usagePercentage > 100 ? "error" : 
+                              capacityInfo.usagePercentage > 80 ? "warning" : 
+                              "primary"
+                            }
+                            sx={{ height: 10, borderRadius: 5 }}
+                          />
+                        </Box>
+                        
+                        {capacityInfo.usagePercentage > 100 && (
+                          <Alert severity="error" sx={{ mt: 1 }}>
+                            ⚠️ Cảnh báo: Đã vượt quá công suất dự án {Math.abs(capacityInfo.remainingHours)} giờ ({(capacityInfo.usagePercentage - 100).toFixed(1)}%)
+                          </Alert>
+                        )}
+                        {capacityInfo.usagePercentage > 80 && capacityInfo.usagePercentage <= 100 && (
+                          <Alert severity="warning" sx={{ mt: 1 }}>
+                            💡 Lưu ý: Đã sử dụng hơn 80% công suất dự án. Còn {capacityInfo.remainingHours} giờ.
+                          </Alert>
+                        )}
+                      </>
+                    )}
+                  </Stack>
+                </Paper>
+              )}
+              
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
                   <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -542,10 +858,12 @@ export default function ProjectFeaturesPage() {
                       <TableCell>Title</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Priority</TableCell>
+                      <TableCell>Complexity</TableCell>
                       <TableCell sx={{ minWidth: 200 }}>Milestone</TableCell>
                       <TableCell>Estimated hours</TableCell>
                       <TableCell>Start - Due</TableCell>
                       <TableCell>Description</TableCell>
+                      <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -625,21 +943,123 @@ export default function ProjectFeaturesPage() {
                             )}
                           </TableCell>
                           
-                          <TableCell>
-                            {statusChip}
+                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'status_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.status_id === 'object' ? f.status_id?._id : (f.status_id || '')}
+                                onChange={async (e) => {
+                                  const newStatusId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, status_id: statuses.find(s => s._id === newStatusId) } : x
+                                    ));
+                                    cancelEditRow();
+                                  } catch (err) {
+                                    console.error('Error updating status:', err);
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {statuses.map((s) => (
+                                  <MenuItem key={s._id} value={s._id}>
+                                    {s.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              statusChip
+                            )}
                           </TableCell>
                           
-                          <TableCell>
-                            <Chip
-                              label={priorityName || '-'}
-                              size="small"
-                              color={
-                                priorityName === 'critical' ? 'error' :
-                                priorityName === 'high' ? 'warning' :
-                                priorityName === 'medium' ? 'primary' : 'default'
-                              }
-                              variant="outlined"
-                            />
+                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'priority_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.priority_id === 'object' ? f.priority_id?._id : (f.priority_id || '')}
+                                onChange={async (e) => {
+                                  const newPriorityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, priority_id: priorities.find(p => p._id === newPriorityId) } : x
+                                    ));
+                                    cancelEditRow();
+                                  } catch (err) {
+                                    console.error('Error updating priority:', err);
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {priorities.map((p) => (
+                                  <MenuItem key={p._id} value={p._id}>
+                                    {p.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              <Chip
+                                label={priorityName || '-'}
+                                size="small"
+                                color={
+                                  priorityName === 'critical' ? 'error' :
+                                  priorityName === 'high' ? 'warning' :
+                                  priorityName === 'medium' ? 'primary' : 'default'
+                                }
+                                variant="outlined"
+                              />
+                            )}
+                          </TableCell>
+                          
+                          <TableCell onClick={() => startEditCell(f, 'complexity_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'complexity_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.complexity_id === 'object' ? f.complexity_id?._id : (f.complexity_id || '')}
+                                onChange={async (e) => {
+                                  const newComplexityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { complexity_id: newComplexityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, complexity_id: complexities.find(c => c._id === newComplexityId) } : x
+                                    ));
+                                    cancelEditRow();
+                                  } catch (err) {
+                                    console.error('Error updating complexity:', err);
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {complexities.map((c) => (
+                                  <MenuItem key={c._id} value={c._id}>
+                                    {c.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              (() => {
+                                const complexityName = typeof f.complexity_id === 'object' ? f.complexity_id?.name : '';
+                                return (
+                                  <Chip
+                                    label={complexityName || '-'}
+                                    size="small"
+                                    color={
+                                      complexityName === 'Very Complex' ? 'error' :
+                                      complexityName === 'Complex' ? 'warning' :
+                                      complexityName === 'Medium' ? 'primary' : 'default'
+                                    }
+                                    variant="outlined"
+                                  />
+                                );
+                              })()
+                            )}
                           </TableCell>
                           
                           <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
@@ -740,6 +1160,31 @@ export default function ProjectFeaturesPage() {
                               </Typography>
                             )}
                           </TableCell>
+                          
+                          <TableCell>
+                            <Tooltip title="Tự động tính từ Functions">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={async () => {
+                                  try {
+                                    // Call API to calculate effort from functions
+                                    const res = await axiosInstance.post(`/api/features/${f._id}/calculate-effort`);
+                                    // Update local state
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id 
+                                        ? { ...x, estimated_hours: res.data.estimated_hours, actual_effort: res.data.actual_effort }
+                                        : x
+                                    ));
+                                  } catch (err) {
+                                    console.error('Error calculating effort:', err);
+                                  }
+                                }}
+                              >
+                                <FunctionsIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -765,6 +1210,40 @@ export default function ProjectFeaturesPage() {
               </Box>
             </DialogTitle>
             <DialogContent>
+              {/* Capacity Info */}
+              {projectData && capacityInfo.totalCapacityHours > 0 && (
+                <Alert 
+                  severity={capacityInfo.usagePercentage > 100 ? "error" : capacityInfo.usagePercentage > 80 ? "warning" : "info"}
+                  sx={{ mb: 2, mt: 2 }}
+                >
+                  <Stack spacing={1}>
+                    <Typography variant="body2" fontWeight={600}>
+                      📊 Công suất dự án: {capacityInfo.teamMemberCount} người × {capacityInfo.hoursPerDay}h/ngày × {capacityInfo.projectDurationDays} ngày = {capacityInfo.totalCapacityHours} giờ
+                    </Typography>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Typography variant="caption">
+                        Đã phân bổ: <strong>{capacityInfo.usedHours}h</strong>
+                      </Typography>
+                      <Typography variant="caption">
+                        Còn lại: <strong style={{ color: capacityInfo.remainingHours < 0 ? 'red' : 'inherit' }}>
+                          {capacityInfo.remainingHours}h
+                        </strong>
+                      </Typography>
+                      <Typography variant="caption">
+                        Tỷ lệ: <strong>{capacityInfo.usagePercentage.toFixed(1)}%</strong>
+                      </Typography>
+                    </Stack>
+                    <Box sx={{ width: '100%', mt: 1 }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(capacityInfo.usagePercentage, 100)} 
+                        color={capacityInfo.usagePercentage > 100 ? "error" : capacityInfo.usagePercentage > 80 ? "warning" : "primary"}
+                        sx={{ height: 8, borderRadius: 4 }}
+                      />
+                    </Box>
+                  </Stack>
+                </Alert>
+              )}
               <Stack spacing={3} sx={{ mt: 2 }}>
                 <TextField
                   label="Tiêu đề *"
@@ -795,14 +1274,116 @@ export default function ProjectFeaturesPage() {
                 <Divider />
                 
                 <Stack direction="row" spacing={2}>
-                  <TextField
-                    label="Estimated Hours (giờ)"
-                    type="number"
-                    value={form.estimated_hours || 0}
-                    onChange={(e) => setForm(prev => ({ ...prev, estimated_hours: Number(e.target.value) }))}
-                    fullWidth
-                    placeholder="VD: 40"
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel id="status-label">Status</InputLabel>
+                    <Select
+                      labelId="status-label"
+                      label="Status"
+                      value={form.status_id || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, status_id: e.target.value }))}
+                    >
+                      {statuses.length === 0 ? (
+                        <MenuItem disabled>Đang tải...</MenuItem>
+                      ) : (
+                        statuses.map((s) => (
+                          <MenuItem key={s._id} value={s._id}>
+                            {s.name}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {statuses.length} options
+                    </Typography>
+                  </FormControl>
+                  
+                  <FormControl fullWidth>
+                    <InputLabel id="priority-label">Priority</InputLabel>
+                    <Select
+                      labelId="priority-label"
+                      label="Priority"
+                      value={form.priority_id || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, priority_id: e.target.value }))}
+                    >
+                      {priorities.length === 0 ? (
+                        <MenuItem disabled>Đang tải...</MenuItem>
+                      ) : (
+                        priorities.map((p) => (
+                          <MenuItem key={p._id} value={p._id}>
+                            {p.name}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {priorities.length} options
+                    </Typography>
+                  </FormControl>
+                  
+                  <FormControl fullWidth>
+                    <InputLabel id="complexity-label">Complexity</InputLabel>
+                    <Select
+                      labelId="complexity-label"
+                      label="Complexity"
+                      value={form.complexity_id || ''}
+                      onChange={(e) => {
+                        const complexityId = e.target.value;
+                        const suggestedHours = getEstimatedHoursByComplexity(complexityId);
+                        setForm(prev => ({ 
+                          ...prev, 
+                          complexity_id: complexityId,
+                          // Auto-fill estimated hours if empty
+                          estimated_hours: prev.estimated_hours === 0 ? suggestedHours : prev.estimated_hours
+                        }));
+                      }}
+                    >
+                      {complexities.length === 0 ? (
+                        <MenuItem disabled>Đang tải...</MenuItem>
+                      ) : (
+                        complexities.map((c) => {
+                          const hours = getEstimatedHoursByComplexity(c._id);
+                          return (
+                            <MenuItem key={c._id} value={c._id}>
+                              {c.name} {hours > 0 && `(~${hours}h)`}
+                            </MenuItem>
+                          );
+                        })
+                      )}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      💡 Chọn complexity để tự động gợi ý giờ
+                    </Typography>
+                  </FormControl>
+                </Stack>
+                
+                <Divider />
+                
+                <Stack direction="row" spacing={2}>
+                  <Box sx={{ flex: 1 }}>
+                    <TextField
+                      label="Estimated Hours (giờ) *"
+                      type="number"
+                      value={form.estimated_hours || 0}
+                      onChange={(e) => setForm(prev => ({ ...prev, estimated_hours: Number(e.target.value) }))}
+                      fullWidth
+                      placeholder="VD: 40"
+                      helperText={
+                        capacityInfo.remainingHours > 0 
+                          ? `💡 Còn ${capacityInfo.remainingHours}h trong công suất dự án` 
+                          : capacityInfo.remainingHours < 0 
+                            ? `⚠️ Vượt quá công suất ${Math.abs(capacityInfo.remainingHours)}h`
+                            : ''
+                      }
+                      error={Boolean(form.estimated_hours && form.estimated_hours > capacityInfo.remainingHours && capacityInfo.remainingHours > 0)}
+                    />
+                    {form.complexity_id && (
+                      <Alert severity="info" sx={{ mt: 1, py: 0.5 }}>
+                        <Typography variant="caption">
+                          💡 Gợi ý: {getEstimatedHoursByComplexity(form.complexity_id)}h (dựa vào complexity)
+                        </Typography>
+                      </Alert>
+                    )}
+                  </Box>
                   <TextField
                     label="Start Date"
                     type="date"
@@ -956,6 +1537,21 @@ export default function ProjectFeaturesPage() {
                       variant="outlined"
                     />
                   </Box>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Complexity
+                    </Typography>
+                    <Chip
+                      label={typeof selectedFeatureDetail.complexity_id === 'object' ? selectedFeatureDetail.complexity_id?.name : '-'}
+                      size="medium"
+                      color={
+                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Very Complex') ? 'error' :
+                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Complex') ? 'warning' :
+                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Medium') ? 'primary' : 'default'
+                      }
+                      variant="outlined"
+                    />
+                  </Box>
                 </Stack>
 
                 <Stack direction="row" spacing={3}>
@@ -1060,6 +1656,132 @@ export default function ProjectFeaturesPage() {
                 onClick={() => router.push(`/projects/${projectId}/features/${selectedFeatureDetail?._id}`)}
               >
                 Xem Breakdown
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Effort Allocation Suggestions Dialog */}
+          <Dialog
+            open={openAllocationDialog}
+            onClose={() => setOpenAllocationDialog(false)}
+            maxWidth="lg"
+            fullWidth
+          >
+            <DialogTitle sx={{ fontWeight: 'bold' }}>
+              💡 Gợi ý phân bổ Effort theo Complexity
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                Phân bổ capacity dựa trên độ phức tạp kỹ thuật của features
+              </Typography>
+            </DialogTitle>
+            <DialogContent>
+              {allocationSuggestions && (
+                <Stack spacing={3} sx={{ mt: 2 }}>
+                  {/* Summary */}
+                  <Alert severity="info">
+                    <Stack spacing={1}>
+                      <Typography variant="body2" fontWeight={600}>
+                        📊 Tổng capacity: {allocationSuggestions.total_capacity} giờ
+                      </Typography>
+                      <Typography variant="caption">
+                        Method: {allocationSuggestions.allocation_method} | 
+                        Total points: {allocationSuggestions.total_points || allocationSuggestions.total_weighted_points}
+                      </Typography>
+                      <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                        <Chip label={`${allocationSuggestions.summary?.total_features || 0} features`} size="small" />
+                        <Chip label={`Suggested: ${allocationSuggestions.summary?.total_suggested || 0}h`} color="primary" size="small" />
+                        <Chip label={`Current: ${allocationSuggestions.summary?.total_current || 0}h`} color="default" size="small" />
+                      </Stack>
+                    </Stack>
+                  </Alert>
+
+                  {/* Suggestions Table */}
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Feature</TableCell>
+                        <TableCell>Complexity</TableCell>
+                        <TableCell align="right">Points</TableCell>
+                        <TableCell align="right">%</TableCell>
+                        <TableCell align="right">Suggested</TableCell>
+                        <TableCell align="right">Current</TableCell>
+                        <TableCell align="right">Diff</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Action</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {allocationSuggestions.suggestions?.map((s: any) => (
+                        <TableRow key={s.feature_id}>
+                          <TableCell>{s.feature_title}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={s.complexity} 
+                              size="small"
+                              color={
+                                s.complexity === 'very-complex' ? 'error' :
+                                s.complexity === 'complex' ? 'warning' :
+                                s.complexity === 'medium' ? 'primary' : 'default'
+                              }
+                            />
+                          </TableCell>
+                          <TableCell align="right">{s.complexity_points || s.weighted_points}</TableCell>
+                          <TableCell align="right">{s.percentage}%</TableCell>
+                          <TableCell align="right">
+                            <Typography fontWeight={600} color="primary.main">
+                              {s.suggested_hours}h
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">{s.current_hours}h</TableCell>
+                          <TableCell align="right">
+                            <Typography 
+                              color={s.difference > 0 ? 'error.main' : s.difference < 0 ? 'success.main' : 'text.secondary'}
+                              fontWeight={600}
+                            >
+                              {s.difference > 0 ? '+' : ''}{s.difference}h
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={s.status}
+                              size="small"
+                              color={s.status === 'ok' ? 'success' : s.status === 'under-estimated' ? 'error' : 'warning'}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => applySuggestion(s.feature_id, s.suggested_hours)}
+                              disabled={s.status === 'ok'}
+                            >
+                              Apply
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Stack>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setOpenAllocationDialog(false)}>
+                Đóng
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => fetchAllocationSuggestions('hybrid')}
+                disabled={loadingSuggestions}
+              >
+                🔥 Hybrid Mode
+              </Button>
+              <Button
+                variant="contained"
+                onClick={applyAllSuggestions}
+                disabled={loadingSuggestions || !allocationSuggestions?.suggestions?.length}
+              >
+                Apply Tất Cả
               </Button>
             </DialogActions>
           </Dialog>

@@ -560,6 +560,9 @@ export default function ProjectDetailPage() {
               <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/documents`)}>
                 Tài liệu
               </Button>
+                <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/defect`)}>
+                  Lỗi
+                </Button>
               <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
                 Monitoring
               </Button>
@@ -1093,7 +1096,7 @@ function MilestoneFeaturesTable({
                   {milestone.title}
                 </Typography>
                 <Chip
-                  label={milestone.status || "Planned"}
+                  label={milestone.status || "Planning"}
                   color={getStatusColor(milestone.status)}
                   size="small"
                 />
