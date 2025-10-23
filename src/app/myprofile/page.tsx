@@ -30,6 +30,7 @@ export default function MyProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [googleAvatar, setGoogleAvatar] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     full_name: '',
     phone: '',
@@ -61,6 +62,13 @@ export default function MyProfilePage() {
       }
     })();
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ga = sessionStorage.getItem('googleAvatar') || localStorage.getItem('googleAvatar');
+      if (ga) setGoogleAvatar(ga);
+    }
+  }, []);
 
   const fetchProfile = async () => {
     try {
@@ -161,17 +169,19 @@ export default function MyProfilePage() {
         <div className="grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-6 mb-8">
           {/* Avatar card */}
           <div className="card rounded-xl p-6 flex items-center gap-5">
-            <div className="w-24 h-24 rounded-xl overflow-hidden flex items-center justify-center text-3xl font-semibold border" style={{borderColor:'var(--border)', background:'var(--muted)'}}>
-              {me.avatar ? (
+            <div className={`w-24 h-24 rounded-xl overflow-hidden flex items-center justify-center text-3xl font-semibold border ${googleAvatar ? '' : 'bg-blue-500'}`} style={{borderColor:'var(--border)', background: googleAvatar ? 'var(--muted)' : undefined}}>
+              {googleAvatar ? (
                 <Image 
-                  src={me.avatar} 
+                  src={googleAvatar as string} 
                   alt="avatar" 
                   width={96} 
                   height={96} 
                   className="w-full h-full object-cover"
                 />
               ) : (
-                (me.full_name?.[0]?.toUpperCase() || me.email?.[0]?.toUpperCase() || 'N')
+                <span className="text-white">
+                  {me.full_name?.[0]?.toUpperCase() || me.email?.[0]?.toUpperCase() || 'N'}
+                </span>
               )}
             </div>
             <div className="flex-1">
@@ -181,7 +191,7 @@ export default function MyProfilePage() {
                 <div className="text-xs opacity-60 mt-1">{me.major}</div>
               )}
             </div>
-            <button className="btn-primary rounded-lg px-4 py-2 text-sm">⬆ Tải Ảnh Lên</button>
+            {/* Upload disabled by requirement */}
           </div>
 
           {/* Banner */}
