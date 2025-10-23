@@ -85,7 +85,7 @@ type Feature = {
   milestone_ids?: string[];
 };
 
-// Mock data for display
+// Mock data for display  
 
 
 export default function ProjectFeaturesPage() {
@@ -102,6 +102,12 @@ export default function ProjectFeaturesPage() {
   const [priorities, setPriorities] = useState<Setting[]>([]);
   const [statuses, setStatuses] = useState<Setting[]>([]);
   const [complexities, setComplexities] = useState<Setting[]>([]);
+  
+  // Project data with man_days
+  const [projectData, setProjectData] = useState<{ man_days?: number; topic?: string; start_date?: string; end_date?: string } | null>(null);
+  
+  // Team data for capacity calculation
+  const [teamData, setTeamData] = useState<{ team_member?: any[] } | null>(null);
 
   const [openForm, setOpenForm] = useState(false);
   const [form, setForm] = useState<Feature>({ 
@@ -160,12 +166,36 @@ export default function ProjectFeaturesPage() {
     (async () => {
       try {
         setLoading(true);
-        const [milestoneRes, featureRes] = await Promise.all([
+        const [projectRes, teamRes, milestoneRes, featureRes, priorityRes, statusRes, complexityRes] = await Promise.all([
+          axiosInstance.get(`/api/projects/${projectId}`).catch(() => ({ data: null })),
+          axiosInstance.get(`/api/projects/${projectId}/team`).catch(() => ({ data: { data: null } })),
           axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: null })),
+          axiosInstance.get(`/api/settings/by-type/1`).catch(() => ({ data: [] })), // Priority
+          axiosInstance.get(`/api/settings/by-type/2`).catch(() => ({ data: [] })), // Status
+          axiosInstance.get(`/api/settings/by-type/3`).catch(() => ({ data: [] })), // Complexity
         ]);
+        
+        // Set project data
+        setProjectData(projectRes.data);
+        
+        // Set team data
+        setTeamData(teamRes.data?.data || null);
+        
         const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
         setMilestones(milestonesList);
+
+        // Set settings
+        setPriorities(Array.isArray(priorityRes.data) ? priorityRes.data : []);
+        setStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
+        setComplexities(Array.isArray(complexityRes.data) ? complexityRes.data : []);
+        
+        // Debug logging
+        console.log('Settings loaded:', {
+          priorities: priorityRes.data,
+          statuses: statusRes.data,
+          complexities: complexityRes.data
+        });
 
         if (Array.isArray(featureRes.data)) {
           // Enrich features with linked milestone ids
@@ -213,6 +243,34 @@ export default function ProjectFeaturesPage() {
   }, [projectId, features]);
 
   const milestoneOptions = useMemo(() => milestones.map(m => ({ id: m._id, label: m.title })), [milestones]);
+
+  // Calculate project capacity and usage
+  const capacityInfo = useMemo(() => {
+    const hoursPerDay = projectData?.man_days || 0; // Giờ làm việc mỗi ngày của 1 người
+    const teamMemberCount = teamData?.team_member?.length || 0; // Số người trong team
+    
+    // Tính số ngày dự án
+    const projectDurationDays = projectData?.start_date && projectData?.end_date 
+      ? Math.ceil((new Date(projectData.end_date).getTime() - new Date(projectData.start_date).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    
+    // Total Capacity = số người × giờ mỗi ngày × số ngày dự án
+    const totalCapacityHours = teamMemberCount * hoursPerDay * projectDurationDays;
+    
+    const usedHours = features.reduce((sum, f) => sum + (f.estimated_hours || 0), 0);
+    const remainingHours = totalCapacityHours - usedHours;
+    const usagePercentage = totalCapacityHours > 0 ? (usedHours / totalCapacityHours) * 100 : 0;
+    
+    return {
+      hoursPerDay,
+      teamMemberCount,
+      projectDurationDays,
+      totalCapacityHours,
+      usedHours,
+      remainingHours,
+      usagePercentage
+    };
+  }, [projectData, teamData, features]);
 
   // Compute progress per feature: % milestones completed
   const featureProgress = useMemo(() => {
@@ -443,6 +501,120 @@ export default function ProjectFeaturesPage() {
             </Box>
           ) : (
             <Stack spacing={3}>
+              {/* Project Capacity Card */}
+              {projectData && capacityInfo.totalCapacityHours > 0 && (
+                <Paper variant="outlined" sx={{ p: 3, bgcolor: 'background.paper' }}>
+                  <Stack spacing={2}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="h6" fontWeight={600}>
+                        📊 Công suất dự án
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <Chip 
+                          label={`${capacityInfo.teamMemberCount} thành viên`}
+                          color="primary"
+                          size="small"
+                        />
+                        <Chip 
+                          label={`${capacityInfo.hoursPerDay}h/ngày`}
+                          color="secondary"
+                          size="small"
+                        />
+                        <Chip 
+                          label={`${capacityInfo.projectDurationDays} ngày`}
+                          color="info"
+                          size="small"
+                        />
+                      </Stack>
+                    </Stack>
+                    
+                    <Alert severity="info" sx={{ mb: 1 }}>
+                      💡 Công thức: {capacityInfo.teamMemberCount} người × {capacityInfo.hoursPerDay}h/ngày × {capacityInfo.projectDurationDays} ngày = <strong>{capacityInfo.totalCapacityHours} giờ</strong>
+                    </Alert>
+                    
+                    <Stack direction="row" spacing={4} alignItems="center">
+                      <Box flex={1}>
+                        <Typography variant="caption" color="text.secondary">
+                          Tổng công suất
+                        </Typography>
+                        <Typography variant="h5" fontWeight={600}>
+                          {capacityInfo.totalCapacityHours} giờ
+                        </Typography>
+                      </Box>
+                      
+                      <Divider orientation="vertical" flexItem />
+                      
+                      <Box flex={1}>
+                        <Typography variant="caption" color="text.secondary">
+                          Đã phân bổ
+                        </Typography>
+                        <Typography variant="h5" fontWeight={600} color="primary.main">
+                          {capacityInfo.usedHours} giờ
+                        </Typography>
+                      </Box>
+                      
+                      <Divider orientation="vertical" flexItem />
+                      
+                      <Box flex={1}>
+                        <Typography variant="caption" color="text.secondary">
+                          Còn lại
+                        </Typography>
+                        <Typography 
+                          variant="h5" 
+                          fontWeight={600}
+                          color={capacityInfo.remainingHours < 0 ? 'error.main' : 'success.main'}
+                        >
+                          {capacityInfo.remainingHours} giờ
+                        </Typography>
+                      </Box>
+                      
+                      <Divider orientation="vertical" flexItem />
+                      
+                      <Box flex={1}>
+                        <Typography variant="caption" color="text.secondary">
+                          Tỷ lệ sử dụng
+                        </Typography>
+                        <Typography 
+                          variant="h5" 
+                          fontWeight={600}
+                          color={
+                            capacityInfo.usagePercentage > 100 ? 'error.main' : 
+                            capacityInfo.usagePercentage > 80 ? 'warning.main' : 
+                            'text.primary'
+                          }
+                        >
+                          {capacityInfo.usagePercentage.toFixed(1)}%
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    
+                    <Box sx={{ width: '100%' }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(capacityInfo.usagePercentage, 100)} 
+                        color={
+                          capacityInfo.usagePercentage > 100 ? "error" : 
+                          capacityInfo.usagePercentage > 80 ? "warning" : 
+                          "primary"
+                        }
+                        sx={{ height: 10, borderRadius: 5 }}
+                      />
+                    </Box>
+                    
+                    {capacityInfo.usagePercentage > 100 && (
+                      <Alert severity="error" sx={{ mt: 1 }}>
+                        ⚠️ Cảnh báo: Đã vượt quá công suất dự án {Math.abs(capacityInfo.remainingHours)} giờ ({(capacityInfo.usagePercentage - 100).toFixed(1)}%)
+                      </Alert>
+                    )}
+                    {capacityInfo.usagePercentage > 80 && capacityInfo.usagePercentage <= 100 && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        💡 Lưu ý: Đã sử dụng hơn 80% công suất dự án. Còn {capacityInfo.remainingHours} giờ.
+                      </Alert>
+                    )}
+                  </Stack>
+                </Paper>
+              )}
+              
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
                   <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -542,6 +714,7 @@ export default function ProjectFeaturesPage() {
                       <TableCell>Title</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Priority</TableCell>
+                      <TableCell>Complexity</TableCell>
                       <TableCell sx={{ minWidth: 200 }}>Milestone</TableCell>
                       <TableCell>Estimated hours</TableCell>
                       <TableCell>Start - Due</TableCell>
@@ -625,21 +798,123 @@ export default function ProjectFeaturesPage() {
                             )}
                           </TableCell>
                           
-                          <TableCell>
-                            {statusChip}
+                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'status_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.status_id === 'object' ? f.status_id?._id : (f.status_id || '')}
+                                onChange={async (e) => {
+                                  const newStatusId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, status_id: statuses.find(s => s._id === newStatusId) } : x
+                                    ));
+                                    cancelEditRow();
+                                  } catch (err) {
+                                    console.error('Error updating status:', err);
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {statuses.map((s) => (
+                                  <MenuItem key={s._id} value={s._id}>
+                                    {s.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              statusChip
+                            )}
                           </TableCell>
                           
-                          <TableCell>
-                            <Chip
-                              label={priorityName || '-'}
-                              size="small"
-                              color={
-                                priorityName === 'critical' ? 'error' :
-                                priorityName === 'high' ? 'warning' :
-                                priorityName === 'medium' ? 'primary' : 'default'
-                              }
-                              variant="outlined"
-                            />
+                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'priority_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.priority_id === 'object' ? f.priority_id?._id : (f.priority_id || '')}
+                                onChange={async (e) => {
+                                  const newPriorityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, priority_id: priorities.find(p => p._id === newPriorityId) } : x
+                                    ));
+                                    cancelEditRow();
+                                  } catch (err) {
+                                    console.error('Error updating priority:', err);
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {priorities.map((p) => (
+                                  <MenuItem key={p._id} value={p._id}>
+                                    {p.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              <Chip
+                                label={priorityName || '-'}
+                                size="small"
+                                color={
+                                  priorityName === 'critical' ? 'error' :
+                                  priorityName === 'high' ? 'warning' :
+                                  priorityName === 'medium' ? 'primary' : 'default'
+                                }
+                                variant="outlined"
+                              />
+                            )}
+                          </TableCell>
+                          
+                          <TableCell onClick={() => startEditCell(f, 'complexity_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'complexity_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.complexity_id === 'object' ? f.complexity_id?._id : (f.complexity_id || '')}
+                                onChange={async (e) => {
+                                  const newComplexityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { complexity_id: newComplexityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, complexity_id: complexities.find(c => c._id === newComplexityId) } : x
+                                    ));
+                                    cancelEditRow();
+                                  } catch (err) {
+                                    console.error('Error updating complexity:', err);
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {complexities.map((c) => (
+                                  <MenuItem key={c._id} value={c._id}>
+                                    {c.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              (() => {
+                                const complexityName = typeof f.complexity_id === 'object' ? f.complexity_id?.name : '';
+                                return (
+                                  <Chip
+                                    label={complexityName || '-'}
+                                    size="small"
+                                    color={
+                                      complexityName === 'Very Complex' ? 'error' :
+                                      complexityName === 'Complex' ? 'warning' :
+                                      complexityName === 'Medium' ? 'primary' : 'default'
+                                    }
+                                    variant="outlined"
+                                  />
+                                );
+                              })()
+                            )}
                           </TableCell>
                           
                           <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
@@ -765,6 +1040,40 @@ export default function ProjectFeaturesPage() {
               </Box>
             </DialogTitle>
             <DialogContent>
+              {/* Capacity Info */}
+              {projectData && capacityInfo.totalCapacityHours > 0 && (
+                <Alert 
+                  severity={capacityInfo.usagePercentage > 100 ? "error" : capacityInfo.usagePercentage > 80 ? "warning" : "info"}
+                  sx={{ mb: 2, mt: 2 }}
+                >
+                  <Stack spacing={1}>
+                    <Typography variant="body2" fontWeight={600}>
+                      📊 Công suất dự án: {capacityInfo.teamMemberCount} người × {capacityInfo.hoursPerDay}h/ngày × {capacityInfo.projectDurationDays} ngày = {capacityInfo.totalCapacityHours} giờ
+                    </Typography>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Typography variant="caption">
+                        Đã phân bổ: <strong>{capacityInfo.usedHours}h</strong>
+                      </Typography>
+                      <Typography variant="caption">
+                        Còn lại: <strong style={{ color: capacityInfo.remainingHours < 0 ? 'red' : 'inherit' }}>
+                          {capacityInfo.remainingHours}h
+                        </strong>
+                      </Typography>
+                      <Typography variant="caption">
+                        Tỷ lệ: <strong>{capacityInfo.usagePercentage.toFixed(1)}%</strong>
+                      </Typography>
+                    </Stack>
+                    <Box sx={{ width: '100%', mt: 1 }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(capacityInfo.usagePercentage, 100)} 
+                        color={capacityInfo.usagePercentage > 100 ? "error" : capacityInfo.usagePercentage > 80 ? "warning" : "primary"}
+                        sx={{ height: 8, borderRadius: 4 }}
+                      />
+                    </Box>
+                  </Stack>
+                </Alert>
+              )}
               <Stack spacing={3} sx={{ mt: 2 }}>
                 <TextField
                   label="Tiêu đề *"
@@ -795,6 +1104,79 @@ export default function ProjectFeaturesPage() {
                 <Divider />
                 
                 <Stack direction="row" spacing={2}>
+                  <FormControl fullWidth>
+                    <InputLabel id="status-label">Status</InputLabel>
+                    <Select
+                      labelId="status-label"
+                      label="Status"
+                      value={form.status_id || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, status_id: e.target.value }))}
+                    >
+                      {statuses.length === 0 ? (
+                        <MenuItem disabled>Đang tải...</MenuItem>
+                      ) : (
+                        statuses.map((s) => (
+                          <MenuItem key={s._id} value={s._id}>
+                            {s.name}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {statuses.length} options
+                    </Typography>
+                  </FormControl>
+                  
+                  <FormControl fullWidth>
+                    <InputLabel id="priority-label">Priority</InputLabel>
+                    <Select
+                      labelId="priority-label"
+                      label="Priority"
+                      value={form.priority_id || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, priority_id: e.target.value }))}
+                    >
+                      {priorities.length === 0 ? (
+                        <MenuItem disabled>Đang tải...</MenuItem>
+                      ) : (
+                        priorities.map((p) => (
+                          <MenuItem key={p._id} value={p._id}>
+                            {p.name}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {priorities.length} options
+                    </Typography>
+                  </FormControl>
+                  
+                  <FormControl fullWidth>
+                    <InputLabel id="complexity-label">Complexity</InputLabel>
+                    <Select
+                      labelId="complexity-label"
+                      label="Complexity"
+                      value={form.complexity_id || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, complexity_id: e.target.value }))}
+                    >
+                      {complexities.length === 0 ? (
+                        <MenuItem disabled>Đang tải...</MenuItem>
+                      ) : (
+                        complexities.map((c) => (
+                          <MenuItem key={c._id} value={c._id}>
+                            {c.name}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {complexities.length} options
+                    </Typography>
+                  </FormControl>
+                </Stack>
+                
+                <Divider />
+                
+                <Stack direction="row" spacing={2}>
                   <TextField
                     label="Estimated Hours (giờ)"
                     type="number"
@@ -802,6 +1184,14 @@ export default function ProjectFeaturesPage() {
                     onChange={(e) => setForm(prev => ({ ...prev, estimated_hours: Number(e.target.value) }))}
                     fullWidth
                     placeholder="VD: 40"
+                    helperText={
+                      capacityInfo.remainingHours > 0 
+                        ? `💡 Còn ${capacityInfo.remainingHours}h trong công suất dự án` 
+                        : capacityInfo.remainingHours < 0 
+                          ? `⚠️ Vượt quá công suất ${Math.abs(capacityInfo.remainingHours)}h`
+                          : ''
+                    }
+                    error={Boolean(form.estimated_hours && form.estimated_hours > capacityInfo.remainingHours && capacityInfo.remainingHours > 0)}
                   />
                   <TextField
                     label="Start Date"
@@ -952,6 +1342,21 @@ export default function ProjectFeaturesPage() {
                         (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'critical') ? 'error' :
                         (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'high') ? 'warning' :
                         (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'medium') ? 'primary' : 'default'
+                      }
+                      variant="outlined"
+                    />
+                  </Box>
+                  <Box flex={1}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Complexity
+                    </Typography>
+                    <Chip
+                      label={typeof selectedFeatureDetail.complexity_id === 'object' ? selectedFeatureDetail.complexity_id?.name : '-'}
+                      size="medium"
+                      color={
+                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Very Complex') ? 'error' :
+                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Complex') ? 'warning' :
+                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Medium') ? 'primary' : 'default'
                       }
                       variant="outlined"
                     />
