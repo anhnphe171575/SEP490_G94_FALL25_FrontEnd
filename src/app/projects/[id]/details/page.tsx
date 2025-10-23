@@ -43,6 +43,36 @@ type ProjectDetails = {
   end_date?: string;
 };
 
+type TeamUser = {
+  _id: string;
+  full_name: string;
+  email: string;
+  student_id?: string;
+  role?: string;
+};
+
+type TeamMember = {
+  user_id: TeamUser;
+  team_leader: number;
+};
+
+type TeamMembersResponse = {
+  project: {
+    _id: string;
+    topic: string;
+    code: string;
+    status?: string;
+  };
+  team_members: {
+    team_id?: string;
+    team_name?: string;
+    leaders: TeamMember[];
+    members: TeamMember[];
+    total: number;
+  };
+  message: string;
+};
+
 export default function ProjectDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -51,6 +81,8 @@ export default function ProjectDetailsPage() {
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [team, setTeam] = useState<TeamMembersResponse | null>(null);
+  const [teamLoading, setTeamLoading] = useState(true);
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
@@ -81,7 +113,20 @@ export default function ProjectDetailsPage() {
       }
     };
 
+    const fetchTeamMembers = async () => {
+      try {
+        setTeamLoading(true);
+        const res = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
+        setTeam(res.data);
+      } catch (e: any) {
+        console.error('Lỗi tải team members:', e);
+      } finally {
+        setTeamLoading(false);
+      }
+    };
+
     fetchProjectDetails();
+    fetchTeamMembers();
   }, [projectId, router]);
 
   if (loading) {
@@ -314,6 +359,61 @@ export default function ProjectDetailsPage() {
               </div>
 
               <div className="space-y-4">
+                {/* Team from API */}
+                {!teamLoading && team && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-700">{team.team_members.team_name || 'Nhóm'}</p>
+                      <span className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
+                        {team.team_members.total} thành viên
+                      </span>
+                    </div>
+                    {team.team_members.leaders.length > 0 && (
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 mb-2">Trưởng nhóm</p>
+                        <div className="space-y-2">
+                          {team.team_members.leaders.map((m, idx) => (
+                            <div key={`leader-${idx}`} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                              <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 11a3 3 0 10-6 0 3 3 0 006 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{m.user_id?.full_name}</p>
+                                <p className="text-xs text-gray-600">{m.user_id?.email}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {team.team_members.members.length > 0 && (
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 mb-2">Thành viên</p>
+                        <div className="space-y-2">
+                          {team.team_members.members.map((m, idx) => (
+                            <div key={`member-${idx}`} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 11a3 3 0 10-6 0 3 3 0 006 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{m.user_id?.full_name}</p>
+                                <p className="text-xs text-gray-600">{m.user_id?.email}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {team.team_members.total === 0 && (
+                      <p className="text-sm text-gray-600">Project chưa có team</p>
+                    )}
+                  </div>
+                )}
+
                 {project.created_by && (
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">

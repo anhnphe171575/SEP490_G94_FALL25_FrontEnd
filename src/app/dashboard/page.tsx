@@ -4,16 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import { 
-  Box, 
-  Button, 
-  Card, 
-  CardActions, 
-  CardContent, 
-  CardHeader, 
-  Chip, 
-  Container, 
-  Grid, 
+import {
+  Button,
   Typography,
   Dialog,
   DialogTitle,
@@ -24,8 +16,7 @@ import {
   CircularProgress,
   IconButton
 } from "@mui/material";
-import { 
-  Add as AddIcon,
+import {
   Login as LoginIcon,
   Close as CloseIcon,
   Group as GroupIcon
@@ -45,13 +36,147 @@ type Project = {
   updateAt?: string;
 };
 
+type SemesterGroup = {
+  semester: string;
+  count: number;
+  projects: Project[];
+};
+
+// Helper function to check if project is in progress
+const isProjectInProgress = (project: Project): boolean => {
+  return project.status === 'on-hold' || project.status === 'planned' || project.status === 'active';
+};
+
+// Helper function to get year from semester name for sorting
+const getSemesterYear = (semester: string): number => {
+  const match = semester.match(/(\d{4})/);
+  return match ? parseInt(match[1]) : 0;
+};
+
+// Project Card Component
+const ProjectCard = ({ project, onEdit, onDelete, router }: {
+  project: Project;
+  onEdit: (project: Project) => void;
+  onDelete: (project: Project) => void;
+  router: { push: (path: string) => void };
+}) => (
+  <div
+    className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+    onClick={() => router.push(`/projects/${project._id}`)}
+  >
+    <div className="flex items-start justify-between mb-4">
+      <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+          {project.code || 'N/A'}
+        </span>
+        {project.semester && (
+          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full text-center">
+            {project.semester}
+          </span>
+        )}
+      </div>
+    </div>
+
+    <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-orange-600 transition-colors duration-200">
+      {project.topic || 'Dự án không có tên'}
+    </h3>
+
+    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+      {project.description || 'Theo dõi tiến độ, quản lý milestone và tài liệu dự án.'}
+    </p>
+
+    {project.progress !== undefined && (
+      <div className="mb-4">
+        <div className="flex justify-between text-sm mb-1">
+          <span className="text-gray-600">Tiến độ</span>
+          <span className="font-medium text-gray-900">{project.progress}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div
+            className="bg-gradient-to-r from-orange-500 to-pink-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${project.progress}%` }}
+          ></div>
+        </div>
+      </div>
+    )}
+
+    <div className="pt-4 border-t border-gray-200">
+      <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {project.updateAt ? new Date(project.updateAt).toLocaleDateString('vi-VN') : 'Vừa cập nhật'}
+      </div>
+
+      {/* Action buttons row */}
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(project);
+          }}
+          className="text-blue-500 hover:text-blue-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Sửa
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(project);
+          }}
+          className="text-red-500 hover:text-red-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Xóa
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/projects/${project._id}/details`);
+          }}
+          className="text-green-500 hover:text-green-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          Chi tiết
+        </button>
+      </div>
+
+      {/* Open project button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          router.push(`/projects/${project._id}`);
+        }}
+        className="w-full text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-orange-200 hover:bg-orange-50 rounded-lg"
+      >
+        Mở dự án →
+      </button>
+    </div>
+  </div>
+);
+
 export default function DashboardPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  
+  const [selectedSemester, setSelectedSemester] = useState<string>("all");
+  const [semesterGroups, setSemesterGroups] = useState<SemesterGroup[]>([]);
+
   // Edit/Delete states
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
@@ -61,8 +186,8 @@ export default function DashboardPage() {
     description: ''
   });
   const [submitting, setSubmitting] = useState(false);
-  
-  
+
+
   // Join project dialog states
   const [openJoinDialog, setOpenJoinDialog] = useState(false);
   const [teamCode, setTeamCode] = useState("");
@@ -80,13 +205,54 @@ export default function DashboardPage() {
     (async () => {
       try {
         // Assuming endpoint exists: /api/projects (adjust if different)
-        const res = await axiosInstance.get('/api/projects');
-        const list = Array.isArray(res.data) ? res.data : (res.data?.items || []);
-        if (!list || list.length === 0) {
-          router.replace('/no-project');
-          return;
+        const response = await axiosInstance.get('/api/projects');
+        const data = response.data;
+
+        // Xử lý dữ liệu từ API
+        if (data.statistics?.bySemester) {
+          // API mới: sử dụng dữ liệu đã được nhóm sẵn
+          const groups = data.statistics.bySemester.map((group: { semester: string; count: number; projects: Project[] }) => ({
+            semester: group.semester,
+            count: group.count,
+            projects: group.projects.sort((a: Project, b: Project) => {
+              const dateA = new Date(a.createAt || a.updateAt || 0);
+              const dateB = new Date(b.createAt || b.updateAt || 0);
+              return dateB.getTime() - dateA.getTime();
+            })
+          })).sort((a: SemesterGroup, b: SemesterGroup) => {
+            return getSemesterYear(b.semester) - getSemesterYear(a.semester);
+          });
+          setSemesterGroups(groups);
+          setProjects(data.projects || []);
+        } else {
+          // API cũ: tự nhóm dữ liệu
+          const list = Array.isArray(data) ? data : (data?.items || []);
+          if (!list || list.length === 0) {
+            router.replace('/no-project');
+            return;
+          }
+          setProjects(list);
+
+          const groups = list.reduce((acc: { [key: string]: Project[] }, project: Project) => {
+            const semester = project.semester || 'Unknown';
+            if (!acc[semester]) acc[semester] = [];
+            acc[semester].push(project);
+            return acc;
+          }, {});
+
+          const semesterGroups = Object.keys(groups).map(semester => ({
+            semester,
+            count: groups[semester].length,
+            projects: groups[semester].sort((a: Project, b: Project) => {
+              const dateA = new Date(a.createAt || a.updateAt || 0);
+              const dateB = new Date(b.createAt || b.updateAt || 0);
+              return dateB.getTime() - dateA.getTime();
+            })
+          })).sort((a: SemesterGroup, b: SemesterGroup) => {
+            return getSemesterYear(b.semester) - getSemesterYear(a.semester);
+          });
+          setSemesterGroups(semesterGroups);
         }
-        setProjects(list);
       } catch (e: unknown) {
         const error = e as { response?: { status?: number; data?: { message?: string } } };
         if (error?.response?.status === 404) {
@@ -100,6 +266,17 @@ export default function DashboardPage() {
     })();
   }, [router]);
 
+  // Filter projects based on search term and semester
+  const filteredProjects = projects?.filter(project => {
+    const matchesSearch = (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesSemester = selectedSemester === "all" || project.semester === selectedSemester;
+    return matchesSearch && matchesSemester;
+  }).sort((a, b) => {
+    const dateA = new Date(a.createAt || a.updateAt || 0);
+    const dateB = new Date(b.createAt || b.updateAt || 0);
+    return dateB.getTime() - dateA.getTime();
+  }) || [];
   // Handle join project by team code
   const handleJoinProject = async () => {
     if (!teamCode.trim()) {
@@ -109,21 +286,22 @@ export default function DashboardPage() {
 
     setJoinLoading(true);
     setJoinError(null);
-    
+
     try {
       const response = await axiosInstance.post(`/api/team/join/${teamCode.trim()}`);
-      
+
       setJoinSuccess("Tham gia nhóm thành công!");
       setTeamCode("");
-      
+
       // Redirect to the project after 2 seconds
       setTimeout(() => {
         const projectId = response.data.data.team.project_id._id;
         router.push(`/projects/${projectId}`);
       }, 2000);
-      
-    } catch (e: any) {
-      const errorMessage = e?.response?.data?.message || "Không thể tham gia nhóm";
+
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
+      const errorMessage = error?.response?.data?.message || "Không thể tham gia nhóm";
       setJoinError(errorMessage);
     } finally {
       setJoinLoading(false);
@@ -136,13 +314,6 @@ export default function DashboardPage() {
     setJoinError(null);
     setJoinSuccess(null);
   };
-
-
-  // Filter projects based on search term
-  const filteredProjects = projects?.filter(project =>
-    (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  ) || [];
 
   // Edit project handlers
   const handleEditProject = (project: Project) => {
@@ -160,15 +331,16 @@ export default function DashboardPage() {
 
     try {
       setSubmitting(true);
-      const res = await axiosInstance.put(`/api/projects/${editingProject._id}`, editForm);
-      
+      await axiosInstance.put(`/api/projects/${editingProject._id}`, editForm);
+
       // Update local state
       setProjects(prev => prev?.map(p => p._id === editingProject._id ? { ...p, ...editForm } : p) || null);
       setEditingProject(null);
       setEditForm({ topic: '', code: '', description: '' });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
       console.error('Lỗi cập nhật dự án:', e);
-      alert(e?.response?.data?.message || 'Cập nhật dự án thất bại');
+      alert(error?.response?.data?.message || 'Cập nhật dự án thất bại');
     } finally {
       setSubmitting(false);
     }
@@ -181,13 +353,14 @@ export default function DashboardPage() {
     try {
       setSubmitting(true);
       await axiosInstance.delete(`/api/projects/${deletingProject._id}`);
-      
+
       // Update local state
       setProjects(prev => prev?.filter(p => p._id !== deletingProject._id) || null);
       setDeletingProject(null);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
       console.error('Lỗi xóa dự án:', e);
-      alert(e?.response?.data?.message || 'Xóa dự án thất bại');
+      alert(error?.response?.data?.message || 'Xóa dự án thất bại');
     } finally {
       setSubmitting(false);
     }
@@ -242,41 +415,41 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
-          {/* Header Section */}
-          <div className="mb-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-                  Chào mừng trở lại! 👋
-                </h1>
-                <p className="text-gray-600">
-                  Quản lý và theo dõi các dự án của bạn một cách dễ dàng
-                </p>
-              </div>
-              <div className="flex gap-2 flex-col md:flex-row">
-                <button
-                  onClick={() => setOpenJoinDialog(true)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Tham gia dự án
-                </button>
-                <button
-                  onClick={() => router.push('/projects/new')}
-                  className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Tạo dự án mới
-                </button>
-              </div>
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                Chào mừng trở lại! 👋
+              </h1>
+              <p className="text-gray-600">
+                Quản lý và theo dõi các dự án của bạn một cách dễ dàng
+              </p>
             </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOpenJoinDialog(true)}
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                Tham gia dự án
+              </button>
+              <button
+                onClick={() => router.push('/projects/new')}
+                className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Tạo dự án mới
+              </button>
+            </div>
+          </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -293,6 +466,20 @@ export default function DashboardPage() {
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{semesterGroups.length}</p>
+                  <p className="text-sm text-gray-600">Kỳ học</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                   <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -300,7 +487,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">
-                    {projects.filter(p => p.status === 'completed').length}
+                    {projects.filter(p => p.status === 'completed' || p.status === 'cancelled').length}
                   </p>
                   <p className="text-sm text-gray-600">Đã hoàn thành</p>
                 </div>
@@ -316,7 +503,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">
-                    {projects.filter(p => p.status === 'in-progress').length}
+                    {projects.filter(isProjectInProgress).length}
                   </p>
                   <p className="text-sm text-gray-600">Đang thực hiện</p>
                 </div>
@@ -324,24 +511,43 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+          {/* Search and Filter Bar */}
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            {/* Search Bar */}
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Tìm kiếm dự án..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-500 transition-all duration-200"
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Tìm kiếm dự án..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-500 transition-all duration-200"
-            />
+
+            {/* Semester Filter */}
+            <div className="md:w-64">
+              <select
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-900 transition-all duration-200"
+              >
+                <option value="all">Tất cả kỳ học</option>
+                {semesterGroups.map((group) => (
+                  <option key={group.semester} value={group.semester}>
+                    {group.semester} ({group.count} dự án)
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Projects Grid */}
+        {/* Projects by Semester */}
         {filteredProjects.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -350,124 +556,76 @@ export default function DashboardPage() {
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchTerm ? 'Không tìm thấy dự án' : 'Chưa có dự án nào'}
+              {searchTerm || selectedSemester !== "all" ? 'Không tìm thấy dự án' : 'Chưa có dự án nào'}
             </h3>
             <p className="text-gray-600 mb-6">
-              {searchTerm ? 'Thử tìm kiếm với từ khóa khác' : 'Hãy tạo dự án đầu tiên của bạn'}
+              {searchTerm || selectedSemester !== "all" ? 'Thử tìm kiếm với từ khóa khác hoặc chọn kỳ học khác' : 'Hãy tạo dự án đầu tiên của bạn'}
             </p>
             {!searchTerm && (
-              <button
-                onClick={() => router.push('/projects/new')}
-                className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-              >
-                Tạo dự án đầu tiên
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => setOpenJoinDialog(true)}
+                  className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 justify-center"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  Tham gia dự án
+                </button>
+                <button
+                  onClick={() => router.push('/projects/new')}
+                  className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  Tạo dự án đầu tiên
+                </button>
+              </div>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => (
-              <div
-                key={project._id}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-                onClick={() => router.push(`/projects/${project._id}`)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                  </div>
-                  <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
-                    {project.code || 'N/A'}
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-orange-600 transition-colors duration-200">
-                  {project.topic || 'Dự án không có tên'}
-                </h3>
-
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {project.description || 'Theo dõi tiến độ, quản lý milestone và tài liệu dự án.'}
-                </p>
-
-                {project.progress !== undefined && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">Tiến độ</span>
-                      <span className="font-medium text-gray-900">{project.progress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-orange-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${project.progress}%` }}
-                      ></div>
+          <div className="space-y-8">
+            {selectedSemester === "all" ? (
+              // Hiển thị theo từng kỳ học
+              semesterGroups.map((group) => (
+                <div key={group.semester} className="space-y-4">
+                  {/* Semester Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">{group.semester}</h2>
+                        <p className="text-sm text-gray-600">
+                          {group.count} dự án
+                        </p>
+                      </div>
                     </div>
                   </div>
-                )}
 
-                <div className="pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {project.updateAt ? new Date(project.updateAt).toLocaleDateString('vi-VN') : 'Vừa cập nhật'}
+                  {/* Projects Grid for this semester */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {group.projects
+                      .filter(project => {
+                        const matchesSearch = (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                          (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+                        return matchesSearch;
+                      })
+                      .map((project) => (
+                        <ProjectCard key={project._id} project={project} onEdit={handleEditProject} onDelete={setDeletingProject} router={router} />
+                      ))}
                   </div>
-                  
-                  {/* Action buttons row */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditProject(project);
-                      }}
-                      className="text-blue-500 hover:text-blue-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Sửa
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingProject(project);
-                      }}
-                      className="text-red-500 hover:text-red-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Xóa
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/projects/${project._id}/details`);
-                      }}
-                      className="text-green-500 hover:text-green-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      Chi tiết
-                    </button>
-                  </div>
-                  
-                  {/* Open project button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/projects/${project._id}`);
-                    }}
-                    className="w-full text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-orange-200 hover:bg-orange-50 rounded-lg"
-                  >
-                    Mở dự án →
-                  </button>
                 </div>
+              ))
+            ) : (
+              // Hiển thị tất cả projects khi filter
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredProjects.map((project) => (
+                  <ProjectCard key={project._id} project={project} onEdit={handleEditProject} onDelete={setDeletingProject} router={router} />
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
       </main>
@@ -632,10 +790,10 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
               </div>
-              
+
               <h2 className="text-xl font-bold text-gray-900 text-center mb-2">Xóa dự án</h2>
               <p className="text-gray-600 text-center mb-6">
-                Bạn có chắc chắn muốn xóa dự án <strong>"{deletingProject.topic}"</strong>? 
+                Bạn có chắc chắn muốn xóa dự án <strong>&ldquo;{deletingProject.topic}&rdquo;</strong>?
                 Hành động này không thể hoàn tác.
               </p>
 
@@ -680,14 +838,14 @@ export default function DashboardPage() {
                 </Typography>
               </Alert>
             )}
-            
+
             {/* Error Message */}
             {joinError && (
               <Alert severity="error" onClose={() => setJoinError(null)}>
                 {joinError}
               </Alert>
             )}
-            
+
             <TextField
               fullWidth
               label="Mã nhóm"
@@ -701,8 +859,8 @@ export default function DashboardPage() {
               required
               disabled={joinLoading}
               helperText="Nhập mã nhóm được chia sẻ bởi trưởng nhóm"
-              sx={{ 
-                '& .MuiInputBase-input': { 
+              sx={{
+                '& .MuiInputBase-input': {
                   fontFamily: 'monospace',
                   fontSize: '1.1rem',
                   letterSpacing: '0.1em'

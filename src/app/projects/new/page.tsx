@@ -24,6 +24,10 @@ export default function NewProjectPage() {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    topic?: string;
+    code?: string;
+  }>({});
   const [semesterInfo, setSemesterInfo] = useState<SemesterInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,27 +49,34 @@ export default function NewProjectPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Clear previous errors
+    setFieldErrors({});
+    setError(null);
+
     // Validation phía client
+    const newFieldErrors: { topic?: string; code?: string } = {};
+
     if (!topic.trim()) {
-      setError('Vui lòng nhập tên dự án');
-      return;
-    }
-    
-    if (!code.trim()) {
-      setError('Vui lòng nhập mã dự án');
-      return;
+      newFieldErrors.topic = 'Vui lòng nhập tên dự án';
     }
 
-    if (code.length < 3) {
-      setError('Mã dự án phải có ít nhất 3 ký tự');
+    if (!code.trim()) {
+      newFieldErrors.code = 'Vui lòng nhập mã dự án';
+    } else if (code.trim().length < 3) {
+      newFieldErrors.code = 'Mã dự án phải có ít nhất 3 ký tự';
+    }
+
+    // Nếu có lỗi validation, hiển thị và dừng lại
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors);
       return;
     }
 
     try {
       setSubmitting(true);
       setError(null);
-      
+
       const projectData = {
         topic: topic.trim(),
         code: code.trim().toUpperCase(),
@@ -74,15 +85,14 @@ export default function NewProjectPage() {
       };
 
       const res = await axiosInstance.post('/api/projects', projectData);
-      
-      if (res.status === 201 || res.status === 200) {
-        // Hiển thị thông báo thành công
-        alert('Tạo dự án thành công! Bạn đã được nâng cấp thành Student Leader.');
+
+      if (res.status === 201) {
+        // Hiển thị thông báo thành công và chuyển hướng
         router.replace('/dashboard');
       }
     } catch (e: any) {
       console.error('Lỗi tạo dự án:', e);
-      
+
       // Xử lý các loại lỗi khác nhau từ backend
       if (e?.response?.status === 409) {
         if (e?.response?.data?.existingProject) {
@@ -138,7 +148,7 @@ export default function NewProjectPage() {
               Tạo dự án mới
             </h1>
             <p className="text-gray-600 text-lg">Bắt đầu hành trình phát triển dự án của bạn</p>
-            
+
             {/* Semester Info */}
             {semesterInfo && (
               <div className="mt-4 inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
@@ -150,6 +160,24 @@ export default function NewProjectPage() {
             )}
           </div>
 
+          {/* Additional Info */}
+          <div className="mt-8 text-center">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+              <div className="flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-blue-800">Thông tin quan trọng</h3>
+              </div>
+              <div className="text-sm text-blue-700 space-y-2">
+                <p>• Dự án sẽ được tạo cho học kì hiện tại: <strong>{semesterInfo?.semesterInfo.displayName}</strong></p>
+                <p>• Mỗi sinh viên chỉ có thể tạo <strong>1 dự án trong 1 học kì</strong></p>
+                <p>• Khi tạo dự án, bạn sẽ tự động được nâng cấp thành <strong>Student Leader</strong></p>
+                <p>• Dự án sẽ có các tính năng quản lý milestone và timeline</p>
+              </div>
+            </div>
+          </div>
+            <br />
           {/* Form Card */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 md:p-10">
             <form onSubmit={onSubmit} className="space-y-6">
@@ -173,10 +201,18 @@ export default function NewProjectPage() {
                 </label>
                 <div className="relative">
                   <input
-                    required
                     value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    className="w-full px-5 py-4 text-base text-black border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 focus:bg-white placeholder-gray-400"
+                    onChange={(e) => {
+                      setTopic(e.target.value);
+                      if (fieldErrors.topic) {
+                        setFieldErrors(prev => ({ ...prev, topic: undefined }));
+                      }
+                    }}
+                    className={`w-full px-5 py-4 text-base text-black border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 focus:bg-white placeholder-gray-400 ${
+                      fieldErrors.topic 
+                        ? 'border-red-300 focus:ring-red-500' 
+                        : 'border-gray-200 focus:ring-blue-500'
+                    }`}
                     placeholder="Ví dụ: SEP490 G94 - Hệ thống quản lý dự án"
                     maxLength={250}
                   />
@@ -186,6 +222,14 @@ export default function NewProjectPage() {
                     </svg>
                   </div>
                 </div>
+                {fieldErrors.topic && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {fieldErrors.topic}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500">Tên dự án phải rõ ràng và mô tả được nội dung chính</p>
               </div>
 
@@ -200,12 +244,19 @@ export default function NewProjectPage() {
                 </label>
                 <div className="relative">
                   <input
-                    required
                     value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    className="w-full px-5 py-4 text-base text-black border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 focus:bg-white placeholder-gray-400 uppercase tracking-wider font-mono"
+                    onChange={(e) => {
+                      setCode(e.target.value.toUpperCase());
+                      if (fieldErrors.code) {
+                        setFieldErrors(prev => ({ ...prev, code: undefined }));
+                      }
+                    }}
+                    className={`w-full px-5 py-4 text-base text-black border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 focus:bg-white placeholder-gray-400 uppercase tracking-wider font-mono ${
+                      fieldErrors.code 
+                        ? 'border-red-300 focus:ring-red-500' 
+                        : 'border-gray-200 focus:ring-indigo-500'
+                    }`}
                     placeholder="VD: SEP490"
-                    minLength={3}
                     maxLength={50}
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-4">
@@ -214,6 +265,14 @@ export default function NewProjectPage() {
                     </svg>
                   </div>
                 </div>
+                {fieldErrors.code && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {fieldErrors.code}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500">Mã dự án phải có ít nhất 3 ký tự và không được trùng lặp</p>
               </div>
 
@@ -242,9 +301,9 @@ export default function NewProjectPage() {
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-8">
-                <button 
-                  type="button" 
-                  onClick={() => router.back()} 
+                <button
+                  type="button"
+                  onClick={() => router.back()}
                   className="flex-1 px-8 py-4 text-base border border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-3"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -252,9 +311,9 @@ export default function NewProjectPage() {
                   </svg>
                   <span>Hủy</span>
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={submitting} 
+                <button
+                  type="submit"
+                  disabled={submitting}
                   className="flex-1 px-8 py-4 text-base bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl"
                 >
                   {submitting ? (
@@ -276,28 +335,10 @@ export default function NewProjectPage() {
               </div>
             </form>
           </div>
-
-          {/* Additional Info */}
-          <div className="mt-8 text-center">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-              <div className="flex items-center justify-center mb-3">
-                <svg className="w-6 h-6 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-lg font-semibold text-blue-800">Thông tin quan trọng</h3>
-              </div>
-              <div className="text-sm text-blue-700 space-y-2">
-                <p>• Dự án sẽ được tạo cho học kì hiện tại: <strong>{semesterInfo?.semesterInfo.displayName}</strong></p>
-                <p>• Mỗi sinh viên chỉ có thể tạo <strong>1 dự án trong 1 học kì</strong></p>
-                <p>• Khi tạo dự án, bạn sẽ tự động được nâng cấp thành <strong>Student Leader</strong></p>
-                <p>• Dự án sẽ có các tính năng quản lý milestone và timeline</p>
-              </div>
-            </div>
-          </div>
         </div>
       </main>
     </div>
-  );  
+  );
 }
 
 
