@@ -4,11 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import { toast } from "sonner";
 
 type SuccessCriterion = {
   title: string;
   description: string;
   status: "pending" | "in-review" | "verified" | "rejected";
+};
+
+type StatusOption = {
+  _id: string;
+  value: string;
+  label: string;
 };
 
 export default function NewMilestonePage() {
@@ -26,25 +33,29 @@ export default function NewMilestonePage() {
   const [actualEffort, setActualEffort] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [tags, setTags] = useState<string>("");
-  const [status, setStatus] = useState<string>("Planned");
-  const [parentId, setParentId] = useState<string>("");
-  const [parentOptions, setParentOptions] = useState<Array<{ _id: string; title: string }>>([]);
+  const [statusId, setStatusId] = useState<string>("");
+  const [statuses, setStatuses] = useState<StatusOption[]>([]);
   const [successCriteria, setSuccessCriteria] = useState<SuccessCriterion[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
 
+  // Fetch milestone statuses
   useEffect(() => {
-    if (!projectId) return;
     (async () => {
       try {
-        const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
-        const opts = (Array.isArray(res.data) ? res.data : []).map((m: any) => ({ _id: m._id, title: m.title }));
-        setParentOptions(opts);
-      } catch (_) {
-        // ignore: optional enhancement
+        const res = await axiosInstance.get('/api/projects/milestones/statuses');
+        const statusList = res.data.data || [];
+        setStatuses(statusList);
+        
+        // Set default to 'planning'
+        const planningStatus = statusList.find((s: StatusOption) => s.value === 'planning');
+        if (planningStatus) setStatusId(planningStatus._id);
+      } catch (err) {
+        console.error('Failed to fetch statuses:', err);
       }
     })();
-  }, [projectId]);
+  }, []);
 
   const validationMessage = useMemo(() => {
     if (!title.trim()) return "Tiêu đề là bắt buộc";
@@ -53,7 +64,8 @@ export default function NewMilestonePage() {
     const s = new Date(startDate);
     const d = new Date(deadline);
     if (isNaN(s.getTime()) || isNaN(d.getTime())) return "Ngày không hợp lệ";
-    if (s.getTime() > d.getTime()) return "Ngày bắt đầu phải trước hoặc bằng hạn";
+    // Rule 2.1: start_date phải < deadline
+    if (s >= d) return "Ngày bắt đầu phải trước hạn chót (Rule 2.1)";
     return "";
   }, [title, startDate, deadline]);
 
@@ -76,10 +88,18 @@ export default function NewMilestonePage() {
     try {
       setSubmitting(true);
       setError(null);
+      setErrorDetails([]);
+      
       if (validationMessage) {
         setError(validationMessage);
+        setErrorDetails([validationMessage]);
+        toast.error('Validation Error', {
+          description: validationMessage,
+          duration: 4000,
+        });
         return;
       }
+      
       const body: any = { 
         title, 
         code: code || undefined,
@@ -92,16 +112,37 @@ export default function NewMilestonePage() {
         actual_effort: actualEffort || 0,
         duration: duration || 0,
         tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        status,
+        status_id: statusId,
         success_criteria: successCriteria.filter(sc => sc.title.trim())
       };
-      if (parentId) body.parent_id = parentId;
+      
       const res = await axiosInstance.post(`/api/projects/${projectId}/milestones`, body);
       if (res.status === 201) {
+        toast.success('Milestone Created', {
+          description: `${title} đã được tạo thành công!`,
+          duration: 3000,
+        });
         router.replace(`/projects/${projectId}`);
       }
     } catch (e: any) {
-      setError(e?.response?.data?.message || 'Tạo milestone thất bại');
+      const errorMessage = e?.response?.data?.message || 'Tạo milestone thất bại';
+      const errorDetailsArray = e?.response?.data?.errors || [];
+      
+      setError(errorMessage);
+      setErrorDetails(errorDetailsArray);
+      
+      // Hiển thị chi tiết error
+      if (Array.isArray(errorDetailsArray) && errorDetailsArray.length > 0) {
+        toast.error('Business Rules Violation', {
+          description: errorDetailsArray.slice(0, 3).join('\n'),
+          duration: 5000,
+        });
+      } else {
+        toast.error('Error', {
+          description: errorMessage,
+          duration: 4000,
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +155,20 @@ export default function NewMilestonePage() {
         <div className="mx-auto w-full max-w-3xl">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-4" style={{color:'var(--primary)'}}>Thêm Milestone</h1>
           <form onSubmit={onSubmit} className="card rounded-xl p-6 space-y-4">
-            {error ? <div className="text-red-600 text-sm">{error}</div> : null}
+            {error ? (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded mb-4">
+                <h3 className="text-red-800 font-semibold mb-3">⚠️ {error}</h3>
+                {errorDetails.length > 0 && (
+                  <ul className="list-disc list-inside space-y-1">
+                    {errorDetails.map((detail, idx) => (
+                      <li key={idx} className="text-red-700 text-sm">
+                        {detail}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
             
             {/* Basic Info Section */}
             <div className="border-b pb-4">
@@ -145,30 +199,18 @@ export default function NewMilestonePage() {
                 <div>
                   <label className="text-sm">Trạng thái</label>
                   <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
+                    value={statusId}
+                    onChange={(e) => setStatusId(e.target.value)}
                     className="mt-1 w-full border rounded-lg px-3 py-2 bg-transparent"
                   >
-                    <option value="Planned">Planned</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Overdue">Overdue</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-sm">Thuộc milestone</label>
-                  <select
-                    value={parentId}
-                    onChange={(e) => setParentId(e.target.value)}
-                    className="mt-1 w-full border rounded-lg px-3 py-2 bg-transparent"
-                  >
-                    <option value="">— Không —</option>
-                    {parentOptions.map((m) => (
-                      <option key={m._id} value={m._id}>{m.title}</option>
+                    <option value="">— Chọn trạng thái —</option>
+                    {statuses.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.value}
+                      </option>
                     ))}
                   </select>
-                  <div className="text-xs opacity-70 mt-1">Tùy chọn. Dùng để tạo cấu trúc cha/con.</div>
+                  <div className="text-xs opacity-70 mt-1">Phải theo thứ tự: planning → in-progress → testing → completed</div>
                 </div>
               </div>
             </div>
@@ -199,59 +241,6 @@ export default function NewMilestonePage() {
                   {validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? (
                     <div className="text-xs text-red-600 mt-1">Ngày bắt đầu phải trước hoặc bằng hạn</div>
                   ) : null}
-                </div>
-                <div>
-                  <label className="text-sm">Ngày hoàn thành thực tế</label>
-                  <input
-                    type="date"
-                    value={actualDate}
-                    onChange={(e) => setActualDate(e.target.value)}
-                    className="mt-1 w-full border rounded-lg px-3 py-2"
-                  />
-                  <div className="text-xs opacity-70 mt-1">Ngày hoàn thành milestone (nếu đã xong)</div>
-                </div>
-                <div>
-                  <label className="text-sm">Thời lượng (ngày)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                    className="mt-1 w-full border rounded-lg px-3 py-2"
-                    placeholder="VD: 14"
-                  />
-                  <div className="text-xs opacity-70 mt-1">Thời lượng dự kiến</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Effort Section */}
-            <div className="border-b pb-4">
-              <h2 className="text-lg font-semibold mb-3" style={{color:'var(--primary)'}}>Công sức</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm">Ước tính công sức (giờ)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={estimatedEffort}
-                    onChange={(e) => setEstimatedEffort(Number(e.target.value))}
-                    className="mt-1 w-full border rounded-lg px-3 py-2"
-                    placeholder="VD: 80"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm">Công sức thực tế (giờ)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={actualEffort}
-                    onChange={(e) => setActualEffort(Number(e.target.value))}
-                    className="mt-1 w-full border rounded-lg px-3 py-2"
-                    placeholder="VD: 85"
-                  />
                 </div>
               </div>
             </div>

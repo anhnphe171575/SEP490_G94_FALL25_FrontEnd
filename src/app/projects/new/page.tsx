@@ -75,7 +75,7 @@ export default function NewProjectPage() {
 
       const res = await axiosInstance.post('/api/projects', projectData);
       
-      if (res.status === 201) {
+      if (res.status === 201 || res.status === 200) {
         // Hiển thị thông báo thành công
         alert('Tạo dự án thành công! Bạn đã được nâng cấp thành Student Leader.');
         router.replace('/dashboard');

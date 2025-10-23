@@ -527,9 +527,7 @@ export default function ProjectDetailPage() {
               </Button>
               <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/team`)}>
                 Quản lý nhóm
-                </Button>
-              <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
-                Monitoring
+              </Button>
               <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
                 Monitoring
               </Button>
@@ -1047,7 +1045,7 @@ function MilestoneFeaturesTable({
                   {milestone.title}
                 </Typography>
                 <Chip
-                  label={milestone.status || "Planned"}
+                  label={milestone.status || "Planning"}
                   color={getStatusColor(milestone.status)}
                   size="small"
                 />
