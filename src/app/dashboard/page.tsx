@@ -5,15 +5,7 @@ import { useRouter } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import {
-  Box,
   Button,
-  Card,
-  CardActions,
-  CardContent,
-  CardHeader,
-  Chip,
-  Container,
-  Grid,
   Typography,
   Dialog,
   DialogTitle,
@@ -25,7 +17,6 @@ import {
   IconButton
 } from "@mui/material";
 import {
-  Add as AddIcon,
   Login as LoginIcon,
   Close as CloseIcon,
   Group as GroupIcon
@@ -308,8 +299,9 @@ export default function DashboardPage() {
         router.push(`/projects/${projectId}`);
       }, 2000);
 
-    } catch (e: any) {
-      const errorMessage = e?.response?.data?.message || "Không thể tham gia nhóm";
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
+      const errorMessage = error?.response?.data?.message || "Không thể tham gia nhóm";
       setJoinError(errorMessage);
     } finally {
       setJoinLoading(false);
@@ -322,13 +314,6 @@ export default function DashboardPage() {
     setJoinError(null);
     setJoinSuccess(null);
   };
-
-
-  // Filter projects based on search term
-  const filteredProjects = projects?.filter(project =>
-    (project.topic?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (project.code?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  ) || [];
 
   // Edit project handlers
   const handleEditProject = (project: Project) => {

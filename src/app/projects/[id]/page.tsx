@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar"; 
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, Popover, FormGroup, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider } from "@mui/material";
+import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -96,7 +96,15 @@ export default function ProjectDetailPage() {
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [milestoneFeatures, setMilestoneFeatures] = useState<Record<string, any[]>>({});
+  const [milestoneFeatures, setMilestoneFeatures] = useState<Record<string, Array<{
+    feature_id: string;
+    feature_title: string;
+    task_count: number;
+    function_count: number;
+    completed_tasks: number;
+    completed_functions: number;
+    percentage: number;
+  }>>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMilestones, setSelectedMilestones] = useState<Set<string>>(new Set());
   const [showToolbar, setShowToolbar] = useState(false);
@@ -137,7 +145,7 @@ export default function ProjectDetailPage() {
         
         // Lấy tiến độ chi tiết cho từng milestone
         const milestonesWithProgress = await Promise.all(
-          milestonesData.map(async (milestone: any) => {
+          milestonesData.map(async (milestone: Milestone) => {
             try {
               const progressRes = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestone._id}/progress`);
               return { ...milestone, progress: progressRes.data.progress };
@@ -151,16 +159,25 @@ export default function ProjectDetailPage() {
         setMilestones(milestonesWithProgress);
 
         // Lấy thông tin features cho từng milestone
-        const featuresMap: Record<string, any[]> = {};
+        const featuresMap: Record<string, Array<{
+          feature_id: string;
+          feature_title: string;
+          task_count: number;
+          function_count: number;
+          completed_tasks: number;
+          completed_functions: number;
+          percentage: number;
+        }>> = {};
         for (const milestone of milestonesWithProgress) {
           if (milestone.progress?.by_feature) {
             featuresMap[milestone._id] = milestone.progress.by_feature;
           }
         }
         setMilestoneFeatures(featuresMap);
-      } catch (e: any) {
-        setError(e?.response?.data?.message || 'Không thể tải milestone');
-        toast.error(`Lỗi tải dữ liệu: ${e?.response?.data?.message || e.message}`);
+      } catch (e: unknown) {
+        const error = e as { response?: { data?: { message?: string } }; message?: string };
+        setError(error?.response?.data?.message || 'Không thể tải milestone');
+        toast.error(`Lỗi tải dữ liệu: ${error?.response?.data?.message || error.message}`);
       } finally {
         setLoading(false);
       }
@@ -261,7 +278,15 @@ export default function ProjectDetailPage() {
     if (!searchTerm) return milestoneFeatures;
     
     const term = searchTerm.toLowerCase();
-    const filtered: Record<string, any[]> = {};
+    const filtered: Record<string, Array<{
+      feature_id: string;
+      feature_title: string;
+      task_count: number;
+      function_count: number;
+      completed_tasks: number;
+      completed_functions: number;
+      percentage: number;
+    }>> = {};
     
     Object.entries(milestoneFeatures).forEach(([milestoneId, features]) => {
       const matchingFeatures = features.filter(feature =>
@@ -317,7 +342,7 @@ export default function ProjectDetailPage() {
       
       // Get progress for all milestones
       const milestonesWithProgress = await Promise.all(
-        milestonesData.map(async (milestone: any) => {
+        milestonesData.map(async (milestone: Milestone) => {
           try {
             const progressRes = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestone._id}/progress`);
             return { ...milestone, progress: progressRes.data.progress };
@@ -336,10 +361,11 @@ export default function ProjectDetailPage() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã sao chép thành công ${results.length} milestone(s)`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
       console.error('Error duplicating milestones:', error);
       toast.dismiss(loadingToast);
-      toast.error(`Lỗi khi sao chép: ${error?.response?.data?.message || error.message}`);
+      toast.error(`Lỗi khi sao chép: ${err?.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -374,10 +400,11 @@ export default function ProjectDetailPage() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã xuất thành công ${selectedIds.length} milestone(s) dưới dạng Excel`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
       console.error('Error exporting milestones:', error);
       toast.dismiss(loadingToast);
-      toast.error(`Lỗi khi xuất: ${error?.response?.data?.message || error.message}`);
+      toast.error(`Lỗi khi xuất: ${err?.response?.data?.message || err.message}`);
     }
   };
 
@@ -409,7 +436,7 @@ export default function ProjectDetailPage() {
       
       // Get progress for all milestones
       const milestonesWithProgress = await Promise.all(
-        milestonesData.map(async (milestone: any) => {
+        milestonesData.map(async (milestone: Milestone) => {
           try {
             const progressRes = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestone._id}/progress`);
             return { ...milestone, progress: progressRes.data.progress };
@@ -428,10 +455,11 @@ export default function ProjectDetailPage() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã lưu trữ thành công ${selectedIds.length} milestone(s)`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
       console.error('Error archiving milestones:', error);
       toast.dismiss(loadingToast);
-      toast.error(`Lỗi khi lưu trữ: ${error?.response?.data?.message || error.message}`);
+      toast.error(`Lỗi khi lưu trữ: ${err?.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -468,7 +496,7 @@ export default function ProjectDetailPage() {
       
       // Get progress for all milestones
       const milestonesWithProgress = await Promise.all(
-        milestonesData.map(async (milestone: any) => {
+        milestonesData.map(async (milestone: Milestone) => {
           try {
             const progressRes = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestone._id}/progress`);
             return { ...milestone, progress: progressRes.data.progress };
@@ -487,10 +515,11 @@ export default function ProjectDetailPage() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success(`Đã xóa thành công ${selectedIds.length} milestone(s)`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
       console.error('Error deleting milestones:', error);
       toast.dismiss(loadingToast);
-      toast.error(`Lỗi khi xóa: ${error?.response?.data?.message || error.message}`);
+      toast.error(`Lỗi khi xóa: ${err?.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -527,9 +556,10 @@ export default function ProjectDetailPage() {
               </Button>
               <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/team`)}>
                 Quản lý nhóm
-                </Button>
-              <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
-                Monitoring
+              </Button>
+              <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/documents`)}>
+                Tài liệu
+              </Button>
               <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
                 Monitoring
               </Button>
@@ -664,7 +694,7 @@ export default function ProjectDetailPage() {
                         Không tìm thấy kết quả
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Không có milestone hoặc feature nào khớp với từ khóa "{searchTerm}"
+                        Không có milestone hoặc feature nào khớp với từ khóa &ldquo;{searchTerm}&rdquo;
                       </Typography>
                       <Button 
                         variant="outlined" 
@@ -678,10 +708,10 @@ export default function ProjectDetailPage() {
                 </Card>
               ) : (
                 <>
-                  <Timeline 
+                  <                  Timeline 
                     milestones={getFilteredMilestones()} 
                     projectId={projectId} 
-                    onLocalUpdate={setMilestones as any}
+                    onLocalUpdate={setMilestones}
                     searchTerm={searchTerm}
                   />
                   <MilestoneFeaturesTable 
@@ -720,8 +750,7 @@ export default function ProjectDetailPage() {
   );
 }
 
-function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milestones: Milestone[]; projectId: string; onLocalUpdate: any; searchTerm?: string }) {
-  const router = useRouter();
+function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milestones: Milestone[]; projectId: string; onLocalUpdate: React.Dispatch<React.SetStateAction<Milestone[] | null>>; searchTerm?: string }) {
   const [weekStart, setWeekStart] = useState<Date>(getStartOfWeekUTC(new Date()));
   const [viewMode, setViewMode] = useState<'Days' | 'Weeks' | 'Months' | 'Quarters'>('Days');
   const [autoFit, setAutoFit] = useState<boolean>(true);
@@ -736,7 +765,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
         <div className="flex flex-wrap items-center gap-3">
           <MUISelect
             value={viewMode}
-            onChange={(e: any) => setViewMode(e.target.value as any)}
+            onChange={(e) => setViewMode(e.target.value as 'Days' | 'Weeks' | 'Months' | 'Quarters')}
             size="small"
             sx={{ minWidth: 140 }}
           >
@@ -747,7 +776,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
           </MUISelect>
           <FormControlLabel
             className="ml-2"
-            control={<MUICheckbox size="small" checked={autoFit} onChange={(e: any) =>setAutoFit(e.target.checked)} />}
+            control={<MUICheckbox size="small" checked={autoFit} onChange={(e) =>setAutoFit(e.target.checked)} />}
             label={<Typography variant="body2">Auto Fit</Typography>}
           />
         </div>
@@ -757,21 +786,22 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
         <div>
           <GanttChart
             milestones={milestones || []}
-            viewMode={viewMode as any}
+            viewMode={viewMode}
             startDate={weekStart}
             autoFit={autoFit}
             pagingStepDays={viewMode === 'Quarters' ? 90 : viewMode === 'Months' ? 30 : viewMode === 'Weeks' ? 7 : 7}
             onRequestShift={(days) => setWeekStart(prev => addDays(prev, days))}
             onMilestoneShift={(id, deltaDays) => {
               // Local optimistic update: shift start_date and deadline by deltaDays
-              onLocalUpdate((prev: Milestone[]) => {
+              onLocalUpdate((prev) => {
+                if (!prev) return prev;
                 const shiftDate = (iso?: string) => {
                   if (!iso) return iso;
                   const d = new Date(iso);
                   d.setUTCDate(d.getUTCDate() + deltaDays);
                   return d.toISOString();
                 };
-                return (prev || []).map((m) => m._id === id ? ({
+                return prev.map((m) => m._id === id ? ({
                   ...m,
                   start_date: shiftDate(m.start_date),
                   deadline: shiftDate(m.deadline),
@@ -799,8 +829,8 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
               ]);
               const updatedMilestone = { ...milestoneRes.data, progress: progressRes.data?.progress || null };
               // Update the milestone in the list
-              onLocalUpdate((prev: Milestone[]) => 
-                (prev || []).map(m => m._id === openModal.milestoneId ? updatedMilestone : m)
+              onLocalUpdate((prev) => 
+                prev ? prev.map(m => m._id === openModal.milestoneId ? updatedMilestone : m) : prev
               );
             } catch (e) {
               console.error('Failed to refresh milestone:', e);
@@ -820,9 +850,17 @@ function MilestoneFeaturesTable({
   projectId
 }: { 
   milestones: Milestone[]; 
-  milestoneFeatures: Record<string, any[]>; 
+  milestoneFeatures: Record<string, Array<{
+    feature_id: string;
+    feature_title: string;
+    task_count: number;
+    function_count: number;
+    completed_tasks: number;
+    completed_functions: number;
+    percentage: number;
+  }>>; 
   searchTerm?: string;
-  highlightText?: (text: string, searchTerm: string) => any;
+  highlightText?: (text: string, searchTerm: string) => React.ReactNode;
   projectId: string;
 }) {
   const router = useRouter();
@@ -836,7 +874,15 @@ function MilestoneFeaturesTable({
   const [showFeatureFilters, setShowFeatureFilters] = useState(false);
 
   // Filter functions for features
-  const getFilteredFeatures = (features: any[]) => {
+  const getFilteredFeatures = (features: Array<{
+    feature_id: string;
+    feature_title: string;
+    task_count: number;
+    function_count: number;
+    completed_tasks: number;
+    completed_functions: number;
+    percentage: number;
+  }>) => {
     let filtered = [...features];
     
     // Apply search filter
@@ -1174,7 +1220,7 @@ function MilestonesList({
   milestones: Milestone[];
   projectId: string;
   searchTerm?: string;
-  highlightText?: (text: string, searchTerm: string) => any;
+  highlightText?: (text: string, searchTerm: string) => React.ReactNode;
   selectedMilestones: Set<string>;
   setSelectedMilestones: (selected: Set<string>) => void;
   statusFilter: Record<string, boolean>;
@@ -1186,7 +1232,15 @@ function MilestonesList({
   showAdvancedFilters: boolean;
   setShowAdvancedFilters: (show: boolean) => void;
   getFilteredMilestones: () => Milestone[];
-  getFilteredMilestoneFeatures: () => Record<string, any[]>;
+  getFilteredMilestoneFeatures: () => Record<string, Array<{
+    feature_id: string;
+    feature_title: string;
+    task_count: number;
+    function_count: number;
+    completed_tasks: number;
+    completed_functions: number;
+    percentage: number;
+  }>>;
   setSearchTerm: (term: string) => void;
 }) {
   const router = useRouter();
