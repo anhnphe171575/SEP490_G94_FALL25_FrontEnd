@@ -34,18 +34,31 @@ interface Project {
 }
 
 interface Team {
-  _id: string;
-  name: string;
-  project_id: string;
-  team_member: Array<{
+  team_id: string;
+  team_name: string;
+  leaders: Array<{
     _id: string;
     user_id: {
       _id: string;
       full_name: string;
       email: string;
+      student_id?: string;
+      role: string;
     };
     team_leader: number;
   }>;
+  members: Array<{
+    _id: string;
+    user_id: {
+      _id: string;
+      full_name: string;
+      email: string;
+      student_id?: string;
+      role: string;
+    };
+    team_leader: number;
+  }>;
+  total: number;
 }
 
 export default function CalendarPage() {
@@ -69,8 +82,21 @@ export default function CalendarPage() {
         setProject(projectResponse.data);
         
         // Load team details
-        const teamResponse = await axiosInstance.get(`/api/team/${projectId}`);
-        setTeam(teamResponse.data.data);
+        try {
+          const teamResponse = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
+          console.log('Team response:', teamResponse.data);
+          setTeam(teamResponse.data.team_members);
+        } catch (teamError: any) {
+          console.error('Error loading team:', teamError);
+          // Set empty team if error
+          setTeam({
+            team_id: '',
+            team_name: '',
+            leaders: [],
+            members: [],
+            total: 0
+          });
+        }
         
         // Get current user info from localStorage or API
         const userInfo = localStorage.getItem('userInfo');
@@ -94,8 +120,8 @@ export default function CalendarPage() {
   }, [projectId]);
 
   // Check if current user is team leader
-  const isTeamLeader = team?.team_member.some(member => 
-    member.user_id._id === currentUserId && member.team_leader === 1
+  const isTeamLeader = team?.leaders.some(leader => 
+    leader.user_id._id === currentUserId
   ) || false;
 
   // Check if current user is mentor/lecturer
