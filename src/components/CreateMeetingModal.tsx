@@ -55,6 +55,7 @@ interface Project {
     full_name: string;
     email?: string;
   };
+  semester?: string;
 }
 
 
@@ -89,6 +90,7 @@ export default function CreateMeetingModal({
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentSemester, setCurrentSemester] = useState<string>("");
 
   // Load user projects
   useEffect(() => {
@@ -102,10 +104,19 @@ export default function CreateMeetingModal({
     try {
       setLoadingProjects(true);
       
-      // Load user info from API
-      const userResponse = await axiosInstance.get('/api/users/me');
+      // Load user info from API and current semester in parallel
+      const [userResponse, semesterResponse] = await Promise.all([
+        axiosInstance.get('/api/users/me'),
+        axiosInstance.get('/api/projects/semester/current')
+      ]);
+
       const userData = userResponse.data;
       setCurrentUser(userData);
+
+      const semesterFromApi = semesterResponse?.data?.currentSemester || semesterResponse?.data?.semesterInfo?.semester;
+      if (semesterFromApi) {
+        setCurrentSemester(semesterFromApi);
+      }
       
       let apiEndpoint = "/api/projects";
       
@@ -117,14 +128,29 @@ export default function CreateMeetingModal({
       const response = await axiosInstance.get(apiEndpoint);
       console.log("Projects response:", response.data);
       
-      // Xử lý response từ API
-      if (response.data.success && Array.isArray(response.data.data)) {
-        setProjects(response.data.data);
-        console.log(`✅ Loaded ${response.data.data.length} projects for user (role: ${currentUser?.role})`);
-      } else {
-        console.warn("⚠️ Unexpected response format:", response.data);
-        setProjects(response.data.data || response.data.projects || []);
+      // Chuẩn hóa danh sách projects từ các cấu trúc trả về khác nhau
+      const rawProjects: Project[] = (response.data?.data || response.data?.projects || []) as Project[];
+
+      // Lọc theo học kì hiện tại nếu có thông tin
+      const filteredProjects = semesterFromApi
+        ? rawProjects.filter((p) => p?.semester === semesterFromApi)
+        : rawProjects;
+
+      setProjects(filteredProjects);
+
+      // Nếu là sinh viên (khác role 4), cố định project (sinh viên chỉ có 1 đồ án/kì)
+      if (userData?.role !== 4) {
+        if (filteredProjects.length === 1) {
+          setSelectedProject(filteredProjects[0]);
+        } else if (filteredProjects.length > 1) {
+          // Phòng hờ dữ liệu không chuẩn, chọn project đầu tiên trong kì
+          setSelectedProject(filteredProjects[0]);
+        } else {
+          setSelectedProject(null);
+        }
       }
+
+      console.log(`✅ Loaded ${filteredProjects.length} current-semester projects for user (role: ${userData?.role})`);
     } catch (error: any) {
       console.error("Error loading projects:", error);
       setError("Không thể tải danh sách dự án");
@@ -282,25 +308,24 @@ export default function CreateMeetingModal({
               <Box display="flex" alignItems="center" mb={2}>
                 <SchoolIcon color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6" fontWeight="bold" color="primary">
-                  Chọn dự án
+                  Dự án
                 </Typography>
               </Box>
               <FormControl fullWidth required>
-                <InputLabel>Dự án</InputLabel>
                 <Select
                   value={selectedProject?._id || ""}
                   onChange={(e) => {
                     const project = projects.find(p => p._id === e.target.value);
                     setSelectedProject(project || null);
                   }}
-                  disabled={loadingProjects}
+                  disabled={loadingProjects || (!!currentUser && currentUser.role !== 4)}
                   sx={{ backgroundColor: 'white' }}
                   displayEmpty
                 >
                   {projects.length === 0 ? (
                     <MenuItem disabled>
                       <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                        {loadingProjects ? "Đang tải dự án..." : "Bạn chưa tham gia dự án nào"}
+                        {loadingProjects ? "Đang tải dự án..." : (currentSemester ? `Không có dự án trong học kì ${currentSemester}` : "Bạn chưa tham gia dự án nào")}
                       </Typography>
                     </MenuItem>
                   ) : (
@@ -323,7 +348,7 @@ export default function CreateMeetingModal({
                             </Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <Typography variant="caption" color="text.secondary">
-                                {project.code}
+                                {project.code}{project.semester ? ` • ${project.semester}` : ''}
                               </Typography>
                               <Typography variant="caption" color="primary" fontWeight="medium">
                                 {userRole}
@@ -336,6 +361,11 @@ export default function CreateMeetingModal({
                   )}
                 </Select>
               </FormControl>
+              {currentUser && currentUser.role !== 4 && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Sinh viên chỉ có 1 đồ án trong học kì hiện tại{currentSemester ? ` (${currentSemester})` : ''}. Dự án đã được cố định.
+                </Typography>
+              )}
             
             </Card>
 

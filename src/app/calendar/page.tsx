@@ -13,6 +13,12 @@ import {
   Box,
   IconButton,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Badge,
+  Divider,
 } from "@mui/material";
 import {
   CalendarToday as CalendarIcon,
@@ -22,11 +28,9 @@ import {
   Group as GroupIcon,
   AccessTime as AccessTimeIcon,
   Add as AddIcon,
-  Refresh as RefreshIcon,
-  FilterList as FilterIcon,
-  Search as SearchIcon,
   CheckCircle as CheckIcon,
   Cancel as CancelIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 import axiosInstance from "../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
@@ -97,9 +101,9 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -228,18 +232,105 @@ export default function CalendarPage() {
   const canManageMeeting = (meeting: Meeting) => {
     return userRole === "4" && meeting.mentor_id?._id === currentUserId;
   };
-  const meetingsToDisplay = (meetingsData?.allMeetings || []).filter(meeting => {
-    const matchesSearch = meeting.topic?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         meeting.project_id?.topic?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         meeting.description?.toLowerCase().includes(searchTerm.toLowerCase());
+
+  const meetingsToDisplay = meetingsData?.allMeetings || [];
+
+  // Generate calendar grid
+  const generateCalendarDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
     
-    const matchesStatus = statusFilter === "all" || meeting.status === statusFilter;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
     
-    return matchesSearch && matchesStatus;
-  });
+    const days = [];
+    const currentDate = new Date(startDate);
+    
+    // Generate 6 weeks (42 days) to ensure full calendar view
+    for (let i = 0; i < 42; i++) {
+      days.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return days;
+  };
+
+  // Get meetings for a specific day
+  const getMeetingsForDay = (date: Date) => {
+    return meetingsToDisplay.filter(meeting => {
+      const meetingDate = new Date(meeting.meeting_date);
+      return meetingDate.toDateString() === date.toDateString();
+    });
+  };
+
+  // Handle meeting click
+  const handleMeetingClick = (meeting: Meeting) => {
+    setSelectedMeeting(meeting);
+    setDetailDialogOpen(true);
+  };
+
+  // Check if date is today
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  // Check if date is in current month
+  const isCurrentMonth = (date: Date) => {
+    return date.getMonth() === currentMonth.getMonth();
+  };
+
+  const calendarDays = generateCalendarDays();
+  const weekDays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  
+  // Generate month and year options
+  const months = [
+    { value: 0, label: 'Tháng 1' },
+    { value: 1, label: 'Tháng 2' },
+    { value: 2, label: 'Tháng 3' },
+    { value: 3, label: 'Tháng 4' },
+    { value: 4, label: 'Tháng 5' },
+    { value: 5, label: 'Tháng 6' },
+    { value: 6, label: 'Tháng 7' },
+    { value: 7, label: 'Tháng 8' },
+    { value: 8, label: 'Tháng 9' },
+    { value: 9, label: 'Tháng 10' },
+    { value: 10, label: 'Tháng 11' },
+    { value: 11, label: 'Tháng 12' },
+  ];
+  
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 10 }, (_, i) => currentYear - 3 + i); // 3 years before to 6 years after
+  
+  const handleMonthChange = (month: number) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), month, 1));
+  };
+  
+  const handleYearChange = (year: number) => {
+    setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
+  };
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      <style>{`
+        /* Custom scrollbar for calendar cells - Horizontal */
+        .calendar-scroll::-webkit-scrollbar {
+          height: 4px;
+          width: 4px;
+        }
+        .calendar-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .calendar-scroll::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 2px;
+        }
+        .calendar-scroll::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
@@ -253,73 +344,12 @@ export default function CalendarPage() {
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}>
-                Tất cả lịch họp của tôi
+                Lịch họp của tôi
               </h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outlined"
-                onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                sx={{
-                  borderColor: '#d1d5db',
-                  color: '#6b7280',
-                  '&:hover': {
-                    borderColor: '#9ca3af',
-                    backgroundColor: '#f9fafb',
-                    color: '#374151'
-                  }
-                }}
-              >
-                ← Tháng trước
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                sx={{
-                  borderColor: '#d1d5db',
-                  color: '#6b7280',
-                  '&:hover': {
-                    borderColor: '#9ca3af',
-                    backgroundColor: '#f9fafb',
-                    color: '#374151'
-                  }
-                }}
-              >
-                Tháng sau →
-              </Button>
             </div>
           </div>
 
-          {/* Month Navigation */}
-          <Card className="mb-6" sx={{
-            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            borderRadius: 3
-          }}>
-            <CardContent sx={{ py: 3 }}>
-              <Typography 
-                variant="h4" 
-                className="text-center font-bold"
-                sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  fontWeight: 'bold',
-                  fontSize: '2rem',
-                  letterSpacing: '0.025em'
-                }}
-              >
-                {currentMonth.toLocaleDateString('vi-VN', { 
-                  month: 'long', 
-                  year: 'numeric' 
-                })}
-              </Typography>
-            </CardContent>
-          </Card>
-
-          {/* Navigation Bar */}
+          {/* Month Navigation & Controls */}
           <Card className="mb-6" sx={{ 
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
@@ -327,292 +357,172 @@ export default function CalendarPage() {
           }}>
             <CardContent>
               <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            {/* Left side - Actions */}
-            <div className="flex flex-wrap gap-2">
-              {/* Show create meeting button for role 1 (Student/Student Leader) and role 4 (Mentor) */}
-              {(userRole === "1" || userRole === "4") && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setCreateMeetingOpen(true)}
-                  sx={{ 
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255,255,255,0.3)',
-                    }
-                  }}
-                >
-                  Tạo lịch họp
-                </Button>
-              )}
-              <Button
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={() => {
-                  window.location.reload();
-                }}
-                sx={{ 
-                  borderColor: 'rgba(255,255,255,0.5)',
-                  color: 'white',
-                  '&:hover': {
-                    borderColor: 'white',
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                  }
-                }}
-              >
-                Làm mới
-              </Button>
-            </div>
-
-                {/* Right side - Search and Filter */}
-                <div className="flex flex-wrap gap-2 items-center">
-                  {/* Search */}
-                  <div className="relative">
-                    <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      placeholder="Tìm kiếm lịch họp..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56 bg-white text-gray-900 placeholder-gray-500"
-                      style={{ color: '#1f2937', height: '36px', fontSize: '14px' }}
-                    />
-                  </div>
-
-                  {/* Status Filter */}
+                {/* Month & Year Selection */}
+                <div className="flex items-center gap-2">
                   <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
-                    style={{ color: '#1f2937', height: '36px', fontSize: '14px' }}
+                    value={currentMonth.getMonth()}
+                    onChange={(e) => handleMonthChange(Number(e.target.value))}
+                    className="px-2 py-1.5 rounded-md text-sm font-medium text-gray-900 bg-white border border-white focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer hover:bg-gray-50 transition-all"
+                    style={{ minWidth: '100px' }}
                   >
-                    <option value="all">Tất cả trạng thái</option>
-                    <option value="pending">Chờ xác nhận</option>
-                    <option value="approved">Đã xác nhận</option>
-                    <option value="rejected">Đã từ chối</option>
+                    {months.map((month) => (
+                      <option key={month.value} value={month.value}>
+                        {month.label}
+                      </option>
+                    ))}
                   </select>
+
+                  <select
+                    value={currentMonth.getFullYear()}
+                    onChange={(e) => handleYearChange(Number(e.target.value))}
+                    className="px-2 py-1.5 rounded-md text-sm font-medium text-gray-900 bg-white border border-white focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer hover:bg-gray-50 transition-all"
+                    style={{ minWidth: '80px' }}
+                  >
+                    {years.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setCurrentMonth(new Date())}
+                    sx={{ 
+                      borderColor: 'rgba(255,255,255,0.5)',
+                      color: 'white',
+                      fontSize: '0.875rem',
+                      py: 0.75,
+                      px: 2,
+                      '&:hover': {
+                        borderColor: 'white',
+                        backgroundColor: 'rgba(255,255,255,0.1)',
+                      }
+                    }}
+                  >
+                    Hôm nay
+                  </Button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {(userRole === "1" || userRole === "4") && (
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={() => setCreateMeetingOpen(true)}
+                      sx={{ 
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255,255,255,0.3)',
+                        }
+                      }}
+                    >
+                      Tạo lịch họp
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-
-
-          {/* Results Summary */}
-          {meetingsToDisplay.length > 0 && (
-            <div className="mb-4 flex items-center justify-between">
-              <Typography variant="body2" color="text.secondary">
-                Hiển thị {meetingsToDisplay.length} lịch họp
-                {searchTerm && ` cho "${searchTerm}"`}
-                {statusFilter !== "all" && ` với trạng thái "${getStatusText(statusFilter)}"`}
-              </Typography>
-              <div className="flex gap-2">
-              </div>
-            </div>
-          )}
-
-          {/* Meetings List */}
-          {meetingsToDisplay.length === 0 ? (
+          {/* Calendar Grid */}
+          {loading ? (
             <Card>
-              <CardContent className="text-center py-12">
-                <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <Typography variant="h6" className="mb-2 text-gray-600">
-                  Không có lịch họp nào
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Chưa có lịch họp nào trong tháng này
-                </Typography>
+              <CardContent className="flex justify-center items-center py-20">
+                <CircularProgress />
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {meetingsToDisplay.map((meeting) => (
-                <Paper 
-                  key={meeting._id} 
-                  className="p-6 hover:shadow-xl transition-all duration-300 border-l-4 border-l-blue-500"
-                  sx={{
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
-                    borderRadius: 3,
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                    }
-                  }}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <Typography variant="h5" className="font-bold text-gray-800 mb-2">
-                            {meeting.topic || 'Chưa có tiêu đề'}
-                          </Typography>
-                          <div className="flex items-center gap-3 mb-3">
-                            <Chip
-                              label={getStatusText(meeting.status)}
-                              color={getStatusColor(meeting.status) as any}
-                              size="medium"
-                              className="font-semibold"
-                            />
-                            <Chip
-                              label={getMeetingTypeText(meeting.meeting_type)}
-                              variant="outlined"
-                              size="medium"
-                              color="primary"
-                            />
-                            <Chip
-                              label={meeting.project_id?.topic || 'Dự án không xác định'}
-                              variant="outlined"
-                              size="small"
-                              color="secondary"
-                            />
-                          </div>
-                        </div>
-                        
-                        {/* Time */}
-                        <div className="text-right bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200 shadow-sm">
-                          <div className="text-sm text-blue-600 font-medium mb-1">📅 Ngày họp</div>
-                          <div className="text-lg font-bold text-blue-800 mb-2">
-                            {meeting.meeting_date ? formatDate(meeting.meeting_date) : 'Chưa xác định'}
-                          </div>
-                          <div className="text-sm text-blue-600 font-medium bg-white px-2 py-1 rounded-lg shadow-sm">
-                            ⏰ {meeting.start_time ? formatTime(meeting.start_time) : '--:--'} - {meeting.end_time ? formatTime(meeting.end_time) : '--:--'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Details */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-700">
-                            <LocationIcon className="w-5 h-5 text-green-600" />
-                            <span className="font-medium">{meeting.location}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-700">
-                            <PersonIcon className="w-5 h-5 text-purple-600" />
-                            <span><strong>Mentor:</strong> {meeting.mentor_id?.full_name || 'Chưa xác định'}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-700">
-                            <PersonIcon className="w-5 h-5 text-orange-600" />
-                            <span><strong>Yêu cầu bởi:</strong> {meeting.requested_by?.full_name || 'Chưa xác định'}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-700">
-                            <AccessTimeIcon className="w-5 h-5 text-red-600" />
-                            <span><strong>Thời lượng:</strong> {meeting.duration} phút</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Description */}
-                      {meeting.description && (
-                        <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                          <Typography variant="body2" className="text-gray-700 italic">
-                            "{meeting.description}"
-                          </Typography>
-                        </div>
-                      )}
-
-                      {/* Mentor Actions - Accept/Reject */}
-                      {canManageMeeting(meeting) && meeting.status === 'pending' && (
-                        <Box sx={{ mb: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
-                          <Tooltip title="Chấp nhận cuộc họp">
-                            <Button
-                              variant="contained"
-                              startIcon={<CheckIcon />}
-                              onClick={() => handleMeetingStatusUpdate(meeting._id, 'approved')}
-                              sx={{
-                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                borderRadius: 2,
-                                px: 3,
-                                py: 1.5,
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                '&:hover': {
-                                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                  transform: 'translateY(-1px)',
-                                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                                }
-                              }}
-                            >
-                              ✅ Chấp nhận
-                            </Button>
-                          </Tooltip>
-                          
-                          <Tooltip title="Từ chối cuộc họp">
-                            <Button
-                              variant="contained"
-                              startIcon={<CancelIcon />}
-                              onClick={() => {
-                                const reason = prompt('Nhập lý do từ chối (tùy chọn):');
-                                handleMeetingStatusUpdate(meeting._id, 'rejected', reason || 'Không có lý do cụ thể');
-                              }}
-                              sx={{
-                                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                borderRadius: 2,
-                                px: 3,
-                                py: 1.5,
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                '&:hover': {
-                                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                                  transform: 'translateY(-1px)',
-                                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                                }
-                              }}
-                            >
-                              ❌ Từ chối
-                            </Button>
-                          </Tooltip>
-                        </Box>
-                      )}
-
-                      {/* Google Meet Link */}
-                      {meeting.google_meet_link && (
-                        <div className="mb-4">
-                          <Button
-                            variant="contained"
-                            startIcon={<VideoCallIcon />}
-                            href={meeting.google_meet_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              color: 'white',
-                              fontWeight: 'bold',
-                              borderRadius: 2,
-                              px: 3,
-                              py: 1.5,
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                transform: 'translateY(-1px)',
-                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                              }
-                            }}
-                          >
-                            🎥 Tham gia Google Meet
-                          </Button>
-                        </div>
-                      )}
-
-                      {/* Reject Reason */}
-                      {meeting.reject_reason && (
-                        <Alert severity="error" className="mt-2">
-                          <strong>Lý do từ chối:</strong> {meeting.reject_reason}
-                        </Alert>
-                      )}
+            <Card sx={{ overflow: 'hidden', boxShadow: 3 }}>
+              <CardContent sx={{ p: 0 }}>
+                {/* Week Days Header */}
+                <div className="grid grid-cols-7 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                  {weekDays.map((day) => (
+                    <div key={day} className="text-center py-2 font-semibold text-xs md:text-sm">
+                      {day}
                     </div>
-                  </div>
-                </Paper>
-              ))}
-            </div>
+                  ))}
+                </div>
+
+                {/* Calendar Days Grid */}
+                <div className="grid grid-cols-7 gap-px bg-gray-200">
+                  {calendarDays.map((date, index) => {
+                    const dayMeetings = getMeetingsForDay(date);
+                    const isCurrentDay = isToday(date);
+                    const isInCurrentMonth = isCurrentMonth(date);
+                    
+                    return (
+                      <div
+                        key={index}
+                        className={`h-[110px] bg-white p-1.5 relative transition-all duration-200 hover:shadow-lg flex flex-col ${
+                          !isInCurrentMonth ? 'bg-gray-50' : ''
+                        } ${isCurrentDay ? 'ring-2 ring-blue-500' : ''}`}
+                      >
+                        {/* Date Number - Fixed */}
+                        <div className="flex justify-between items-start mb-1 flex-shrink-0">
+                          <span className={`text-xs font-semibold ${
+                            isCurrentDay 
+                              ? 'bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center' 
+                              : !isInCurrentMonth 
+                                ? 'text-gray-400' 
+                                : 'text-gray-700'
+                          }`}>
+                            {date.getDate()}
+                          </span>
+                          {dayMeetings.length > 0 && (
+                            <Badge badgeContent={dayMeetings.length} color="primary" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '16px', minWidth: '16px', padding: '0 4px' } }} />
+                          )}
+                        </div>
+
+                        {/* Meetings List - Horizontal Scroll */}
+                        <div className="flex-1 overflow-x-auto overflow-y-hidden calendar-scroll pb-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+                          <div className="flex gap-1 h-full">
+                            {dayMeetings.map((meeting, idx) => (
+                              <div
+                                key={meeting._id}
+                                onClick={() => handleMeetingClick(meeting)}
+                                className={`text-[10px] p-1 rounded cursor-pointer transition-all hover:scale-105 flex-shrink-0 w-full ${
+                                  meeting.status === 'approved' 
+                                    ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                    : meeting.status === 'pending'
+                                      ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                      : meeting.status === 'rejected'
+                                        ? 'bg-red-100 text-red-800 hover:bg-red-200'
+                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                }`}
+                              >
+                                <div className="font-semibold truncate leading-tight mb-0.5">{meeting.topic}</div>
+                                <div className="text-[9px] leading-tight space-y-0.5">
+                                  <div className="flex items-center gap-0.5">
+                                    <AccessTimeIcon sx={{ fontSize: '10px' }} />
+                                    <span className="truncate">{formatTime(meeting.start_time)}-{formatTime(meeting.end_time)}</span>
+                                  </div>
+                                  {meeting.location && (
+                                    <div className="flex items-center gap-0.5">
+                                      <LocationIcon sx={{ fontSize: '10px' }} />
+                                      <span className="truncate">{meeting.location}</span>
+                                    </div>
+                                  )}
+                                  {meeting.google_meet_link && (
+                                    <div className="flex items-center gap-0.5">
+                                      <VideoCallIcon sx={{ fontSize: '10px' }} />
+                                      <span className="text-blue-600">Meet</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </main>
@@ -626,6 +536,234 @@ export default function CalendarPage() {
           window.location.reload();
         }}
       />
+
+      {/* Meeting Detail Modal */}
+      <Dialog
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+                    borderRadius: 3,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }
+        }}
+      >
+        {selectedMeeting && (
+          <>
+            <DialogTitle sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              p: 3,
+              position: 'relative'
+            }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box display="flex" alignItems="center" gap={2}>
+                  <CalendarIcon sx={{ fontSize: 32 }} />
+                  <Box>
+                    <Typography variant="h5" fontWeight="bold">
+                      {selectedMeeting.topic}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      {selectedMeeting.project_id?.topic || 'Dự án'}
+                          </Typography>
+                  </Box>
+                </Box>
+                <IconButton
+                  onClick={() => setDetailDialogOpen(false)}
+                  sx={{
+                    color: 'white',
+                    '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+
+            <DialogContent sx={{ p: 3 }}>
+              <div className="space-y-4 mt-2">
+                {/* Status & Type */}
+                <div className="flex gap-2">
+                            <Chip
+                    label={getStatusText(selectedMeeting.status)}
+                    color={getStatusColor(selectedMeeting.status) as any}
+                              size="medium"
+                              className="font-semibold"
+                            />
+                            <Chip
+                    label={getMeetingTypeText(selectedMeeting.meeting_type)}
+                              variant="outlined"
+                              size="medium"
+                              color="primary"
+                            />
+                        </div>
+                        
+                <Divider />
+
+                {/* Date & Time */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Typography variant="body2" color="primary" fontWeight="bold" className="mb-1">
+                        📅 Ngày họp
+                      </Typography>
+                      <Typography variant="body1" fontWeight="medium">
+                        {formatDate(selectedMeeting.meeting_date)}
+                      </Typography>
+                          </div>
+                    <div>
+                      <Typography variant="body2" color="primary" fontWeight="bold" className="mb-1">
+                        ⏰ Thời gian
+                      </Typography>
+                      <Typography variant="body1" fontWeight="medium">
+                        {formatTime(selectedMeeting.start_time)} - {formatTime(selectedMeeting.end_time)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        ({selectedMeeting.duration} phút)
+                      </Typography>
+                          </div>
+                        </div>
+                      </div>
+
+                {/* Location */}
+                <Paper elevation={1} sx={{ p: 2, backgroundColor: '#f8fafc' }}>
+                  <Box display="flex" alignItems="center" gap={1} mb={1}>
+                    <LocationIcon color="success" />
+                    <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                      Địa điểm
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1">{selectedMeeting.location}</Typography>
+                </Paper>
+
+                {/* People */}
+                <Paper elevation={1} sx={{ p: 2, backgroundColor: '#f8fafc' }}>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <PersonIcon color="primary" />
+                    <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                      Người tham gia
+                    </Typography>
+                  </Box>
+                        <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Chip
+                        icon={<PersonIcon />}
+                        label={`Mentor: ${selectedMeeting.mentor_id?.full_name || 'N/A'}`}
+                        color="primary"
+                        variant="outlined"
+                        size="small"
+                      />
+                          </div>
+                    <div className="flex items-center gap-2">
+                      <Chip
+                        icon={<PersonIcon />}
+                        label={`Yêu cầu bởi: ${selectedMeeting.requested_by?.full_name || 'N/A'}`}
+                        color="secondary"
+                        variant="outlined"
+                        size="small"
+                      />
+                        </div>
+                      </div>
+                </Paper>
+
+                      {/* Description */}
+                {selectedMeeting.description && (
+                  <Paper elevation={1} sx={{ p: 2, backgroundColor: '#f8fafc' }}>
+                    <Typography variant="body2" fontWeight="bold" color="text.secondary" className="mb-2">
+                      📝 Mô tả
+                    </Typography>
+                    <Typography variant="body2" className="italic">
+                      {selectedMeeting.description}
+                          </Typography>
+                  </Paper>
+                      )}
+
+                      {/* Google Meet Link */}
+                {selectedMeeting.google_meet_link && (
+                          <Button
+                            variant="contained"
+                    fullWidth
+                            startIcon={<VideoCallIcon />}
+                    href={selectedMeeting.google_meet_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              color: 'white',
+                              fontWeight: 'bold',
+                              py: 1.5,
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                              }
+                            }}
+                          >
+                            🎥 Tham gia Google Meet
+                          </Button>
+                      )}
+
+                      {/* Reject Reason */}
+                {selectedMeeting.reject_reason && (
+                  <Alert severity="error">
+                    <Typography variant="body2">
+                      <strong>Lý do từ chối:</strong> {selectedMeeting.reject_reason}
+                    </Typography>
+                        </Alert>
+                      )}
+                    </div>
+            </DialogContent>
+
+            <DialogActions sx={{ p: 3, backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+              {/* Mentor Actions */}
+              {canManageMeeting(selectedMeeting) && selectedMeeting.status === 'pending' && (
+                <>
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckIcon />}
+                    onClick={() => {
+                      handleMeetingStatusUpdate(selectedMeeting._id, 'approved');
+                      setDetailDialogOpen(false);
+                    }}
+                    sx={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      }
+                    }}
+                  >
+                    Chấp nhận
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<CancelIcon />}
+                    onClick={() => {
+                      const reason = prompt('Nhập lý do từ chối (tùy chọn):');
+                      handleMeetingStatusUpdate(selectedMeeting._id, 'rejected', reason || 'Không có lý do cụ thể');
+                      setDetailDialogOpen(false);
+                    }}
+                    sx={{
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                      }
+                    }}
+                  >
+                    Từ chối
+                  </Button>
+                </>
+              )}
+              <Button
+                onClick={() => setDetailDialogOpen(false)}
+                variant="outlined"
+                sx={{ ml: 'auto' }}
+              >
+                Đóng
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }
