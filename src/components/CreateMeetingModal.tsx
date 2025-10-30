@@ -50,7 +50,7 @@ interface Project {
     _id: string;
     full_name: string;
   };
-  lec_id?: {
+  supervisor_id?: {
     _id: string;
     full_name: string;
     email?: string;
@@ -131,9 +131,10 @@ export default function CreateMeetingModal({
       // Chuẩn hóa danh sách projects từ các cấu trúc trả về khác nhau
       const rawProjects: Project[] = (response.data?.data || response.data?.projects || []) as Project[];
 
-      // Lọc theo học kì hiện tại nếu có thông tin
+      // Lọc theo học kì hiện tại nếu có thông tin (so sánh không phân biệt hoa/thường)
+      const normalizeSemester = (s?: string) => (s || '').toUpperCase().replace(/\s+/g, '');
       const filteredProjects = semesterFromApi
-        ? rawProjects.filter((p) => p?.semester === semesterFromApi)
+        ? rawProjects.filter((p) => normalizeSemester(p?.semester) === normalizeSemester(semesterFromApi))
         : rawProjects;
 
       setProjects(filteredProjects);
@@ -190,10 +191,17 @@ export default function CreateMeetingModal({
       setLoading(true);
       setError(null);
 
+      const formatLocalDate = (d: Date) => {
+        const y = d.getFullYear();
+        const m = `${d.getMonth() + 1}`.padStart(2, '0');
+        const day = `${d.getDate()}`.padStart(2, '0');
+        return `${y}-${m}-${day}`; // local date, tránh lệch múi giờ
+      };
+
       const meetingData = {
         topic: topic.trim(),
         description: description.trim(),
-        meeting_date: meetingDate.toISOString().split('T')[0],
+        meeting_date: formatLocalDate(meetingDate),
         start_time: startTime.toTimeString().slice(0, 5),
         end_time: endTime.toTimeString().slice(0, 5),
         meeting_type: meetingType,
@@ -336,7 +344,7 @@ export default function CreateMeetingModal({
                       let userRole = "Thành viên";
                       if (project.created_by?._id === currentUserId) {
                         userRole = "Chủ dự án";
-                      } else if (project.lec_id?._id === currentUserId) {
+                      } else if (project.supervisor_id?._id === currentUserId) {
                         userRole = "Giảng viên hướng dẫn";
                       }
                       

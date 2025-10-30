@@ -104,6 +104,100 @@ export default function CalendarPage() {
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  // Week-view helpers (Google Calendar-like)
+  const SLOT_HEIGHT = 48; // px per hour row
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+  const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+  const getStartOfWeek = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0..6, CN..T7
+    d.setDate(d.getDate() - day);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const startOfWeek = getStartOfWeek(currentMonth);
+  const weekDaysW: Date[] = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    return d;
+  });
+
+  const parseMeetingDate = (m: Meeting) => {
+    // meeting_date 'YYYY-MM-DD', times 'HH:MM'
+    const [y, mo, da] = m.meeting_date.split('-').map(n => parseInt(n, 10));
+    const [sh, sm] = m.start_time.split(':').map(n => parseInt(n, 10));
+    const [eh, em] = m.end_time.split(':').map(n => parseInt(n, 10));
+    const start = new Date(y, (mo || 1) - 1, da || 1, sh || 0, sm || 0, 0, 0);
+    const end = new Date(y, (mo || 1) - 1, da || 1, eh || 0, em || 0, 0, 0);
+    return { start, end };
+  };
+
+  const getTopAndHeight = (start: Date, end: Date) => {
+    const top = (start.getHours() + start.getMinutes() / 60) * SLOT_HEIGHT;
+    const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const height = Math.max(32, durationHours * SLOT_HEIGHT);
+    return { top, height };
+  };
+
+  const goToPrevWeek = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), currentMonth.getDate() - 7));
+  const goToNextWeek = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), currentMonth.getDate() + 7));
+  const goToToday = () => setCurrentMonth(new Date());
+
+  // Now indicator updater
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // All-day detector (heuristic)
+  const isAllDay = (m: Meeting) => {
+    const dur = m.duration || 0;
+    return m.start_time === '00:00' && (m.end_time === '23:59' || m.end_time === '24:00') || dur >= 8 * 60;
+  };
+
+  // Overlap layout for a day
+  type Positioned = Meeting & { _posLeft: number; _posWidth: number };
+  const layoutDayEvents = (events: Meeting[]): Positioned[] => {
+    if (!events.length) return [] as Positioned[];
+    // Sort by start time
+    const withTimes = events.map(e => {
+      const { start, end } = parseMeetingDate(e);
+      return { e, start, end };
+    }).sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    // Assign columns greedy
+    const columns: { end: Date }[] = [];
+    const assigned: { e: Meeting; col: number }[] = [];
+    for (const item of withTimes) {
+      let placed = false;
+      for (let c = 0; c < columns.length; c++) {
+        if (columns[c].end <= item.start) {
+          columns[c].end = item.end;
+          assigned.push({ e: item.e, col: c });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.push({ end: item.end });
+        assigned.push({ e: item.e, col: columns.length - 1 });
+      }
+    }
+    const maxCols = Math.max(1, columns.length);
+    const width = 100 / maxCols;
+    return assigned.map(a => Object.assign({}, a.e, { _posLeft: a.col * width, _posWidth: width })) as Positioned[];
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -116,11 +210,22 @@ export default function CalendarPage() {
         setCurrentUserId(user._id);
         setUserRole(user.role.toString());
 
-        // Load all meetings for user
+        // Determine date range based on view (fetch by range to include cross-month days)
+        const startOfWeek = getStartOfWeek(currentMonth);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+        const fmtLocal = (d: Date) => {
+          const y = d.getFullYear();
+          const m = `${d.getMonth() + 1}`.padStart(2, '0');
+          const day = `${d.getDate()}`.padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+
         const response = await axiosInstance.get('/api/meetings/user/all', {
           params: {
-            month: currentMonth.getMonth() + 1,
-            year: currentMonth.getFullYear(),
+            from: fmtLocal(startOfWeek),
+            to: fmtLocal(endOfWeek),
           },
         });
         
@@ -166,6 +271,20 @@ export default function CalendarPage() {
       case "urgent": return "Khẩn cấp";
       case "review": return "Báo cáo tiến độ";
       default: return type;
+    }
+  };
+
+  // Color by status
+  const getStatusGradient = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'linear-gradient(135deg, #10b981 0%, #059669 100%)'; // green
+      case 'pending':
+        return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'; // amber
+      case 'rejected':
+        return 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'; // red
+      default:
+        return 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)';
     }
   };
 
@@ -349,77 +468,38 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Month Navigation & Controls */}
-          <Card className="mb-6" sx={{ 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-          }}>
+          {/* Week Navigation & Controls */}
+          <Card className="mb-6" sx={{ boxShadow: 2 }}>
             <CardContent>
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                {/* Month & Year Selection */}
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <select
-                    value={currentMonth.getMonth()}
-                    onChange={(e) => handleMonthChange(Number(e.target.value))}
-                    className="px-2 py-1.5 rounded-md text-sm font-medium text-gray-900 bg-white border border-white focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer hover:bg-gray-50 transition-all"
-                    style={{ minWidth: '100px' }}
-                  >
-                    {months.map((month) => (
-                      <option key={month.value} value={month.value}>
-                        {month.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={currentMonth.getFullYear()}
-                    onChange={(e) => handleYearChange(Number(e.target.value))}
-                    className="px-2 py-1.5 rounded-md text-sm font-medium text-gray-900 bg-white border border-white focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer hover:bg-gray-50 transition-all"
-                    style={{ minWidth: '80px' }}
-                  >
-                    {years.map((year) => (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setCurrentMonth(new Date())}
-                    sx={{ 
-                      borderColor: 'rgba(255,255,255,0.5)',
-                      color: 'white',
-                      fontSize: '0.875rem',
-                      py: 0.75,
-                      px: 2,
-                      '&:hover': {
-                        borderColor: 'white',
-                        backgroundColor: 'rgba(255,255,255,0.1)',
-                      }
-                    }}
-                  >
-                    Hôm nay
-                  </Button>
+                  <Button variant="outlined" onClick={goToPrevWeek}>‹</Button>
+                  <Button variant="outlined" onClick={goToToday}>Hôm nay</Button>
+                  <Button variant="outlined" onClick={goToNextWeek}>›</Button>
+                  <Typography variant="h6" className="ml-2">
+                    {startOfWeek.toLocaleDateString('vi-VN', { month: 'long', day: 'numeric' })}
+                    {" – "}
+                    {new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6)
+                      .toLocaleDateString('vi-VN', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </Typography>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2">
-                  {(userRole === "1" || userRole === "4") && (
+                <div className="flex gap-2">
+                  {userRole === "4" && (
                     <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={() => setCreateMeetingOpen(true)}
-                      sx={{ 
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        color: 'white',
-                        '&:hover': {
-                          backgroundColor: 'rgba(255,255,255,0.3)',
-                        }
-                      }}
+                      variant="outlined"
+                      onClick={() => setPendingDialogOpen(true)}
                     >
+                      Yêu cầu chờ duyệt
+                    </Button>
+                  )}
+                  <div className="mr-2">
+                    <div className="inline-flex rounded-md overflow-hidden border">
+                      <button className={`px-3 py-1 text-sm ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white'}`} onClick={() => setViewMode('day')}>Day</button>
+                      <button className={`px-3 py-1 text-sm ${viewMode === 'week' ? 'bg-blue-600 text-white' : 'bg-white'}`} onClick={() => setViewMode('week')}>Week</button>
+                    </div>
+                  </div>
+                  {(userRole === "1" || userRole === "4") && (
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateMeetingOpen(true)}>
                       Tạo lịch họp
                     </Button>
                   )}
@@ -428,7 +508,7 @@ export default function CalendarPage() {
             </CardContent>
           </Card>
 
-          {/* Calendar Grid */}
+          {/* Week Grid (Google Calendar-like) */}
           {loading ? (
             <Card>
               <CardContent className="flex justify-center items-center py-20">
@@ -438,88 +518,152 @@ export default function CalendarPage() {
           ) : (
             <Card sx={{ overflow: 'hidden', boxShadow: 3 }}>
               <CardContent sx={{ p: 0 }}>
-                {/* Week Days Header */}
-                <div className="grid grid-cols-7 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-                  {weekDays.map((day) => (
-                    <div key={day} className="text-center py-2 font-semibold text-xs md:text-sm">
-                      {day}
+                {/* Scroll container to keep header sticky */}
+                <div className="relative" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                {viewMode === 'week' ? (
+                  <>
+                    {/* Header row */}
+                    <div className="grid sticky top-0 z-10" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                      <div className="bg-white border-b border-r h-12" />
+                      {weekDaysW.map((d, idx) => (
+                        <div key={idx} className="bg-white border-b text-center h-12 flex items-center justify-center">
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs text-gray-500">{dayNames[d.getDay()]}</span>
+                            <span className={`text-sm font-semibold ${isSameDay(d, new Date()) ? 'text-blue-600' : 'text-gray-900'}`}>{d.getDate()}</span>
+                          </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Calendar Days Grid */}
-                <div className="grid grid-cols-7 gap-px bg-gray-200">
-                  {calendarDays.map((date, index) => {
-                    const dayMeetings = getMeetingsForDay(date);
-                    const isCurrentDay = isToday(date);
-                    const isInCurrentMonth = isCurrentMonth(date);
-                    
-                    return (
-                      <div
-                        key={index}
-                        className={`h-[110px] bg-white p-1.5 relative transition-all duration-200 hover:shadow-lg flex flex-col ${
-                          !isInCurrentMonth ? 'bg-gray-50' : ''
-                        } ${isCurrentDay ? 'ring-2 ring-blue-500' : ''}`}
-                      >
-                        {/* Date Number - Fixed */}
-                        <div className="flex justify-between items-start mb-1 flex-shrink-0">
-                          <span className={`text-xs font-semibold ${
-                            isCurrentDay 
-                              ? 'bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center' 
-                              : !isInCurrentMonth 
-                                ? 'text-gray-400' 
-                                : 'text-gray-700'
-                          }`}>
-                            {date.getDate()}
-                          </span>
-                          {dayMeetings.length > 0 && (
-                            <Badge badgeContent={dayMeetings.length} color="primary" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: '16px', minWidth: '16px', padding: '0 4px' } }} />
-                          )}
-                        </div>
-
-                        {/* Meetings List - Horizontal Scroll */}
-                        <div className="flex-1 overflow-x-auto overflow-y-hidden calendar-scroll pb-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
-                          <div className="flex gap-1 h-full">
-                            {dayMeetings.map((meeting, idx) => (
+                    {/* All-day row */}
+                    <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                      <div className="border-r h-10 flex items-center justify-end pr-2 text-xs text-gray-500">All day</div>
+                      {weekDaysW.map((day, idx) => (
+                        <div key={idx} className="border-r h-10 relative">
+                          {(meetingsData?.allMeetings || [])
+                            .filter(m => isAllDay(m) && isSameDay(parseMeetingDate(m).start, day))
+                            .map(m => (
                               <div
-                                key={meeting._id}
-                                onClick={() => handleMeetingClick(meeting)}
-                                className={`text-[10px] p-1 rounded cursor-pointer transition-all hover:scale-105 flex-shrink-0 w-full ${
-                                  meeting.status === 'approved' 
-                                    ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                    : meeting.status === 'pending'
-                                      ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                      : meeting.status === 'rejected'
-                                        ? 'bg-red-100 text-red-800 hover:bg-red-200'
-                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                                }`}
+                                key={m._id}
+                                onClick={() => handleMeetingClick(m)}
+                                className="absolute left-1 right-1 top-1 bottom-1 text-white rounded px-2 text-xs flex items-center truncate"
+                                style={{ background: getStatusGradient(m.status) }}
+                                title={m.topic}
                               >
-                                <div className="font-semibold truncate leading-tight mb-0.5">{meeting.topic}</div>
-                                <div className="text-[9px] leading-tight space-y-0.5">
-                                  <div className="flex items-center gap-0.5">
-                                    <AccessTimeIcon sx={{ fontSize: '10px' }} />
-                                    <span className="truncate">{formatTime(meeting.start_time)}-{formatTime(meeting.end_time)}</span>
-                                  </div>
-                                  {meeting.location && (
-                                    <div className="flex items-center gap-0.5">
-                                      <LocationIcon sx={{ fontSize: '10px' }} />
-                                      <span className="truncate">{meeting.location}</span>
-                                    </div>
-                                  )}
-                                  {meeting.google_meet_link && (
-                                    <div className="flex items-center gap-0.5">
-                                      <VideoCallIcon sx={{ fontSize: '10px' }} />
-                                      <span className="text-blue-600">Meet</span>
-                                    </div>
-                                  )}
-                                </div>
+                                {m.topic}
                               </div>
                             ))}
-                          </div>
                         </div>
+                      ))}
+                    </div>
+
+                    {/* Grid */}
+                    <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                      {/* Time gutter */}
+                      <div className="relative border-r">
+                        {HOURS.map((h) => (
+                          <div key={h} className="border-b text-right pr-2 text-xs text-gray-500" style={{ height: SLOT_HEIGHT }}>
+                            {h === 0 ? '' : `${h}:00`}
+                                  </div>
+                        ))}
+                                    </div>
+
+                      {/* Day columns */}
+                      {weekDaysW.map((day, idx) => {
+                        const todays = (meetingsData?.allMeetings || [])
+                          .filter(m => !isAllDay(m) && isSameDay(parseMeetingDate(m).start, day));
+                        const positioned = layoutDayEvents(todays);
+                        const showNow = isSameDay(day, new Date());
+                        const now = new Date();
+                        const nowTop = (now.getHours() + now.getMinutes() / 60) * SLOT_HEIGHT;
+                        return (
+                          <div key={idx} className="relative border-r" style={{ height: HOURS.length * SLOT_HEIGHT }}>
+                            {HOURS.map((h) => (
+                              <div key={h} className="border-b border-gray-100" style={{ height: SLOT_HEIGHT }} />
+                            ))}
+                            {showNow && (
+                              <div className="absolute left-0 right-0" style={{ top: nowTop }}>
+                                <div className="h-px bg-red-500" />
+                                <div className="w-2 h-2 bg-red-500 rounded-full -mt-1 -ml-1" />
+                                    </div>
+                                  )}
+                            {positioned.map((m) => {
+                              const { start, end } = parseMeetingDate(m);
+                              const { top, height } = getTopAndHeight(start, end);
+                              return (
+                                <div
+                                  key={m._id}
+                                  onClick={() => handleMeetingClick(m)}
+                                  className="absolute rounded-md shadow-sm cursor-pointer"
+                                  style={{ top, height, left: `${m._posLeft}%`, width: `${m._posWidth}%`, background: getStatusGradient(m.status), color: 'white', padding: '6px' }}
+                                  title={`${m.topic} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}
+                                >
+                                  <div className="text-xs font-semibold truncate">{m.topic}</div>
+                                  <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  // Day view
+                  <>
+                    {/* Header row */}
+                    <div className="grid sticky top-0 z-10" style={{ gridTemplateColumns: '80px 1fr' }}>
+                      <div className="bg-white border-b border-r h-12" />
+                      <div className="bg-white border-b h-12 flex items-center px-4">
+                        <span className="text-sm font-semibold">
+                          {new Date(currentMonth).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        </span>
+                                </div>
+                              </div>
+                    {/* All-day row */}
+                    <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
+                      <div className="border-r h-10 flex items-center justify-end pr-2 text-xs text-gray-500">All day</div>
+                      <div className="border-r h-10 relative">
+                        {(meetingsData?.allMeetings || [])
+                          .filter(m => isAllDay(m) && isSameDay(parseMeetingDate(m).start, currentMonth))
+                          .map(m => (
+                            <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute left-1 right-1 top-1 bottom-1 text-white rounded px-2 text-xs flex items-center truncate" style={{ background: getStatusGradient(m.status) }} title={m.topic}>{m.topic}</div>
+                          ))}
+                      </div>
+                    </div>
+                    {/* Grid */}
+                    <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
+                      <div className="relative border-r">
+                        {HOURS.map((h) => (
+                          <div key={h} className="border-b text-right pr-2 text-xs text-gray-500" style={{ height: SLOT_HEIGHT }}>
+                            {h === 0 ? '' : `${h}:00`}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="relative border-r" style={{ height: HOURS.length * SLOT_HEIGHT }}>
+                        {HOURS.map((h) => (
+                          <div key={h} className="border-b border-gray-100" style={{ height: SLOT_HEIGHT }} />
+                        ))}
+                        {isSameDay(currentMonth, new Date()) && (
+                          <div className="absolute left-0 right-0" style={{ top: (new Date().getHours() + new Date().getMinutes() / 60) * SLOT_HEIGHT }}>
+                            <div className="h-px bg-red-500" />
+                            <div className="w-2 h-2 bg-red-500 rounded-full -mt-1 -ml-1" />
+                          </div>
+                        )}
+                        {layoutDayEvents((meetingsData?.allMeetings || []).filter(m => !isAllDay(m) && isSameDay(parseMeetingDate(m).start, currentMonth))).map(m => {
+                          const { start, end } = parseMeetingDate(m);
+                          const { top, height } = getTopAndHeight(start, end);
+                          return (
+                            <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute rounded-md shadow-sm cursor-pointer" style={{ top, height, left: `${m._posLeft}%`, width: `${m._posWidth}%`, background: getStatusGradient(m.status), color: 'white', padding: '6px' }} title={`${m.topic} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}>
+                              <div className="text-xs font-semibold truncate">{m.topic}</div>
+                              <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
                       </div>
                     );
                   })}
+                      </div>
+                    </div>
+                  </>
+                )}
                 </div>
               </CardContent>
             </Card>
@@ -764,6 +908,89 @@ export default function CalendarPage() {
           </>
         )}
       </Dialog>
+
+  {/* Pending Requests for Mentor */}
+  <Dialog
+    open={pendingDialogOpen}
+    onClose={() => setPendingDialogOpen(false)}
+    maxWidth="md"
+    fullWidth
+    PaperProps={{
+      sx: {
+        borderRadius: 4,
+        overflow: 'hidden',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+      }
+    }}
+  >
+    <DialogTitle sx={{
+      p: 3,
+      fontWeight: 'bold',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white'
+    }}>Yêu cầu cuộc họp chờ duyệt</DialogTitle>
+    <DialogContent dividers sx={{ p: 0 }}>
+      <div className="space-y-0 divide-y">
+        {(meetingsData?.allMeetings || [])
+          .filter(m => m.status === 'pending' && m.mentor_id?._id === currentUserId)
+          .map((m) => (
+            <div key={m._id} className="p-3 md:p-4 hover:bg-gray-50 transition-colors flex items-start justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Chờ duyệt</span>
+                  <span className="text-xs text-gray-500">{m.project_id?.code || ''}</span>
+                </div>
+                <div className="font-semibold truncate text-gray-900">{m.topic}</div>
+                <div className="text-sm text-gray-600 truncate">
+                  {formatDate(m.meeting_date)} • {formatTime(m.start_time)} - {formatTime(m.end_time)} • {m.project_id?.topic || 'Dự án'}
+                </div>
+                {m.description && (
+                  <div className="text-xs text-gray-500 mt-1 line-clamp-2">{m.description}</div>
+                )}
+              </div>
+              <div className="flex flex-shrink-0 gap-2 ml-3">
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={<CheckIcon />}
+                  onClick={async () => {
+                    await handleMeetingStatusUpdate(m._id, 'approved');
+                    setPendingDialogOpen(false);
+                  }}
+                  sx={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
+                  }}
+                >
+                  Duyệt
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  startIcon={<CancelIcon />}
+                  onClick={async () => {
+                    const reason = prompt('Lý do từ chối (tùy chọn):');
+                    await handleMeetingStatusUpdate(m._id, 'rejected', reason || '');
+                    setPendingDialogOpen(false);
+                  }}
+                >
+                  Từ chối
+                </Button>
+              </div>
+            </div>
+          ))}
+        {((meetingsData?.allMeetings || []).filter(m => m.status === 'pending' && m.mentor_id?._id === currentUserId).length === 0) && (
+          <div className="p-6">
+            <Alert severity="info">Không có yêu cầu nào đang chờ duyệt.</Alert>
+          </div>
+        )}
+      </div>
+    </DialogContent>
+    <DialogActions sx={{ p: 2.5, backgroundColor: '#f8fafc' }}>
+      <Button onClick={() => setPendingDialogOpen(false)} variant="outlined">Đóng</Button>
+    </DialogActions>
+  </Dialog>
     </div>
   );
 }

@@ -66,7 +66,7 @@ axiosInstance.interceptors.response.use(
     }
     
     if (error.response?.status === 500) {
-      console.error('Server Error:', error.response.data); n
+      console.error('Server Error:', error.response.data);
     }
     
     return Promise.reject(error);
