@@ -139,6 +139,51 @@ export default function MeetingCalendar({
   
   const [submitting, setSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  // Calendar UI helpers
+  const SLOT_HEIGHT = 48; // px per hour row
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const getStartOfWeek = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0..6 (Sun..Sat)
+    d.setDate(d.getDate() - day);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const startOfWeek = getStartOfWeek(currentMonth);
+  const weekDays: Date[] = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    return d;
+  });
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const parseMeetingDate = (m: Meeting) => {
+    // meeting_date like 'YYYY-MM-DD', times like 'HH:MM'
+    const [y, mo, da] = m.meeting_date.split('-').map((n) => parseInt(n, 10));
+    const [sh, sm] = m.start_time.split(':').map((n) => parseInt(n, 10));
+    const [eh, em] = m.end_time.split(':').map((n) => parseInt(n, 10));
+    const start = new Date(y, (mo || 1) - 1, da || 1, sh || 0, sm || 0, 0, 0);
+    const end = new Date(y, (mo || 1) - 1, da || 1, eh || 0, em || 0, 0, 0);
+    return { start, end };
+  };
+
+  const getTopAndHeight = (start: Date, end: Date) => {
+    const top = (start.getHours() + start.getMinutes() / 60) * SLOT_HEIGHT;
+    const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const height = Math.max(32, durationHours * SLOT_HEIGHT);
+    return { top, height };
+  };
+
+  const goToPrevWeek = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), currentMonth.getDate() - 7));
+  const goToNextWeek = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), currentMonth.getDate() + 7));
+  const goToToday = () => setCurrentMonth(new Date());
 
   // Load meetings
   const loadMeetings = async () => {
@@ -166,9 +211,15 @@ export default function MeetingCalendar({
   const handleCreateMeeting = async () => {
     try {
       setSubmitting(true);
+      const formatLocalDate = (d: Date) => {
+        const y = d.getFullYear();
+        const m = `${d.getMonth() + 1}`.padStart(2, '0');
+        const day = `${d.getDate()}`.padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
       const response = await axiosInstance.post(`/api/meetings/project/${projectId}`, {
         ...formData,
-        meeting_date: formData.meeting_date.toISOString().split('T')[0],
+        meeting_date: formatLocalDate(formData.meeting_date),
       });
       
       setMeetings([...meetings, response.data.data]);
@@ -331,207 +382,90 @@ export default function MeetingCalendar({
           </Alert>
         )}
 
-        {/* Calendar Navigation */}
+        {/* Calendar Navigation + Week Grid */}
         <Card>
           <CardContent>
             <div className="flex justify-between items-center mb-4">
-              <Typography variant="h6">
-                {currentMonth.toLocaleDateString('vi-VN', { 
-                  month: 'long', 
-                  year: 'numeric' 
-                })}
-              </Typography>
+              <div className="flex items-center gap-2">
+                <Button variant="outlined" onClick={goToPrevWeek}>‹</Button>
+                <Button variant="outlined" onClick={goToToday}>Today</Button>
+                <Button variant="outlined" onClick={goToNextWeek}>›</Button>
+                <Typography variant="h6" className="ml-4">
+                  {startOfWeek.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                  {" – "}
+                  {new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6)
+                    .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </Typography>
+              </div>
               <div className="flex gap-2">
-                <Button
-                  variant="outlined"
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                >
-                  Tháng trước
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => setCurrentMonth(new Date())}
-                >
-                  Hôm nay
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                >
-                  Tháng sau
-                </Button>
+                <Button variant="outlined" onClick={loadMeetings} disabled={loading}>Refresh</Button>
+                {canCreateMeeting && (
+                  <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenCreateDialog(true)}>
+                    Tạo lịch họp
+                  </Button>
+                )}
               </div>
             </div>
 
-            {/* Meetings List */}
             {loading ? (
-              <div className="flex justify-center py-8">
-                <CircularProgress />
-              </div>
-            ) : meetings.length === 0 ? (
-              <div className="text-center py-8">
-                <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <Typography variant="h6" className="mb-2 text-gray-600">
-                  Không có lịch họp nào
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {canCreateMeeting 
-                    ? "Tạo lịch họp đầu tiên cho dự án này" 
-                    : "Chưa có lịch họp nào được lên lịch"
-                  }
-                </Typography>
-              </div>
+              <div className="flex justify-center py-8"><CircularProgress /></div>
             ) : (
-              <div className="space-y-4">
-                {meetings.map((meeting) => (
-                  <Paper key={meeting._id} className="p-6 hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        {/* Header với thông tin quan trọng */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <Typography variant="h5" className="font-bold text-gray-800 mb-2">
-                              {meeting.topic}
-                            </Typography>
-                            <div className="flex items-center gap-3 mb-3">
-                              <Chip
-                                label={getStatusText(meeting.status)}
-                                color={getStatusColor(meeting.status) as any}
-                                size="medium"
-                                className="font-semibold"
-                              />
-                              <Chip
-                                label={getMeetingTypeText(meeting.meeting_type)}
-                                variant="outlined"
-                                size="medium"
-                                color="primary"
-                              />
-                            </div>
-                          </div>
-                          
-                          {/* Thời gian nổi bật */}
-                          <div className="text-right bg-blue-50 p-3 rounded-lg border">
-                            <div className="text-sm text-blue-600 font-medium">Ngày họp</div>
-                            <div className="text-lg font-bold text-blue-800">
-                              {formatDate(meeting.meeting_date)}
-                            </div>
-                            <div className="text-sm text-blue-600 font-medium mt-1">
-                              {formatTime(meeting.start_time)} - {formatTime(meeting.end_time)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Thông tin chi tiết */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <LocationIcon className="w-5 h-5 text-green-600" />
-                              <span className="font-medium">{meeting.location}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <PersonIcon className="w-5 h-5 text-purple-600" />
-                              <span><strong>Mentor:</strong> {meeting.mentor_id.full_name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <PersonIcon className="w-5 h-5 text-orange-600" />
-                              <span><strong>Yêu cầu bởi:</strong> {meeting.requested_by.full_name}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            {meeting.attendees.length > 0 && (
-                              <div className="flex items-center gap-2 text-gray-700">
-                                <GroupIcon className="w-5 h-5 text-indigo-600" />
-                                <span><strong>{meeting.attendees.length +1}</strong> người tham dự</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <AccessTimeIcon className="w-5 h-5 text-red-600" />
-                              <span><strong>Thời lượng:</strong> {meeting.duration} phút</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Mô tả */}
-                        {meeting.description && (
-                          <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                            <Typography variant="body2" className="text-gray-700 italic">
-                              "{meeting.description}"
-                            </Typography>
-                          </div>
-                        )}
-
-                        {/* Google Meet Link - nổi bật */}
-                        {meeting.google_meet_link && (
-                          <div className="mb-4">
-                            <Button
-                              variant="contained"
-                              startIcon={<VideoCallIcon />}
-                              href={meeting.google_meet_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
-                            >
-                              🎥 Tham gia Google Meet
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Lý do từ chối */}
-                        {meeting.reject_reason && (
-                          <Alert severity="error" className="mt-2">
-                            <strong>Lý do từ chối:</strong> {meeting.reject_reason}
-                          </Alert>
-                        )}
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex flex-col gap-2 ml-6">
-                        {canManageMeeting(meeting) && (
-                          <>
-                            {isMentor && meeting.status === 'pending' && (
-                              <>
-                                <Tooltip title="Xác nhận lịch họp">
-                                  <IconButton
-                                    onClick={() => handleUpdateStatus(meeting._id, 'approved')}
-                                    color="success"
-                                    className="bg-green-100 hover:bg-green-200"
-                                  >
-                                    <CheckCircleIcon />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Từ chối lịch họp">
-                                  <IconButton
-                                    onClick={() => {
-                                      const reason = prompt('Lý do từ chối:');
-                                      if (reason) {
-                                        handleUpdateStatus(meeting._id, 'rejected', reason);
-                                      }
-                                    }}
-                                    color="error"
-                                    className="bg-red-100 hover:bg-red-200"
-                                  >
-                                    <CancelIcon />
-                                  </IconButton>
-                                </Tooltip>
-                              </>
-                            )}
-                            
-                            <Tooltip title="Xóa lịch họp">
-                              <IconButton
-                                onClick={() => handleDeleteMeeting(meeting._id)}
-                                color="error"
-                                className="bg-red-100 hover:bg-red-200"
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
+              <div className="border rounded-lg overflow-hidden">
+                {/* Header row */}
+                <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                  <div className="bg-gray-50 border-b border-r h-12" />
+                  {weekDays.map((d, idx) => (
+                    <div key={idx} className="bg-gray-50 border-b text-center h-12 flex items-center justify-center">
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs text-gray-500">{dayNames[d.getDay()]}</span>
+                        <span className={`text-sm font-semibold ${isSameDay(d, new Date()) ? 'text-blue-600' : 'text-gray-900'}`}>{d.getDate()}</span>
                       </div>
                     </div>
-                  </Paper>
-                ))}
+                  ))}
+                </div>
+
+                {/* Grid */}
+                <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                  {/* Time gutter */}
+                  <div className="relative border-r">
+                    {HOURS.map((h) => (
+                      <div key={h} className="border-b text-right pr-2 text-xs text-gray-500" style={{ height: SLOT_HEIGHT }}>
+                        {h === 0 ? '' : `${h}:00`}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Day columns */}
+                  {weekDays.map((day, idx) => (
+                    <div key={idx} className="relative border-r" style={{ height: HOURS.length * SLOT_HEIGHT }}>
+                      {/* Hour lines */}
+                      {HOURS.map((h) => (
+                        <div key={h} className="border-b border-gray-100" style={{ height: SLOT_HEIGHT }} />
+                      ))}
+                      {/* Events */}
+                      {meetings
+                        .filter((m) => {
+                          const { start } = parseMeetingDate(m);
+                          return isSameDay(start, day);
+                        })
+                        .map((m) => {
+                          const { start, end } = parseMeetingDate(m);
+                          const { top, height } = getTopAndHeight(start, end);
+                          return (
+                            <div
+                              key={m._id}
+                              className="absolute left-1 right-1 rounded-md shadow-sm cursor-pointer"
+                              style={{ top, height, background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)', color: 'white', padding: '6px' }}
+                              title={`${m.topic} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}
+                            >
+                              <div className="text-xs font-semibold truncate">{m.topic}</div>
+                              <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>
