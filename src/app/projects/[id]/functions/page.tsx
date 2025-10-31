@@ -169,19 +169,38 @@ export default function ProjectFunctionsPage() {
         axiosInstance.get(`/api/projects/${projectId}/functions/stats`),
         axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
       ]);
-      
+      console.log(allSettingsRes.data);
       const allSettings = allSettingsRes.data || [];
       const complexitySettings = allSettings.filter((s: any) => s.type_id === 1);
+      console.log(complexitySettings);
       const statusSettings = allSettings.filter((s: any) => s.type_id === 2);
-      
-      setFunctions(functionsRes.data || []);
-      setFeatures(featuresRes.data || []);
+
+      const rawFunctions = functionsRes?.data;
+      const normalizedFunctions = Array.isArray(rawFunctions)
+        ? rawFunctions
+        : Array.isArray(rawFunctions?.data)
+          ? rawFunctions.data
+          : Array.isArray(rawFunctions?.functions)
+            ? rawFunctions.functions
+            : [];
+
+      const rawFeatures = featuresRes?.data;
+      const normalizedFeatures = Array.isArray(rawFeatures)
+        ? rawFeatures
+        : Array.isArray(rawFeatures?.data)
+          ? rawFeatures.data
+          : Array.isArray(rawFeatures?.features)
+            ? rawFeatures.features
+            : [];
+
+      setFunctions(normalizedFunctions);
+      setFeatures(normalizedFeatures);
       setStats(statsRes.data);
       setComplexityTypes(complexitySettings);
       setStatusTypes(statusSettings);
       
       // Calculate effort warnings
-      calculateEffortWarnings(functionsRes.data || [], featuresRes.data || []);
+      calculateEffortWarnings(normalizedFunctions, normalizedFeatures);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tải dữ liệu");
     } finally {
@@ -329,6 +348,38 @@ export default function ProjectFunctionsPage() {
       return matchSearch && matchStatus && matchFeature;
     });
   }, [functions, searchTerm, filterStatus, filterFeature]);
+
+  // Resolve display names when API returns only IDs
+  const resolveFeatureTitle = (func: FunctionType) => {
+    if (typeof func.feature_id === "object") return func.feature_id?.title || "-";
+    if (!func.feature_id) return "-";
+    const match = features.find((f) => f._id === func.feature_id);
+    return match?.title || "-";
+  };
+
+  const resolveComplexityName = (func: FunctionType) => {
+    if (typeof func.complexity_id === "object") return func.complexity_id?.name || "-";
+    if (!func.complexity_id) return "-";
+    const target = String(func.complexity_id);
+    const match = complexityTypes.find((c) =>
+      String((c as any)?._id) === target ||
+      String((c as any)?.value) === target ||
+      String((c as any)?.name) === target
+    );
+    return (match as any)?.name || "-";
+  };
+
+  const resolveStatusName = (func: FunctionType) => {
+    if (typeof func.status === "object") return func.status?.name || "-";
+    if (!func.status) return "-";
+    const target = String(func.status);
+    const match = statusTypes.find((s) =>
+      String((s as any)?._id) === target ||
+      String((s as any)?.value) === target ||
+      String((s as any)?.name) === target
+    );
+    return (match as any)?.name || "-";
+  };
 
   const getStatusColor = (statusName: string) => {
     const colors: any = {
@@ -575,9 +626,9 @@ export default function ProjectFunctionsPage() {
                     const progress = func.estimated_effort > 0 
                       ? Math.min(100, Math.round((func.actual_effort / func.estimated_effort) * 100))
                       : 0;
-                    const featureName = typeof func.feature_id === "object" ? func.feature_id?.title : "-";
-                    const complexityName = typeof func.complexity_id === "object" ? func.complexity_id?.name : "-";
-                    const statusName = typeof func.status === "object" ? func.status?.name : "-";
+                    const featureName = resolveFeatureTitle(func);
+                    const complexityName = resolveComplexityName(func);
+                    const statusName = resolveStatusName(func);
                     
                     return (
                       <TableRow key={func._id} hover>
