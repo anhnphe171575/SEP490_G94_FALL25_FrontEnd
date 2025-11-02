@@ -629,15 +629,18 @@ export default function FeatureBreakdownPage() {
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                         Trạng thái
                       </Typography>
-                      <Chip
-                        label={selectedFunction.status}
-                        size="medium"
-                        sx={{
-                          bgcolor: getStatusColor(selectedFunction.status),
-                          color: "#fff",
-                          fontWeight: 600,
-                        }}
-                      />
+                    <Chip
+  label={
+    typeof selectedFunction.status === 'string'
+      ? selectedFunction.status
+      : String(selectedFunction.status?.name ?? selectedFunction.status)
+  }
+  size="medium"
+  sx={{
+    bgcolor: getStatusColor(String(selectedFunction.status)),
+  }}
+/>
+
                     </Box>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
