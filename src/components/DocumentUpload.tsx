@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -42,24 +42,25 @@ type DocumentUploadProps = {
   open: boolean;
   onClose: () => void;
   projectId: string;
-  folderId?: string;
   onUploadComplete?: (uploadedFiles: unknown[]) => void;
+  defaultFolderId?: string;
+  folderOptions?: Array<{ _id: string; name: string }>;
 };
 
 export default function DocumentUpload({ 
   open, 
   onClose, 
   projectId, 
-  folderId, 
-  onUploadComplete 
+  onUploadComplete,
+  defaultFolderId,
+  folderOptions
 }: DocumentUploadProps) {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [category, setCategory] = useState('');
-  const [description, setDescription] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
+  const [type, setType] = useState('requirement');
+  const [version, setVersion] = useState('1.0');
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,26 +105,12 @@ export default function DocumentUpload({
     setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags(prev => [...prev, newTag.trim()]);
-      setNewTag('');
-    }
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    setTags(prev => prev.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTag();
-    }
-  };
-
   const uploadFiles = async () => {
     if (files.length === 0) return;
+    if (!version.trim()) {
+      toast.error('Vui lòng nhập phiên bản (version)');
+      return;
+    }
     
     setUploading(true);
     
@@ -133,12 +120,12 @@ export default function DocumentUpload({
         const formData = new FormData();
         formData.append('file', file);
         formData.append('project_id', projectId);
-        formData.append('milestone_id', 'default'); // Có thể cần chọn milestone
-        formData.append('type', category || 'documentation');
-        formData.append('title', file.name.split('.')[0]); // Tên file không có extension
-        formData.append('version', '1.0');
-        if (description) formData.append('description', description);
-        if (folderId) formData.append('folder_id', folderId);
+        if (selectedFolderId) formData.append('folder_id', selectedFolderId);
+        formData.append('type', type || 'requirement');
+        
+        // Giữ nguyên tên file làm title
+        formData.append('title', file.name);
+        formData.append('version', version);
 
         setFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'uploading', progress: 0 } : f));
 
@@ -184,10 +171,9 @@ export default function DocumentUpload({
 
   const handleClose = () => {
     setFiles([]);
-    setCategory('');
-    setDescription('');
-    setTags([]);
-    setNewTag('');
+    setType('requirement');
+    setVersion('1.0');
+    setSelectedFolderId('');
     setUploading(false);
     onClose();
   };
@@ -201,6 +187,13 @@ export default function DocumentUpload({
   };
 
   const getFileIcon = () => <FileIcon />;
+
+  // Set folder mặc định khi mở dialog
+  useEffect(() => {
+    if (open && defaultFolderId) {
+      setSelectedFolderId(defaultFolderId);
+    }
+  }, [open, defaultFolderId]);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
@@ -259,7 +252,7 @@ export default function DocumentUpload({
                 {files.map((file) => (
                   <Paper key={file.id} variant="outlined" sx={{ p: 2 }}>
                     <Stack direction="row" alignItems="center" spacing={2}>
-                      {getFileIcon(file.file.name)}
+                      {getFileIcon()}
                       <Box flex={1}>
                         <Typography variant="body2" noWrap>
                           {file.file.name}
@@ -304,14 +297,31 @@ export default function DocumentUpload({
               </Typography>
               
               <Stack spacing={2}>
+                {/* Folder (optional) */}
                 <FormControl fullWidth>
-                  <InputLabel>Danh mục</InputLabel>
+                  <InputLabel>Thư mục (tuỳ chọn)</InputLabel>
                   <Select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    label="Danh mục"
+                    value={selectedFolderId}
+                    onChange={(e) => setSelectedFolderId(e.target.value)}
+                    label="Thư mục (tuỳ chọn)"
                   >
-                    <MenuItem value="">Không chọn</MenuItem>
+                    <MenuItem value="">
+                      <em>Không chọn</em>
+                    </MenuItem>
+                    {(folderOptions || []).map((f) => (
+                      <MenuItem key={f._id} value={f._id}>{f.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <InputLabel>Loại tài liệu</InputLabel>
+                  <Select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    label="Loại tài liệu"
+                  >
+                    <MenuItem value="requirement">Yêu cầu (requirement)</MenuItem>
                     <MenuItem value="design">Thiết kế</MenuItem>
                     <MenuItem value="documentation">Tài liệu</MenuItem>
                     <MenuItem value="code">Mã nguồn</MenuItem>
@@ -321,42 +331,13 @@ export default function DocumentUpload({
                 </FormControl>
 
                 <TextField
-                  label="Mô tả chung"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  label="Phiên bản (version)"
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
                   fullWidth
-                  multiline
-                  rows={2}
-                  placeholder="Mô tả cho tất cả tài liệu..."
+                  required
+                  placeholder="Ví dụ: 1.0, 2.1, v3..."
                 />
-
-                <Box>
-                  <Typography variant="body2" gutterBottom>
-                    Thẻ (tags)
-                  </Typography>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
-                    {tags.map((tag) => (
-                      <Chip
-                        key={tag}
-                        label={tag}
-                        onDelete={() => removeTag(tag)}
-                        size="small"
-                      />
-                    ))}
-                  </Stack>
-                  <Stack direction="row" spacing={1}>
-                    <TextField
-                      size="small"
-                      placeholder="Thêm thẻ..."
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                    />
-                    <Button size="small" onClick={addTag} disabled={!newTag.trim()}>
-                      Thêm
-                    </Button>
-                  </Stack>
-                </Box>
               </Stack>
             </>
           )}
