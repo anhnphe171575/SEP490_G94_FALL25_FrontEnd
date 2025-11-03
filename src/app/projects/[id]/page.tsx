@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider } from "@mui/material";
+import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -29,6 +29,9 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import DateRangeIcon from "@mui/icons-material/DateRange";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import FlagIcon from "@mui/icons-material/Flag";
+import TuneIcon from "@mui/icons-material/Tune";
+import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 
 type User = {
   _id: string;
@@ -135,6 +138,7 @@ export default function ProjectDetailPage() {
     enabled: false,
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -542,35 +546,323 @@ export default function ProjectDetailPage() {
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
-          <div className="mb-6 md:mb-8 flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="text-[10px] md:text-xs uppercase tracking-wider text-foreground/60">Dự án</div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">Milestones</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="contained" size="medium" startIcon={<AddIcon />} onClick={() => router.push(`/projects/${projectId}/milestones/new`)}>
+          {/* Modern Header */}
+          <Box sx={{ mb: 3 }}>
+            <ProjectBreadcrumb 
+              projectId={projectId}
+              items={[
+                { label: 'Milestones', icon: <FlagIcon sx={{ fontSize: 16 }} /> }
+              ]}
+            />
+            
+            <Box sx={{ 
+              bgcolor: 'white', 
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              border: '1px solid #e8e9eb',
+              mb: 3
+            }}>
+              <Box sx={{ 
+                px: 3, 
+                py: 2.5, 
+                borderBottom: '1px solid #e8e9eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+                flexWrap: 'wrap'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+                  }}>
+                    <FlagIcon sx={{ fontSize: 28, color: 'white' }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
+                      Milestones
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                      Quản lý các milestone trong dự án
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => router.push(`/projects/${projectId}/milestones/new`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                      height: 36,
+                      px: 2.5,
+                      borderRadius: 2.5,
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
+                        transform: 'translateY(-1px)',
+                      },
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
                 Thêm Milestone
               </Button>
-              <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/features`)}>
-                Features
+                </Stack>
+              </Box>
+
+              {/* Toolbar with Search and Filters */}
+              <Box sx={{ 
+                px: 3, 
+                py: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+                flexWrap: 'wrap',
+              }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                  <TextField
+                    placeholder="Quick search milestones..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    size="small"
+                    sx={{ 
+                      width: 250,
+                      '& .MuiOutlinedInput-root': { 
+                        fontSize: '13px',
+                        borderRadius: 2,
+                        bgcolor: '#f8f9fb',
+                        height: 36,
+                        '& fieldset': { borderColor: 'transparent' },
+                        '&:hover': { 
+                          bgcolor: '#f3f4f6',
+                          '& fieldset': { borderColor: '#e8e9eb' }
+                        },
+                        '&.Mui-focused': { 
+                          bgcolor: 'white',
+                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                        }
+                      } 
+                    }}
+                    InputProps={{ 
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                        </InputAdornment>
+                      ) 
+                    }}
+                  />
+
+                  <Badge 
+                    badgeContent={searchTerm || showAdvancedFilters ? 1 : 0}
+                    color="primary"
+                    sx={{
+                      '& .MuiBadge-badge': {
+                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                        color: 'white',
+                        fontWeight: 700,
+                        fontSize: '10px',
+                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                        border: '2px solid white',
+                      }
+                    }}
+                  >
+                    <Button
+                      variant={filterAnchorEl ? "contained" : "outlined"}
+                      size="small"
+                      startIcon={<TuneIcon fontSize="small" />}
+                      onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                        borderWidth: '1.5px',
+                        color: filterAnchorEl ? 'white' : '#49516f',
+                        background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                        height: 36,
+                        px: 2,
+                        borderRadius: 2.5,
+                        boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                        '&:hover': {
+                          borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                          background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      Quick Nav
               </Button>
-              <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/team`)}>
-                Quản lý nhóm
+                  </Badge>
+                </Stack>
+
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                  Showing: {getFilteredMilestones().length} milestones
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Quick Navigation Popover */}
+          <Popover
+            open={Boolean(filterAnchorEl)}
+            anchorEl={filterAnchorEl}
+            onClose={() => setFilterAnchorEl(null)}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+            slotProps={{
+              paper: {
+                sx: {
+                  mt: 1.5,
+                  width: 300,
+                  borderRadius: 3,
+                  boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
+                  overflow: 'hidden',
+                  background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                }
+              }
+            }}
+          >
+            <Box sx={{ p: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: '#2d3748' }}>
+                Quick Navigation
+              </Typography>
+              <Stack spacing={1}>
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/features`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  ⭐ Features
               </Button>
-              <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/documents`)}>
-                Tài liệu
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/functions`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  🔧 Functions
               </Button>
-                <Button variant="outlined" size="medium" onClick={() => router.push(`/projects/${projectId}/defect`)}>
-                  Lỗi
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/tasks`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  ✅ Tasks
                 </Button>
-              <Button variant="contained" color="secondary" size="medium" onClick={() => router.push(`/projects/${projectId}/monitoring`)}>
-                Monitoring
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/team`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  👥 Team
               </Button>
-              <Button variant="outlined" size="medium" startIcon={<ArrowBackIcon />} onClick={() => router.back()}>
-                Quay lại
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/documents`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  📄 Documents
               </Button>
-            </div>
-          </div>
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/defect`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  🐛 Defects
+                </Button>
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/monitoring`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                  📊 Monitoring
+                </Button>
+              </Stack>
+            </Box>
+          </Popover>
 
 
           {/* Action Toolbar */}

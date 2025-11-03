@@ -74,11 +74,12 @@ type Task = {
 interface TaskDetailsModalProps {
   open: boolean;
   taskId: string | null;
+  projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
 }
 
-export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: TaskDetailsModalProps) {
+export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate }: TaskDetailsModalProps) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -386,8 +387,8 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
           ) : (
             <>
               {currentTab === 0 && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
-              {currentTab === 1 && <TaskDetailsSubtasks taskId={taskId} />}
-              {currentTab === 2 && <TaskDetailsDependencies taskId={taskId} />}
+              {currentTab === 1 && <TaskDetailsSubtasks taskId={taskId} task={task} />}
+              {currentTab === 2 && <TaskDetailsDependencies taskId={taskId} projectId={projectId} />}
               {currentTab === 3 && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
               {currentTab === 4 && <TaskDetailsComments taskId={taskId} />}
               {currentTab === 5 && <TaskDetailsAttachments taskId={taskId} />}

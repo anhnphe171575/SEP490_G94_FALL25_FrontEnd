@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
-import DependencyNetworkGraph from "@/components/DependencyNetworkGraph";
+import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import dynamic from 'next/dynamic';
 
 const ClickUpGanttChart = dynamic(
@@ -49,6 +49,9 @@ import {
   TextField,
   Typography,
   Tooltip,
+  Badge,
+  Popover,
+  Checkbox,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -58,7 +61,6 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
   import FlagIcon from "@mui/icons-material/Flag";
   import TuneIcon from "@mui/icons-material/Tune";
-  import GroupWorkIcon from "@mui/icons-material/GroupWork";
   import ViewColumnIcon from "@mui/icons-material/ViewColumn";
   import ListIcon from "@mui/icons-material/List";
   import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
@@ -105,9 +107,12 @@ type TaskStats = {
 export default function ProjectTasksPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string);
+  const featureIdFromUrl = searchParams.get('featureId');
+  const functionIdFromUrl = searchParams.get('functionId');
 
-  const [view, setView] = useState<"table" | "kanban" | "timeline" | "calendar" | "gantt" | "network">("table");
+  const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt">("table");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,11 +138,14 @@ export default function ProjectTasksPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterFeature, setFilterFeature] = useState<string>("all");
+  const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterMilestone, setFilterMilestone] = useState<string>("all");
   const [filterDateRange, setFilterDateRange] = useState<{ from?: string; to?: string }>({});
   const [sortBy, setSortBy] = useState<string>("deadline:asc");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -171,6 +179,16 @@ export default function ProjectTasksPage() {
 
   // calendar view state
   const [calendarDate, setCalendarDate] = useState(new Date());
+  
+  // functions for selected feature
+  const [functions, setFunctions] = useState<any[]>([]);
+  
+  // Filter options - fetch from backend
+  const [allFeatures, setAllFeatures] = useState<any[]>([]);
+  const [allMilestones, setAllMilestones] = useState<any[]>([]);
+  const [allStatuses, setAllStatuses] = useState<any[]>([]);
+  const [allPriorities, setAllPriorities] = useState<any[]>([]);
+  const [allFunctions, setAllFunctions] = useState<any[]>([]);
 
   const [form, setForm] = useState({
     title: "",
@@ -179,6 +197,7 @@ export default function ProjectTasksPage() {
     priority: "",
     assignee: "",
     feature_id: "",
+    function_id: "",
     milestone_id: "",
     start_date: "",
     deadline: "",
@@ -188,12 +207,29 @@ export default function ProjectTasksPage() {
   useEffect(() => {
     if (!projectId) return;
     loadAll();
+    loadFilterOptions();
   }, [projectId]);
+
+  // Auto-fetch when filters change
+  useEffect(() => {
+    if (!projectId) return;
+    loadAll();
+  }, [filterAssignee, filterStatus, filterPriority, filterFeature, filterMilestone, debouncedSearch, sortBy, page, pageSize]);
 
   useEffect(() => {
     if (!projectId) return;
     loadTeamMembers();
   }, [projectId]);
+
+  // Load functions when feature_id changes
+  useEffect(() => {
+    if (form.feature_id) {
+      loadFunctionsByFeature(form.feature_id);
+    } else {
+      setFunctions([]);
+      setForm(prev => ({ ...prev, function_id: "" }));
+    }
+  }, [form.feature_id]);
 
   // Extract team members from tasks if no team members loaded
   useEffect(() => {
@@ -240,6 +276,26 @@ export default function ProjectTasksPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Auto-filter by feature when featureId is in URL
+  useEffect(() => {
+    if (featureIdFromUrl && allFeatures.length > 0) {
+      const featureExists = allFeatures.some(f => f._id === featureIdFromUrl);
+      if (featureExists) {
+        setFilterFeature(featureIdFromUrl);
+      }
+    }
+  }, [featureIdFromUrl, allFeatures]);
+
+  // Auto-filter by function when functionId is in URL
+  useEffect(() => {
+    if (functionIdFromUrl && allFunctions.length > 0) {
+      const functionExists = allFunctions.some((f: any) => f._id === functionIdFromUrl);
+      if (functionExists) {
+        setFilterFunction(functionIdFromUrl);
+      }
+    }
+  }, [functionIdFromUrl, allFunctions]);
+
   const loadTeamMembers = async () => {
     try {
       const response = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
@@ -268,6 +324,58 @@ export default function ProjectTasksPage() {
         }))
         .filter((v, i, a) => a.findIndex(t => t.user_id._id === v.user_id._id) === i);
       setTeamMembers(uniqueAssignees);
+    }
+  };
+
+  const loadFunctionsByFeature = async (featureId: string) => {
+    try {
+      if (!featureId) {
+        setFunctions([]);
+        return;
+      }
+      const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
+      setFunctions(response.data || []);
+    } catch (e: any) {
+      console.error("Error loading functions:", e);
+      setFunctions([]);
+    }
+  };
+
+  const loadFilterOptions = async () => {
+    try {
+      // Fetch all features, milestones, functions, and settings for filters
+      const [featuresRes, milestonesRes, functionsRes, settingsRes] = await Promise.all([
+        axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/projects/${projectId}/functions`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
+      ]);
+
+      // Set features
+      const featuresData = Array.isArray(featuresRes.data) ? featuresRes.data : featuresRes.data?.features || [];
+      setAllFeatures(featuresData);
+
+      // Set milestones
+      const milestonesData = Array.isArray(milestonesRes.data) ? milestonesRes.data : milestonesRes.data?.milestones || [];
+      setAllMilestones(milestonesData);
+
+      // Set functions
+      const functionsData = Array.isArray(functionsRes.data) ? functionsRes.data : functionsRes.data?.functions || [];
+      setAllFunctions(functionsData);
+
+      // Set statuses and priorities from settings
+      const settingsData = Array.isArray(settingsRes.data) ? settingsRes.data : [];
+      
+      // Status settings (type_id = 2)
+      const statusSettings = settingsData.filter((s: any) => s.type_id === 2 || s.type_id?._id === 2);
+      setAllStatuses(statusSettings);
+
+      // Priority settings (type_id = 3)
+      const prioritySettings = settingsData.filter((s: any) => s.type_id === 3 || s.type_id?._id === 3);
+      setAllPriorities(prioritySettings);
+
+    } catch (e: any) {
+      console.error("Error loading filter options:", e);
     }
   };
 
@@ -338,28 +446,40 @@ export default function ProjectTasksPage() {
       priority: "",
       assignee: "",
       feature_id: "",
+      function_id: "",
       milestone_id: "",
       start_date: "",
       deadline: "",
       estimate: 0,
     });
+    setFunctions([]);
     setOpenDialog(true);
   };
 
   const openEdit = (t: Task) => {
     setEditing(t);
+    const featureId = typeof t.feature_id === "object" ? (t.feature_id as any)?._id : (t.feature_id as any) || "";
+    const functionId = typeof (t as any).function_id === "object" ? ((t as any).function_id as any)?._id : ((t as any).function_id as any) || "";
+    
     setForm({
       title: t.title,
       description: t.description || "",
       status: typeof t.status === "object" ? (t.status as any)?._id : (t.status as any) || "",
       priority: typeof t.priority === "object" ? (t.priority as any)?._id : (t.priority as any) || "",
       assignee: typeof t.assignee === "object" ? (t.assignee as any)?._id : (t.assignee as any) || "",
-      feature_id: typeof t.feature_id === "object" ? (t.feature_id as any)?._id : (t.feature_id as any) || "",
+      feature_id: featureId,
+      function_id: functionId,
       milestone_id: typeof t.milestone_id === "object" ? (t.milestone_id as any)?._id : (t.milestone_id as any) || "",
       start_date: t.start_date ? new Date(t.start_date).toISOString().split("T")[0] : "",
       deadline: t.deadline ? new Date(t.deadline).toISOString().split("T")[0] : "",
       estimate: t.estimate || 0,
     });
+    
+    // Load functions for the feature
+    if (featureId) {
+      loadFunctionsByFeature(featureId);
+    }
+    
     setOpenDialog(true);
   };
   
@@ -375,6 +495,7 @@ export default function ProjectTasksPage() {
         estimate: Number(form.estimate),
         assignee: form.assignee || undefined,
         feature_id: form.feature_id || undefined,
+        function_id: form.function_id || undefined,
         milestone_id: form.milestone_id || undefined,
         start_date: form.start_date || undefined,
         deadline: form.deadline || undefined,
@@ -486,61 +607,27 @@ export default function ProjectTasksPage() {
     setExpandedTasks(newExpanded);
   };
 
-  // derived lists for filters (from tasks to avoid extra API calls)
-  const assignees = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }>();
-    tasks.forEach((t) => {
-      if (typeof t.assignee === "object" && t.assignee) {
-        map.set((t.assignee as any)._id, { id: (t.assignee as any)._id, name: (t.assignee as any).name || (t.assignee as any).email || "User" });
-      }
-    });
-    return Array.from(map.values());
-  }, [tasks]);
-
-  const statuses = useMemo(() => {
-    const set = new Set<string>();
-    const list: string[] = [];
-    tasks.forEach((t) => {
-      const name = typeof t.status === "object" ? (t.status as any)?.name : (t.status as any);
-      if (name && !set.has(name)) { set.add(name); list.push(name); }
-    });
-    return list;
-  }, [tasks]);
-
-  const priorities = useMemo(() => {
-    const set = new Set<string>();
-    const list: string[] = [];
-    tasks.forEach((t) => {
-      const name = typeof t.priority === "object" ? (t.priority as any)?.name : (t.priority as any);
-      if (name && !set.has(name)) { set.add(name); list.push(name); }
-    });
-    return list;
-  }, [tasks]);
-
-  const features = useMemo(() => {
-    const map = new Map<string, { id: string; title: string }>();
-    tasks.forEach((t) => {
-      if (typeof t.feature_id === "object" && t.feature_id) {
-        map.set((t.feature_id as any)._id, { id: (t.feature_id as any)._id, title: (t.feature_id as any).title });
-      }
-    });
-    return Array.from(map.values());
-  }, [tasks]);
-
-  const milestones = useMemo(() => {
-    const map = new Map<string, { id: string; title: string }>();
-    tasks.forEach((t) => {
-      if (typeof t.milestone_id === "object" && t.milestone_id) {
-        map.set((t.milestone_id as any)._id, { id: (t.milestone_id as any)._id, title: (t.milestone_id as any).title });
-      }
-    });
-    return Array.from(map.values());
-  }, [tasks]);
+  // Use fetched filter options
+  const features = allFeatures.map(f => ({ id: f._id, title: f.title }));
+  const milestones = allMilestones.map(m => ({ id: m._id, title: m.title }));
+  const statuses = allStatuses.map(s => s.name);
+  const priorities = allPriorities.map(p => p.name);
 
   const filteredSorted = useMemo(() => {
-    // data is already filtered/sorted/paginated by backend
-    return tasks;
-  }, [tasks]);
+    let filtered = tasks;
+    
+    // Additional client-side filtering for Function (since backend doesn't support it yet)
+    if (filterFunction !== 'all') {
+      filtered = filtered.filter(task => {
+        const taskFunctionId = typeof (task as any).function_id === 'object' 
+          ? ((task as any).function_id as any)?._id 
+          : (task as any).function_id;
+        return taskFunctionId === filterFunction;
+      });
+    }
+    
+    return filtered;
+  }, [tasks, filterFunction]);
 
   const paged = filteredSorted;
 
@@ -610,6 +697,16 @@ export default function ProjectTasksPage() {
       <ResponsiveSidebar />
       <main className="md:ml-64">
         <div className="w-full">
+          {/* Breadcrumb Navigation */}
+          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
+            <ProjectBreadcrumb 
+              projectId={projectId}
+              items={[
+                { label: 'Tasks', icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> }
+              ]}
+            />
+          </Box>
+
           {/* ClickUp-style Top Bar */}
           <Box 
             sx={{ 
@@ -649,6 +746,61 @@ export default function ProjectTasksPage() {
 
               {/* Right Actions */}
               <Stack direction="row" spacing={1.5} alignItems="center">
+                {/* Quick Navigation */}
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Milestones
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/features`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Features
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/functions`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Functions
+                </Button>
+                
+                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                
                 <Button 
                   variant="contained" 
                   onClick={openCreate} 
@@ -681,7 +833,7 @@ export default function ProjectTasksPage() {
             </Alert>
           )}
 
-          {/* Quick Tips */}
+          {/* Quick Tips & Stats */}
           <Box sx={{ 
             bgcolor: '#f0f5ff', 
             px: 3, 
@@ -695,9 +847,14 @@ export default function ProjectTasksPage() {
             <Typography sx={{ fontSize: '12px', color: '#3b82f6', fontWeight: 500 }}>
               💡 Quick Edit: Double-click task name to rename, click dropdowns to change assignee/status/priority/date
             </Typography>
-            <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
-              Team members: {teamMembers.length}
-            </Typography>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
+                Showing: {filteredSorted.length} {filteredSorted.length !== tasks.length && `of ${tasks.length}`} tasks
+              </Typography>
+              <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
+                Team: {teamMembers.length}
+              </Typography>
+            </Stack>
           </Box>
 
           {/* ClickUp-style Stats */}
@@ -834,95 +991,31 @@ export default function ProjectTasksPage() {
               >
                 Gantt
               </Button>
-              <Button
-                onClick={() => setView('network')}
-                startIcon={<GroupWorkIcon fontSize="small" />}
-                sx={{
-                  minWidth: 'auto',
-                  px: 2,
-                  py: 0.75,
-                  color: view === 'network' ? '#7b68ee' : '#49516f',
-                  bgcolor: view === 'network' ? '#f3f0ff' : 'transparent',
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: 1.5,
-                  '&:hover': {
-                    bgcolor: view === 'network' ? '#f3f0ff' : '#f3f4f6',
-                  }
-                }}
-              >
-                Network
-              </Button>
-              <Button
-                onClick={() => setView('timeline')}
-                startIcon={<DashboardIcon fontSize="small" />}
-                sx={{
-                  minWidth: 'auto',
-                  px: 2,
-                  py: 0.75,
-                  color: view === 'timeline' ? '#7b68ee' : '#49516f',
-                  bgcolor: view === 'timeline' ? '#f3f0ff' : 'transparent',
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: 1.5,
-                  '&:hover': {
-                    bgcolor: view === 'timeline' ? '#f3f0ff' : '#f3f4f6',
-                  }
-                }}
-              >
-                Timeline
-              </Button>
             </Stack>
 
-            <Stack direction="row" spacing={1}>
-              <IconButton 
-                size="small"
-                sx={{ 
-                  color: '#49516f',
-                  '&:hover': { bgcolor: '#f3f4f6' }
-                }}
-              >
-                <TuneIcon fontSize="small" />
-              </IconButton>
-              <IconButton 
-                size="small"
-                sx={{ 
-                  color: '#49516f',
-                  '&:hover': { bgcolor: '#f3f4f6' }
-                }}
-              >
-                <SearchIcon fontSize="small" />
-              </IconButton>
-            </Stack>
-          </Box>
-
-          {/* ClickUp-style Compact Filters */}
-          <Box 
-            sx={{ 
-              bgcolor: 'white',
-              px: 3,
-              py: 2,
-              borderBottom: '1px solid #e8e9eb',
-            }}
-          >
-            <Stack direction="row" spacing={1.5} flexWrap="wrap">
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              {/* Quick Search */}
               <TextField
-                placeholder="Search tasks..."
+                placeholder="Quick search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 size="small"
                 sx={{ 
-                  width: 240,
+                  width: 200,
                   '& .MuiOutlinedInput-root': { 
                     fontSize: '13px',
-                    borderRadius: 1.5,
+                    borderRadius: 2,
                     bgcolor: '#f8f9fb',
-                    border: 'none',
-                    '& fieldset': { border: 'none' },
-                    '&:hover': { bgcolor: '#f3f4f6' },
-                    '&.Mui-focused': { bgcolor: 'white', boxShadow: '0 0 0 2px #e8e9eb' }
+                    height: 32,
+                    '& fieldset': { borderColor: 'transparent' },
+                    '&:hover': { 
+                      bgcolor: '#f3f4f6',
+                      '& fieldset': { borderColor: '#e8e9eb' }
+                    },
+                    '&.Mui-focused': { 
+                      bgcolor: 'white',
+                      '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                    }
                   } 
                 }}
                 InputProps={{ 
@@ -933,79 +1026,1044 @@ export default function ProjectTasksPage() {
                   ) 
                 }}
               />
-
-              <Select 
-                value={filterAssignee} 
-                onChange={(e) => setFilterAssignee(e.target.value)}
-                size="small"
-                displayEmpty
-                sx={{ 
-                  minWidth: 150,
-                  fontSize: '13px',
-                  borderRadius: 1.5,
-                  bgcolor: '#f8f9fb',
-                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                  '&:hover': { bgcolor: '#f3f4f6' },
-                }}
-              >
-                <MenuItem value="all">
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography fontSize="13px">All Assignees ({teamMembers.length})</Typography>
-                  </Box>
-                </MenuItem>
-                {teamMembers.map((member, idx) => {
-                  const userId = member.user_id?._id || member._id;
-                  const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
-                  return (
-                    <MenuItem key={userId || idx} value={userId}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 20, height: 20, bgcolor: '#7b68ee', fontSize: '10px' }}>
-                          {userName.charAt(0).toUpperCase()}
-                        </Avatar>
-                        <Typography fontSize="13px">{userName}</Typography>
-                      </Box>
-                    </MenuItem>
-                  );
-                })}
-                </Select>
               
-              <Select 
-                value={filterStatus} 
-                onChange={(e) => setFilterStatus(e.target.value)}
-                size="small"
-                displayEmpty
-                sx={{ 
-                  minWidth: 120,
-                  fontSize: '13px',
-                  borderRadius: 1.5,
-                  bgcolor: '#f8f9fb',
-                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                  '&:hover': { bgcolor: '#f3f4f6' },
+              <Badge 
+                badgeContent={[filterAssignee !== 'all', filterStatus !== 'all', filterPriority !== 'all', 
+                  filterFeature !== 'all', filterFunction !== 'all', filterMilestone !== 'all', search].filter(Boolean).length || 0}
+                color="primary"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                    border: '2px solid white',
+                  }
                 }}
               >
-                <MenuItem value="all"><Typography fontSize="13px">All Status</Typography></MenuItem>
-                {statuses.map((s) => <MenuItem key={s} value={s}><Typography fontSize="13px">{s}</Typography></MenuItem>)}
-                </Select>
-              
-              <Select 
-                value={filterPriority} 
-                onChange={(e) => setFilterPriority(e.target.value)}
-                size="small"
-                displayEmpty
-                sx={{ 
-                  minWidth: 120,
-                  fontSize: '13px',
-                  borderRadius: 1.5,
-                  bgcolor: '#f8f9fb',
-                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                  '&:hover': { bgcolor: '#f3f4f6' },
-                }}
-              >
-                <MenuItem value="all"><Typography fontSize="13px">All Priority</Typography></MenuItem>
-                {priorities.map((p) => <MenuItem key={p} value={p}><Typography fontSize="13px">{p}</Typography></MenuItem>)}
-                </Select>
+                <Button
+                  variant={filterAnchorEl ? "contained" : "outlined"}
+                  size="small"
+                  startIcon={<TuneIcon fontSize="small" />}
+                  onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                    borderWidth: '1.5px',
+                    color: filterAnchorEl ? 'white' : '#49516f',
+                    background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                    height: 36,
+                    px: 2,
+                    borderRadius: 2.5,
+                    boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                    '&:hover': {
+                      borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                      background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Filters
+                </Button>
+              </Badge>
             </Stack>
           </Box>
+
+          {/* Active Filters Chips - Modern Enhanced Style */}
+          {(filterAssignee !== 'all' || filterStatus !== 'all' || filterPriority !== 'all' || 
+            filterFeature !== 'all' || filterFunction !== 'all' || filterMilestone !== 'all' || search) && (
+            <Box 
+              sx={{ 
+                background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                px: 3,
+                py: 2,
+                borderBottom: '1px solid #e2e8f0',
+              }}
+            >
+              <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center" useFlexGap>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 0.5,
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 2,
+                  bgcolor: 'rgba(123, 104, 238, 0.08)',
+                  border: '1px solid rgba(123, 104, 238, 0.15)',
+                }}>
+                  <Box sx={{ 
+                    width: 6, 
+                    height: 6, 
+                    borderRadius: '50%', 
+                    bgcolor: '#7b68ee',
+                    animation: 'pulse 2s ease-in-out infinite',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.5 },
+                    }
+                  }} />
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#7b68ee', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Active Filters
+                </Typography>
+                </Box>
+                
+                {search && (
+                  <Chip
+                    label={`"${search}"`}
+                    size="small"
+                    onDelete={() => setSearch('')}
+                    icon={<SearchIcon sx={{ fontSize: 14 }} />}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #e2e8f0',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.12)',
+                      },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#9ca3af', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#ef4444',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                {filterFeature !== 'all' && (
+                  <Chip
+                    icon={
+                      <Box sx={{ 
+                        width: 18, 
+                        height: 18, 
+                        borderRadius: 1, 
+                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px'
+                      }}>
+                        ⚡
+                      </Box>
+                    }
+                    label={features.find(f => f.id === filterFeature)?.title || 'Feature'}
+                    size="small"
+                    onDelete={() => {
+                      setFilterFeature('all');
+                      setFilterFunction('all');
+                    }}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #bfdbfe',
+                      color: '#1e40af',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#3b82f6',
+                        boxShadow: '0 2px 8px rgba(59, 130, 246, 0.2)',
+                        bgcolor: '#eff6ff',
+                      },
+                      '& .MuiChip-icon': { ml: 0.5 },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#60a5fa', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#ef4444',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                {filterFunction !== 'all' && (
+                  <Chip
+                    icon={
+                      <Box sx={{ 
+                        width: 18, 
+                        height: 18, 
+                        borderRadius: 1, 
+                        background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px'
+                      }}>
+                        🔧
+                      </Box>
+                    }
+                    label={functions.find(fn => fn._id === filterFunction)?.title || 'Function'}
+                    size="small"
+                    onDelete={() => setFilterFunction('all')}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #ddd6fe',
+                      color: '#5b21b6',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#8b5cf6',
+                        boxShadow: '0 2px 8px rgba(139, 92, 246, 0.2)',
+                        bgcolor: '#f5f3ff',
+                      },
+                      '& .MuiChip-icon': { ml: 0.5 },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#a78bfa', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#ef4444',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                {filterMilestone !== 'all' && (
+                  <Chip
+                    icon={
+                      <Box sx={{ 
+                        width: 18, 
+                        height: 18, 
+                        borderRadius: 1, 
+                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px'
+                      }}>
+                        🎯
+                      </Box>
+                    }
+                    label={milestones.find(m => m.id === filterMilestone)?.title || 'Milestone'}
+                    size="small"
+                    onDelete={() => setFilterMilestone('all')}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #fed7aa',
+                      color: '#92400e',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#f59e0b',
+                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.2)',
+                        bgcolor: '#fffbeb',
+                      },
+                      '& .MuiChip-icon': { ml: 0.5 },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#fbbf24', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#ef4444',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                {filterAssignee !== 'all' && (
+                  <Chip
+                    icon={<PersonIcon sx={{ fontSize: 16, color: '#7b68ee' }} />}
+                    label={teamMembers.find(m => (m.user_id?._id || m._id) === filterAssignee)?.user_id?.full_name || 
+                           teamMembers.find(m => (m.user_id?._id || m._id) === filterAssignee)?.full_name || 'Assignee'}
+                    size="small"
+                    onDelete={() => setFilterAssignee('all')}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #e9d5ff',
+                      color: '#6b21a8',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#a855f7',
+                        boxShadow: '0 2px 8px rgba(168, 85, 247, 0.2)',
+                        bgcolor: '#faf5ff',
+                      },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#c084fc', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#ef4444',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                {filterStatus !== 'all' && (
+                  <Chip
+                    icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusColor(filterStatus), boxShadow: `0 0 0 2px ${getStatusColor(filterStatus)}20` }} />}
+                    label={filterStatus}
+                    size="small"
+                    onDelete={() => setFilterStatus('all')}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #ccfbf1',
+                      color: '#115e59',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#14b8a6',
+                        boxShadow: '0 2px 8px rgba(20, 184, 166, 0.2)',
+                        bgcolor: '#f0fdfa',
+                      },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#5eead4', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#ef4444',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                {filterPriority !== 'all' && (
+                  <Chip
+                    icon={<FlagIcon sx={{ fontSize: 16, color: getPriorityColor(filterPriority) === 'error' ? '#ef4444' : '#f59e0b' }} />}
+                    label={filterPriority}
+                    size="small"
+                    onDelete={() => setFilterPriority('all')}
+                    sx={{
+                      bgcolor: 'white',
+                      border: '1.5px solid #fecaca',
+                      color: '#991b1b',
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      px: 0.5,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: '#ef4444',
+                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.2)',
+                        bgcolor: '#fef2f2',
+                      },
+                      '& .MuiChip-deleteIcon': { 
+                        color: '#fca5a5', 
+                        fontSize: '18px',
+                        transition: 'all 0.2s ease',
+                        '&:hover': { 
+                          color: '#dc2626',
+                          transform: 'scale(1.1)'
+                        } 
+                      }
+                    }}
+                  />
+                )}
+                
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setFilterAssignee('all');
+                    setFilterStatus('all');
+                    setFilterPriority('all');
+                    setFilterFeature('all');
+                    setFilterFunction('all');
+                    setFilterMilestone('all');
+                    setSearch('');
+                  }}
+                  sx={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    color: '#ef4444',
+                    minWidth: 'auto',
+                    px: 2,
+                    py: 0.75,
+                    borderRadius: 2,
+                    borderColor: '#fecaca',
+                    bgcolor: 'white',
+                    border: '1.5px solid #fecaca',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      color: 'white',
+                      bgcolor: '#ef4444',
+                      borderColor: '#ef4444',
+                      boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
+                      transform: 'translateY(-1px)',
+                    }
+                  }}
+                  startIcon={
+                    <Box sx={{ fontSize: '14px' }}>✕</Box>
+                  }
+                >
+                  Clear all
+                </Button>
+              </Stack>
+            </Box>
+          )}
+
+          {/* Modern Filter Popover - Enhanced Design */}
+          <Popover
+            open={Boolean(filterAnchorEl)}
+            anchorEl={filterAnchorEl}
+            onClose={() => setFilterAnchorEl(null)}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+            slotProps={{
+              paper: {
+                sx: {
+                  mt: 1.5,
+                  width: 450,
+                  maxHeight: 600,
+                  borderRadius: 4,
+                  boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
+                  overflow: 'hidden',
+                  background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }
+              }
+            }}
+          >
+            {/* Header with Gradient */}
+            <Box 
+              sx={{ 
+                px: 3.5,
+                pt: 3,
+                pb: 2.5,
+                background: 'linear-gradient(135deg, #7b68ee 0%, #9b59b6 100%)',
+                position: 'relative',
+                overflow: 'hidden',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent)',
+                  pointerEvents: 'none',
+                }
+              }}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ position: 'relative', zIndex: 1 }}>
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 0.5 }}>
+                    <Box sx={{ 
+                      width: 36, 
+                      height: 36, 
+                      borderRadius: 2, 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                    }}>
+                      <TuneIcon sx={{ fontSize: 20, color: 'white' }} />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white', letterSpacing: '-0.02em' }}>
+                      Advanced Filters
+                  </Typography>
+                  </Stack>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', ml: 6 }}>
+                    Customize your task view
+                  </Typography>
+                </Box>
+                <IconButton 
+                  size="small" 
+                  onClick={() => setFilterAnchorEl(null)}
+                  sx={{ 
+                    color: 'white',
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    '&:hover': { 
+                      bgcolor: 'rgba(255,255,255,0.25)',
+                      transform: 'rotate(90deg)',
+                      transition: 'all 0.3s ease'
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '18px', fontWeight: 300 }}>×</span>
+                </IconButton>
+              </Stack>
+            </Box>
+
+            {/* Filter Content */}
+            <Box 
+              sx={{ 
+                px: 3.5,
+                py: 3,
+                flex: 1,
+                overflowY: 'auto',
+                '&::-webkit-scrollbar': {
+                  width: '8px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  bgcolor: 'transparent',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  bgcolor: '#e0e0e0',
+                  borderRadius: '10px',
+                  border: '2px solid transparent',
+                  backgroundClip: 'content-box',
+                  '&:hover': {
+                    bgcolor: '#bdbdbd',
+                  }
+                }
+              }}
+            >
+              <Stack spacing={3.5}>
+                {/* People Section */}
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                    <PersonIcon sx={{ fontSize: 16, color: '#7b68ee' }} />
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      People
+                  </Typography>
+                  </Stack>
+                  <FormControl fullWidth size="small">
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Assignee</InputLabel>
+                    <Select 
+                      value={filterAssignee} 
+                      onChange={(e) => setFilterAssignee(e.target.value)}
+                      label="Assignee"
+                      sx={{
+                        borderRadius: 2.5,
+                        bgcolor: 'white',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#7b68ee', borderWidth: '2px' },
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.08)',
+                        }
+                      }}
+                    >
+                      <MenuItem value="all">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Avatar sx={{ width: 24, height: 24, bgcolor: '#e2e8f0', color: '#6b7280', fontSize: '11px', fontWeight: 600 }}>
+                            All
+                          </Avatar>
+                          <Box>
+                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Assignees</Typography>
+                            <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
+                              {teamMembers.length} members
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                      {teamMembers.map((member, idx) => {
+                        const userId = member.user_id?._id || member._id;
+                        const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
+                        return (
+                          <MenuItem key={userId || idx} value={userId}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Avatar sx={{ width: 24, height: 24, bgcolor: '#7b68ee', fontSize: '11px', fontWeight: 600 }}>
+                                {userName.charAt(0).toUpperCase()}
+                              </Avatar>
+                              <Typography sx={{ fontSize: '14px' }}>{userName}</Typography>
+                            </Box>
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                <Divider sx={{ borderColor: '#e2e8f0' }} />
+
+                {/* Status & Priority Section */}
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                    <Box sx={{ 
+                      width: 16, 
+                      height: 16, 
+                      borderRadius: '4px', 
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <span style={{ fontSize: '10px' }}>✓</span>
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Status & Priority
+                  </Typography>
+                  </Stack>
+                  <Stack spacing={2}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Status</InputLabel>
+                      <Select 
+                        value={filterStatus} 
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        label="Status"
+                        sx={{
+                          borderRadius: 2.5,
+                          bgcolor: 'white',
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#7b68ee', borderWidth: '2px' },
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            boxShadow: '0 4px 12px rgba(123, 104, 238, 0.08)',
+                          }
+                        }}
+                      >
+                        <MenuItem value="all">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#cbd5e0', border: '2px solid #e2e8f0' }} />
+                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Status</Typography>
+                          </Box>
+                        </MenuItem>
+                        {statuses.map((s) => (
+                          <MenuItem key={s} value={s}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box sx={{ 
+                                width: 10, 
+                                height: 10, 
+                                borderRadius: '50%', 
+                                bgcolor: getStatusColor(s),
+                                boxShadow: `0 0 0 2px ${getStatusColor(s)}20`
+                              }} />
+                              <Typography sx={{ fontSize: '14px' }}>{s}</Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth size="small">
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Priority</InputLabel>
+                      <Select 
+                        value={filterPriority} 
+                        onChange={(e) => setFilterPriority(e.target.value)}
+                        label="Priority"
+                        sx={{
+                          borderRadius: 2.5,
+                          bgcolor: 'white',
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#7b68ee', borderWidth: '2px' },
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            boxShadow: '0 4px 12px rgba(123, 104, 238, 0.08)',
+                          }
+                        }}
+                      >
+                        <MenuItem value="all">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <FlagIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Priority</Typography>
+                          </Box>
+                        </MenuItem>
+                        {priorities.map((p) => (
+                          <MenuItem key={p} value={p}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <FlagIcon sx={{ 
+                                fontSize: 16, 
+                                color: getPriorityColor(p) === 'error' ? '#ef4444' : getPriorityColor(p) === 'warning' ? '#f59e0b' : '#9ca3af' 
+                              }} />
+                              <Typography sx={{ fontSize: '14px' }}>{p}</Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                </Box>
+
+                <Divider sx={{ borderColor: '#e2e8f0' }} />
+
+                {/* Project Structure Section */}
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                    <Box sx={{ 
+                      width: 16, 
+                      height: 16, 
+                      borderRadius: '4px', 
+                      background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <span style={{ fontSize: '10px', color: 'white' }}>⚙</span>
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Project Structure
+                  </Typography>
+                  </Stack>
+                  <Stack spacing={2}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Feature</InputLabel>
+                      <Select 
+                        value={filterFeature} 
+                        onChange={(e) => {
+                          setFilterFeature(e.target.value);
+                          if (e.target.value === 'all') {
+                            setFilterFunction('all');
+                          }
+                        }}
+                        label="Feature"
+                        sx={{
+                          borderRadius: 2.5,
+                          bgcolor: 'white',
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#7b68ee', borderWidth: '2px' },
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            boxShadow: '0 4px 12px rgba(123, 104, 238, 0.08)',
+                          }
+                        }}
+                      >
+                        <MenuItem value="all">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box sx={{ 
+                              width: 22, 
+                              height: 22, 
+                              borderRadius: 1.5, 
+                              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '11px'
+                            }}>
+                              ⚡
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Features</Typography>
+                              <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
+                                {features.length} items
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        {features.map((f) => (
+                          <MenuItem key={f.id} value={f.id}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box sx={{ 
+                                width: 22, 
+                                height: 22, 
+                                borderRadius: 1.5, 
+                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px'
+                              }}>
+                                ⚡
+                              </Box>
+                              <Typography sx={{ fontSize: '14px' }}>{f.title}</Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <FormControl fullWidth size="small">
+                      <InputLabel sx={{ 
+                        color: filterFeature === 'all' ? '#9ca3af' : '#6b7280', 
+                        '&.Mui-focused': { color: filterFeature === 'all' ? '#9ca3af' : '#7b68ee' } 
+                      }}>
+                        Function
+                      </InputLabel>
+                      <Select 
+                        value={filterFunction}
+                        onChange={(e) => setFilterFunction(e.target.value)}
+                        disabled={filterFeature === 'all'}
+                        label="Function"
+                        sx={{
+                          borderRadius: 2.5,
+                          bgcolor: filterFeature === 'all' ? '#f8f9fb' : 'white',
+                          '& .MuiOutlinedInput-notchedOutline': { 
+                            borderColor: filterFeature === 'all' ? '#e2e8f0' : '#e2e8f0', 
+                            borderWidth: '1.5px' 
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { 
+                            borderColor: filterFeature === 'all' ? '#e2e8f0' : '#b4a7f5' 
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { 
+                            borderColor: filterFeature === 'all' ? '#e2e8f0' : '#7b68ee', 
+                            borderWidth: '2px' 
+                          },
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            boxShadow: filterFeature === 'all' ? 'none' : '0 4px 12px rgba(123, 104, 238, 0.08)',
+                          },
+                          opacity: filterFeature === 'all' ? 0.6 : 1,
+                        }}
+                      >
+                        <MenuItem value="all">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box sx={{ 
+                              width: 22, 
+                              height: 22, 
+                              borderRadius: 1.5, 
+                              background: filterFeature === 'all' ? '#e2e8f0' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '11px'
+                            }}>
+                              🔧
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontSize: '14px', fontWeight: 500, color: filterFeature === 'all' ? '#9ca3af' : 'inherit' }}>
+                                {filterFeature === 'all' ? 'Select Feature first' : 'All Functions'}
+                              </Typography>
+                              {filterFeature !== 'all' && (
+                                <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
+                                  {functions.length} items
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        {functions.map((fn) => (
+                          <MenuItem key={fn._id} value={fn._id}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box sx={{ 
+                                width: 22, 
+                                height: 22, 
+                                borderRadius: 1.5, 
+                                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px'
+                              }}>
+                                🔧
+                              </Box>
+                              <Typography sx={{ fontSize: '14px' }}>{fn.title}</Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <FormControl fullWidth size="small">
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Milestone</InputLabel>
+                      <Select 
+                        value={filterMilestone} 
+                        onChange={(e) => setFilterMilestone(e.target.value)}
+                        label="Milestone"
+                        sx={{
+                          borderRadius: 2.5,
+                          bgcolor: 'white',
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#7b68ee', borderWidth: '2px' },
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            boxShadow: '0 4px 12px rgba(123, 104, 238, 0.08)',
+                          }
+                        }}
+                      >
+                        <MenuItem value="all">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box sx={{ 
+                              width: 22, 
+                              height: 22, 
+                              borderRadius: 1.5, 
+                              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '11px'
+                            }}>
+                              🎯
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Milestones</Typography>
+                              <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
+                                {milestones.length} items
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        {milestones.map((m) => (
+                          <MenuItem key={m.id} value={m.id}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Box sx={{ 
+                                width: 22, 
+                                height: 22, 
+                                borderRadius: 1.5, 
+                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px'
+                              }}>
+                                🎯
+                              </Box>
+                              <Typography sx={{ fontSize: '14px' }}>{m.title}</Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                </Box>
+              </Stack>
+            </Box>
+
+            {/* Footer Actions */}
+            {(filterAssignee !== 'all' || filterStatus !== 'all' || filterPriority !== 'all' || 
+              filterFeature !== 'all' || filterFunction !== 'all' || filterMilestone !== 'all' || search) && (
+              <Box 
+                sx={{ 
+                  px: 3.5,
+                  py: 2.5,
+                  borderTop: '1px solid #e2e8f0',
+                  background: 'linear-gradient(to bottom, #fafbff, #f8f9fb)',
+                  flexShrink: 0,
+                }}
+              >
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={() => {
+                    setFilterAssignee('all');
+                    setFilterStatus('all');
+                    setFilterPriority('all');
+                    setFilterFeature('all');
+                    setFilterFunction('all');
+                    setFilterMilestone('all');
+                    setSearch('');
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    color: 'white',
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    borderRadius: 2.5,
+                    py: 1.2,
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      boxShadow: '0 6px 16px rgba(239, 68, 68, 0.4)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                  startIcon={
+                    <Box sx={{ 
+                      width: 20, 
+                      height: 20, 
+                      borderRadius: '50%', 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px'
+                    }}>
+                      ✕
+                    </Box>
+                  }
+                >
+                  Clear All Filters
+                </Button>
+              </Box>
+            )}
+          </Popover>
+
+          {/* Feature Filter Alert */}
+          {featureIdFromUrl && filterFeature === featureIdFromUrl && (
+            <Alert 
+              severity="info" 
+              sx={{ 
+                mb: 3,
+                background: 'linear-gradient(135deg, #e0f2fe, #e0e7ff)',
+                border: '1px solid #7b68ee',
+                '& .MuiAlert-icon': {
+                  color: '#7b68ee'
+                }
+              }}
+              onClose={() => {
+                setFilterFeature("all");
+                router.push(`/projects/${projectId}/tasks`);
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Đang xem Tasks của Feature: 
+                </Typography>
+                <Chip 
+                  label={allFeatures.find(f => f._id === featureIdFromUrl)?.title || 'Unknown'}
+                  size="small"
+                  sx={{
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    color: 'white',
+                    fontWeight: 600,
+                  }}
+                />
+              </Box>
+            </Alert>
+          )}
+
+          {/* Function Filter Alert */}
+          {functionIdFromUrl && filterFunction === functionIdFromUrl && (
+            <Alert 
+              severity="info" 
+              sx={{ 
+                mb: 3,
+                background: 'linear-gradient(135deg, #f0e7ff, #e0e7ff)',
+                border: '1px solid #8b5cf6',
+                '& .MuiAlert-icon': {
+                  color: '#8b5cf6'
+                }
+              }}
+              onClose={() => {
+                setFilterFunction("all");
+                router.push(`/projects/${projectId}/tasks`);
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Đang xem Tasks của Function: 
+                </Typography>
+                <Chip 
+                  label={allFunctions.find(f => f._id === functionIdFromUrl)?.title || 'Unknown'}
+                  size="small"
+                  sx={{
+                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                    color: 'white',
+                    fontWeight: 600,
+                  }}
+                />
+              </Box>
+            </Alert>
+          )}
 
           {view === "table" && (
             <Box sx={{ bgcolor: 'white' }}>
@@ -1123,8 +2181,8 @@ export default function ProjectTasksPage() {
                         >
                           {/* Checkbox with expand/collapse for subtasks */}
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {/* Expand/Collapse chevron - only show if task has subtasks */}
-                            {taskSubtasks[t._id]?.length > 0 ? (
+                            {/* Expand/Collapse chevron - only show if task has subtasks AND is not a subtask itself */}
+                            {taskSubtasks[t._id]?.length > 0 && !t.parent_task_id ? (
                               <IconButton
                                 size="small"
                                 onClick={(e) => toggleTaskExpansion(t._id, e)}
@@ -1235,23 +2293,143 @@ export default function ProjectTasksPage() {
                                   </Typography>
                                 </Tooltip>
                                 
-                                {/* Subtask counter badge - Jira/ClickUp style */}
-                                {taskSubtasks[t._id]?.length > 0 && (
-                                  <Chip
-                                    icon={<CheckCircleIcon sx={{ fontSize: 12, color: '#6b7280 !important' }} />}
-                                    label={`${taskSubtasks[t._id].filter((st: any) => st.status === 'Completed' || st.status === 'Done').length}/${taskSubtasks[t._id].length}`}
-                                    size="small"
-                                    sx={{
-                                      height: 20,
-                                      fontSize: '11px',
-                                      fontWeight: 600,
+                                {/* Subtask counter badge - Jira/ClickUp style with progress */}
+                                {/* Only show for parent tasks (not subtasks themselves) */}
+                                {taskSubtasks[t._id]?.length > 0 && !t.parent_task_id && (() => {
+                                  const completedCount = taskSubtasks[t._id].filter((st: any) => {
+                                    const stName = typeof st.status === 'object' ? st.status?.name : st.status;
+                                    return stName === 'Completed' || stName === 'Done';
+                                  }).length;
+                                  const totalCount = taskSubtasks[t._id].length;
+                                  const subtaskProgress = Math.round((completedCount / totalCount) * 100);
+                                  const allCompleted = completedCount === totalCount;
+                                  
+                                  return (
+                                    <Tooltip title={`${completedCount} of ${totalCount} subtasks completed (${subtaskProgress}%)`}>
+                                      <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center',
+                                        gap: 0.75,
+                                        px: 1,
+                                        py: 0.5,
+                                        borderRadius: 1.5,
                                       bgcolor: expandedTasks.has(t._id) ? '#ede9fe' : '#f3f4f6',
-                                      color: expandedTasks.has(t._id) ? '#7b68ee' : '#6b7280',
                                       border: expandedTasks.has(t._id) ? '1px solid #7b68ee40' : 'none',
-                                      '& .MuiChip-icon': {
-                                        marginLeft: '4px',
-                                      },
                                       transition: 'all 0.2s ease',
+                                      }}>
+                                        <Box sx={{ 
+                                          width: 14,
+                                          height: 14,
+                                          borderRadius: '50%',
+                                          border: `2px solid ${allCompleted ? '#10b981' : '#7b68ee'}`,
+                                          bgcolor: allCompleted ? '#10b981' : 'transparent',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          flexShrink: 0,
+                                        }}>
+                                          {allCompleted && (
+                                            <CheckCircleIcon sx={{ fontSize: 10, color: 'white' }} />
+                                          )}
+                                        </Box>
+                                        <Typography sx={{ 
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          color: allCompleted ? '#10b981' : (expandedTasks.has(t._id) ? '#7b68ee' : '#6b7280'),
+                                        }}>
+                                          {completedCount}/{totalCount}
+                                        </Typography>
+                                        {/* Mini progress bar */}
+                                        <Box sx={{
+                                          width: 32,
+                                          height: 4,
+                                          bgcolor: expandedTasks.has(t._id) ? '#c4b5fd' : '#e5e7eb',
+                                          borderRadius: 2,
+                                          overflow: 'hidden',
+                                          flexShrink: 0,
+                                        }}>
+                                          <Box sx={{
+                                            width: `${subtaskProgress}%`,
+                                            height: '100%',
+                                            bgcolor: allCompleted ? '#10b981' : '#7b68ee',
+                                            transition: 'width 0.3s ease',
+                                          }} />
+                                        </Box>
+                                      </Box>
+                                    </Tooltip>
+                                  );
+                                })()}
+                                
+                                {/* Hierarchy badges: Milestone → Feature → Function - Clickable */}
+                                {t.milestone_id && typeof t.milestone_id === 'object' && (
+                                  <Chip 
+                                    label={`🎯 ${(t.milestone_id as any).title}`}
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/projects/${projectId}/milestones/${(t.milestone_id as any)._id}/features`);
+                                    }}
+                                    sx={{ 
+                                      height: 18,
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      bgcolor: '#fef3c7',
+                                      color: '#92400e',
+                                      cursor: 'pointer',
+                                      '& .MuiChip-label': { px: 0.75 },
+                                      '&:hover': {
+                                        bgcolor: '#fde68a',
+                                        transform: 'scale(1.05)',
+                                      },
+                                      transition: 'all 0.2s',
+                                    }}
+                                  />
+                                )}
+                                {t.feature_id && typeof t.feature_id === 'object' && (
+                                  <Chip 
+                                    label={`⚡ ${(t.feature_id as any).title}`}
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/projects/${projectId}/features`);
+                                    }}
+                                    sx={{ 
+                                      height: 18,
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      bgcolor: '#dbeafe',
+                                      color: '#1e40af',
+                                      cursor: 'pointer',
+                                      '& .MuiChip-label': { px: 0.75 },
+                                      '&:hover': {
+                                        bgcolor: '#bfdbfe',
+                                        transform: 'scale(1.05)',
+                                      },
+                                      transition: 'all 0.2s',
+                                    }}
+                                  />
+                                )}
+                                {(t as any).function_id && typeof (t as any).function_id === 'object' && (
+                                  <Chip 
+                                    label={`🔧 ${((t as any).function_id as any).title}`}
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/projects/${projectId}/functions`);
+                                    }}
+                                    sx={{ 
+                                      height: 18,
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      bgcolor: '#e0e7ff',
+                                      color: '#4338ca',
+                                      cursor: 'pointer',
+                                      '& .MuiChip-label': { px: 0.75 },
+                                      '&:hover': {
+                                        bgcolor: '#c7d2fe',
+                                        transform: 'scale(1.05)',
+                                      },
+                                      transition: 'all 0.2s',
                                     }}
                                   />
                                 )}
@@ -1642,13 +2820,19 @@ export default function ProjectTasksPage() {
                         </Box>
 
                         {/* Subtasks - rendered below parent task with indentation */}
-                        {expandedTasks.has(t._id) && taskSubtasks[t._id] && taskSubtasks[t._id].map((subtask: any, subIndex: number) => (
+                        {/* Only render subtasks if t is a parent task (not a subtask itself) */}
+                        {expandedTasks.has(t._id) && !t.parent_task_id && taskSubtasks[t._id] && taskSubtasks[t._id].map((subtask: any, subIndex: number) => {
+                          const isLastSubtask = subIndex === taskSubtasks[t._id].length - 1;
+                          const subtaskStatusName = typeof subtask.status === 'object' ? subtask.status?.name : subtask.status;
+                          const isSubtaskCompleted = subtaskStatusName === 'Completed' || subtaskStatusName === 'Done';
+                          
+                          return (
                           <Box 
                             key={subtask._id} 
                             sx={{ 
                               px: 3, 
-                              py: 1,
-                              pl: 6, // Extra left padding for indentation
+                              py: 1.5,
+                              pl: 7, // Extra left padding for indentation
                               display: 'grid', 
                               gridTemplateColumns: { xs: '40px 1fr 120px 110px', md: '40px 1fr 140px 140px 120px 100px 100px 80px 60px' }, 
                               columnGap: 2, 
@@ -1657,8 +2841,12 @@ export default function ProjectTasksPage() {
                               borderBottom: '1px solid #f3f4f6',
                               cursor: 'pointer',
                               position: 'relative',
+                              transition: 'all 0.2s ease',
                               '&:hover': { 
                                 bgcolor: '#f5f3ff',
+                                '& .subtask-actions': {
+                                  opacity: 1,
+                                },
                               },
                               // Tree line connector - vertical line
                               '&::before': {
@@ -1666,84 +2854,181 @@ export default function ProjectTasksPage() {
                                 position: 'absolute',
                                 left: '35px',
                                 top: 0,
-                                bottom: subIndex === taskSubtasks[t._id].length - 1 ? '50%' : 0,
-                                width: '2px',
-                                bgcolor: '#e5e7eb',
+                                bottom: isLastSubtask ? '50%' : 0,
+                                width: '1.5px',
+                                bgcolor: '#d1d5db',
                               },
-                              // Tree line connector - horizontal line
+                              // Tree line connector - horizontal line (L-shape)
                               '&::after': {
                                 content: '""',
                                 position: 'absolute',
                                 left: '35px',
                                 top: '50%',
-                                width: '12px',
-                                height: '2px',
-                                bgcolor: '#e5e7eb',
+                                width: '16px',
+                                height: '1.5px',
+                                bgcolor: '#d1d5db',
                               },
                             }}
                             onClick={() => openTaskDetailsModal(subtask._id)}
                           >
-                            {/* Subtask indicator with connection */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Box sx={{ width: 20 }} />
-                              <Box sx={{ 
-                                width: 14, 
-                                height: 14, 
-                                border: '2px solid #7b68ee',
-                                borderRadius: '50%',
-                                bgcolor: subtask.status === 'Completed' || subtask.status === 'Done' ? '#7b68ee' : 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}>
-                                {(subtask.status === 'Completed' || subtask.status === 'Done') && (
-                                  <CheckCircleIcon sx={{ fontSize: 10, color: 'white' }} />
-                                )}
-                              </Box>
-                            </Box>
-
-                            {/* Subtask name */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography 
-                                sx={{ 
-                                  fontWeight: 400, 
-                                  fontSize: '13px', 
-                                  color: subtask.status === 'Completed' || subtask.status === 'Done' ? '#9ca3af' : '#4b5563',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  textDecoration: subtask.status === 'Completed' || subtask.status === 'Done' ? 'line-through' : 'none',
+                            {/* Checkbox/Status indicator */}
+                            <Box 
+                              sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 0.5,
+                                pl: 2, 
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Checkbox
+                                checked={isSubtaskCompleted}
+                                size="small"
+                                sx={{
+                                  padding: 0,
+                                  color: '#d1d5db',
+                                  '&.Mui-checked': {
+                                    color: '#7b68ee',
+                                  },
                                 }}
-                              >
-                                {subtask.title}
-                              </Typography>
-                              <Chip 
-                                label="Subtask" 
-                                size="small" 
-                                sx={{ 
-                                  height: 18,
-                                  fontSize: '10px',
-                                  bgcolor: '#ede9fe',
-                                  color: '#7b68ee',
-                                  fontWeight: 600,
+                                onChange={(e: any) => {
+                                  e.stopPropagation();
+                                  // Quick status toggle
+                                  const newStatusId = isSubtaskCompleted 
+                                    ? allStatuses.find((s: any) => s.name === 'To Do')?._id 
+                                    : allStatuses.find((s: any) => s.name === 'Done')?._id;
+                                  if (newStatusId) {
+                                    axiosInstance.patch(`/api/tasks/${subtask._id}`, { status: newStatusId })
+                                      .then(() => loadSubtasks(t._id))
+                                      .catch((err: any) => console.error('Error updating subtask:', err));
+                                  }
                                 }}
                               />
                             </Box>
 
+                            {/* Subtask name with icon */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                              <Box sx={{ 
+                                width: 20,
+                                height: 20,
+                                borderRadius: 1,
+                                bgcolor: '#ede9fe',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}>
+                                <Box sx={{ 
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  bgcolor: '#7b68ee',
+                                }} />
+                              </Box>
+                              <Typography 
+                                sx={{ 
+                                  fontWeight: 400, 
+                                  fontSize: '13px', 
+                                  color: isSubtaskCompleted ? '#9ca3af' : '#4b5563',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  textDecoration: isSubtaskCompleted ? 'line-through' : 'none',
+                                  flex: 1,
+                                }}
+                              >
+                                {subtask.title}
+                              </Typography>
+                              {/* Quick actions on hover */}
+                              <Box 
+                                className="subtask-actions"
+                                sx={{ 
+                                  display: 'flex',
+                                  gap: 0.5,
+                                  opacity: 0,
+                                  transition: 'opacity 0.2s ease',
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Tooltip title="Edit subtask">
+                                  <IconButton 
+                                size="small" 
+                                sx={{ 
+                                      width: 22,
+                                      height: 22,
+                                      color: '#9ca3af',
+                                      '&:hover': { 
+                                  color: '#7b68ee',
+                                        bgcolor: '#ede9fe',
+                                      },
+                                    }}
+                                    onClick={() => openTaskDetailsModal(subtask._id)}
+                                  >
+                                    <EditIcon sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete subtask">
+                                  <IconButton 
+                                    size="small"
+                                    sx={{ 
+                                      width: 22,
+                                      height: 22,
+                                      color: '#9ca3af',
+                                      '&:hover': { 
+                                        color: '#ef4444',
+                                        bgcolor: '#fee2e2',
+                                      },
+                                    }}
+                                    onClick={() => {
+                                      if (confirm('Delete this subtask?')) {
+                                        axiosInstance.delete(`/api/tasks/${subtask._id}`)
+                                          .then(() => loadSubtasks(t._id))
+                                          .catch((err: any) => console.error('Error deleting subtask:', err));
+                                      }
+                                    }}
+                                  >
+                                    <DeleteIcon sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </Box>
+
                             {/* Assignee */}
                             <Box onClick={(e) => e.stopPropagation()}>
-                              {subtask.assignee_id && (
+                              {subtask.assignee_id ? (
                                 <Tooltip title={subtask.assignee_id?.full_name || subtask.assignee_id?.email}>
                                   <Avatar 
                                     sx={{ 
-                                      width: 24, 
-                                      height: 24, 
-                                      fontSize: '10px',
+                                      width: 26, 
+                                      height: 26, 
+                                      fontSize: '11px',
                                       fontWeight: 600,
                                       bgcolor: '#9333ea',
+                                      cursor: 'pointer',
+                                      '&:hover': {
+                                        opacity: 0.8,
+                                      },
                                     }}
                                   >
                                     {(subtask.assignee_id?.full_name || subtask.assignee_id?.email || 'U')[0].toUpperCase()}
+                                  </Avatar>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title="Assign to someone">
+                                  <Avatar 
+                                    sx={{ 
+                                      width: 26, 
+                                      height: 26, 
+                                      fontSize: '11px',
+                                      bgcolor: '#f3f4f6',
+                                      color: '#9ca3af',
+                                      cursor: 'pointer',
+                                      '&:hover': {
+                                        bgcolor: '#e5e7eb',
+                                      },
+                                    }}
+                                  >
+                                    +
                                   </Avatar>
                                 </Tooltip>
                               )}
@@ -1754,55 +3039,154 @@ export default function ProjectTasksPage() {
 
                             {/* Due Date */}
                           <Box>
-                              {subtask.deadline && (
-                                <Typography fontSize="12px" color="text.secondary">
-                                  {new Date(subtask.deadline).toLocaleDateString()}
-                                </Typography>
+                              {subtask.deadline ? (
+                                <Chip
+                                  label={new Date(subtask.deadline).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' })}
+                                  size="small"
+                                  icon={<CalendarMonthIcon sx={{ fontSize: 12 }} />}
+                                  sx={{
+                                    height: 22,
+                                    fontSize: '11px',
+                                    fontWeight: 500,
+                                    bgcolor: new Date(subtask.deadline) < new Date() && !isSubtaskCompleted ? '#fee2e2' : '#f3f4f6',
+                                    color: new Date(subtask.deadline) < new Date() && !isSubtaskCompleted ? '#dc2626' : '#6b7280',
+                                    '& .MuiChip-icon': {
+                                      marginLeft: '6px',
+                                    },
+                                  }}
+                                />
+                              ) : (
+                                <Typography fontSize="11px" color="#d1d5db">—</Typography>
                               )}
                           </Box>
 
                             {/* Status */}
                             <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                               <Chip 
-                                label={subtask.status} 
+                                label={subtaskStatusName} 
                                 size="small"
                                 sx={{
-                                  height: 20,
+                                  height: 22,
                                   fontSize: '11px',
                                   fontWeight: 600,
-                                  bgcolor: '#f3f4f6',
-                                  color: '#6b7280',
+                                  bgcolor: isSubtaskCompleted ? '#dcfce7' : '#f3f4f6',
+                                  color: isSubtaskCompleted ? '#16a34a' : '#6b7280',
+                                  border: isSubtaskCompleted ? '1px solid #bbf7d0' : 'none',
                                 }}
                               />
                           </Box>
 
-                            {/* Priority - empty */}
-                            <Box sx={{ display: { xs: 'none', md: 'block' } }} />
+                            {/* Priority */}
+                            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                              {subtask.priority && (
+                                <Chip 
+                                  label={typeof subtask.priority === 'object' ? subtask.priority?.name : subtask.priority}
+                                  size="small"
+                                  sx={{
+                                    height: 20,
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    bgcolor: getPriorityColor(typeof subtask.priority === 'object' ? subtask.priority?.name : subtask.priority) + '20',
+                                    color: getPriorityColor(typeof subtask.priority === 'object' ? subtask.priority?.name : subtask.priority),
+                                  }}
+                                />
+                              )}
+                            </Box>
 
                             {/* Dependencies - empty */}
                             <Box sx={{ display: { xs: 'none', md: 'flex' } }} />
 
                             {/* Progress */}
-                            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
-                              {subtask.progress !== undefined && subtask.progress > 0 && (
+                            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center' }}>
+                              {subtask.progress !== undefined && subtask.progress > 0 ? (
+                                <Tooltip title={`${subtask.progress}% complete`}>
                                 <Box sx={{ 
-                                  width: 40,
-                                  height: 6,
+                                    width: 48,
+                                    height: 7,
                                   bgcolor: '#e5e7eb',
-                                  borderRadius: 3,
-                                  overflow: 'hidden'
+                                    borderRadius: 4,
+                                    overflow: 'hidden',
+                                    position: 'relative',
                                 }}>
                                   <Box sx={{ 
                                     width: `${subtask.progress}%`,
                                     height: '100%',
-                                    bgcolor: '#9333ea',
-                                    transition: 'width 0.3s ease',
+                                      bgcolor: isSubtaskCompleted ? '#10b981' : '#7b68ee',
+                                      transition: 'all 0.3s ease',
                                   }} />
                         </Box>
+                                </Tooltip>
+                              ) : (
+                                <Typography fontSize="11px" color="#d1d5db">—</Typography>
                               )}
                             </Box>
                           </Box>
-                        ))}
+                        );
+                        })}
+
+                        {/* Add Subtask Button - shown when task is expanded and is a parent task */}
+                        {expandedTasks.has(t._id) && !t.parent_task_id && (
+                          <Box 
+                            sx={{ 
+                              px: 3, 
+                              py: 1.25,
+                              pl: 7,
+                              borderBottom: '1px solid #f3f4f6',
+                              bgcolor: '#fafbfc',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                bgcolor: '#f5f3ff',
+                              },
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Open create dialog with parent task pre-selected
+                              setForm({
+                                ...form,
+                                title: "",
+                                description: "",
+                                status: "",
+                                priority: "",
+                                assignee: "",
+                                feature_id: "",
+                                function_id: "",
+                                milestone_id: "",
+                                start_date: "",
+                                deadline: "",
+                                estimate: 0,
+                              });
+                              setEditing(null);
+                              // Store parent task ID separately or in hidden field
+                              // For now, we'll handle this in saveTask function
+                              setOpenDialog(true);
+                              // TODO: Need to pass parent_task_id when saving
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 4 }}>
+                              <Box sx={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 1,
+                                bgcolor: '#ede9fe',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}>
+                                <AddIcon sx={{ fontSize: 12, color: '#7b68ee' }} />
+                              </Box>
+                              <Typography 
+                                sx={{ 
+                                  fontSize: '13px',
+                                  fontWeight: 500,
+                                  color: '#7b68ee',
+                                }}
+                              >
+                                Add subtask
+                              </Typography>
+                            </Box>
+                          </Box>
+                        )}
                       </>
                       );
                     })}
@@ -2391,239 +3775,11 @@ export default function ProjectTasksPage() {
             </Box>
           )}
 
-          {/* Timeline/Gantt View */}
-          {view === "timeline" && (
-            <Box sx={{ p: 3, bgcolor: 'white', minHeight: 'calc(100vh - 300px)', overflow: 'auto' }}>
-              {/* Timeline Header */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
-                  Project Timeline
-                </Typography>
-              <Typography variant="body2" color="text.secondary">
-                  {filteredSorted.length} tasks · Gantt chart view
-              </Typography>
-              </Box>
-
-              {/* Timeline Container */}
-              <Box sx={{ 
-                minWidth: 1200,
-                border: '1px solid #e8e9eb',
-                borderRadius: 2,
-                overflow: 'hidden'
-              }}>
-                {/* Timeline Header - Months */}
-                <Box sx={{ 
-                  display: 'grid',
-                  gridTemplateColumns: '250px 1fr',
-                  borderBottom: '2px solid #e8e9eb',
-                  bgcolor: '#f8f9fb'
-                }}>
-                  <Box sx={{ 
-                    p: 2,
-                    borderRight: '2px solid #e8e9eb',
-                    fontWeight: 700,
-                    fontSize: '13px',
-                    color: '#6b7280'
-                  }}>
-                    TASK NAME
-                  </Box>
-                  
-                  {/* Month Headers */}
-                  <Box sx={{ 
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(12, 1fr)',
-                  }}>
-                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, idx) => (
-                      <Box
-                        key={month}
-                        sx={{
-                          p: 1,
-                          textAlign: 'center',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          color: '#6b7280',
-                          borderRight: idx < 11 ? '1px solid #e8e9eb' : 'none'
-                        }}
-                      >
-                        {month}
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-
-                {/* Timeline Rows */}
-                {filteredSorted.map((task) => {
-                  const startDate = task.start_date ? new Date(task.start_date) : new Date();
-                  const endDate = task.deadline ? new Date(task.deadline) : new Date();
-                  const startMonth = startDate.getMonth();
-                  const endMonth = endDate.getMonth();
-                  const duration = endMonth - startMonth + 1;
-                  const gridColumnStart = startMonth + 1;
-                  const gridColumnEnd = endMonth + 2;
-
-                  return (
-                    <Box
-                      key={task._id}
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: '250px 1fr',
-                        borderBottom: '1px solid #e8e9eb',
-                        '&:hover': { bgcolor: '#fafbfc' }
-                      }}
-                    >
-                      {/* Task Name */}
-                      <Box
-                        sx={{
-                          p: 2,
-                          borderRight: '2px solid #e8e9eb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => openTaskDetailsModal(task._id)}
-                      >
-                        <Typography
-                          fontSize="13px"
-                          fontWeight={600}
-                          sx={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            flex: 1
-                          }}
-                        >
-                          {task.title}
-                        </Typography>
-                        {task.assignee_id && typeof task.assignee_id === 'object' && (
-                          <Avatar sx={{ width: 24, height: 24, fontSize: '10px', bgcolor: '#7b68ee' }}>
-                            {(task.assignee_id?.full_name || task.assignee_id?.email || 'U')[0].toUpperCase()}
-                          </Avatar>
-                        )}
-                      </Box>
-
-                      {/* Timeline Bar */}
-                      <Box sx={{ 
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(12, 1fr)',
-                        position: 'relative',
-                        p: 2
-                      }}>
-                        <Box
-                          sx={{
-                            gridColumn: `${gridColumnStart} / ${gridColumnEnd}`,
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}
-                        >
-                          {/* Progress Bar */}
-                          <Tooltip
-                            title={`${task.progress || 0}% complete · ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`}
-                          >
-                            <Box
-                              sx={{
-                                width: '100%',
-                                height: 32,
-                                bgcolor: `${getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status)}25`,
-                                border: `2px solid ${getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status)}`,
-                                borderRadius: 2,
-                                position: 'relative',
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                '&:hover': {
-                                  transform: 'scaleY(1.1)',
-                                  boxShadow: `0 4px 12px ${getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status)}40`
-                                }
-                              }}
-                              onClick={() => openTaskDetailsModal(task._id)}
-                            >
-                              {/* Progress Fill */}
-                              <Box
-                                sx={{
-                                  position: 'absolute',
-                                  left: 0,
-                                  top: 0,
-                                  bottom: 0,
-                                  width: `${task.progress || 0}%`,
-                                  bgcolor: getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status),
-                                  transition: 'width 0.3s ease'
-                                }}
-                              />
-                              
-                              {/* Task Info */}
-                              <Box
-                                sx={{
-                                  position: 'relative',
-                                  zIndex: 1,
-                                  px: 1.5,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  height: '100%',
-                                  gap: 1
-                                }}
-                              >
-                                <Typography
-                                  fontSize="11px"
-                                  fontWeight={700}
-                                  color="white"
-                                  sx={{
-                                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    flex: 1
-                                  }}
-                                >
-                                  {task.progress || 0}%
-                                </Typography>
-                                
-                                {/* Priority Indicator */}
-                                {task.priority && (
-                                  <FlagIcon sx={{ fontSize: 12, color: 'white', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.3))' }} />
-                                )}
-                              </Box>
-                            </Box>
-                          </Tooltip>
-                        </Box>
-                      </Box>
-                    </Box>
-                  );
-                })}
-
-                {/* Empty State */}
-                {filteredSorted.length === 0 && (
-                  <Box sx={{ p: 8, textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
-                      No tasks with dates
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Add start and end dates to tasks to see them in timeline view
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          )}
-
-
           {/* ClickUp Gantt Chart View */}
           {view === "gantt" && (
             <Box sx={{ height: 'calc(100vh - 250px)' }}>
               <DHtmlxGanttChart 
                 tasks={tasks}
-                dependencies={taskDependencies}
-                onTaskClick={openTaskDetailsModal}
-              />
-            </Box>
-          )}
-
-          {/* Dependency Network Graph View */}
-          {view === "network" && (
-            <Box sx={{ p: 3, bgcolor: 'white', height: 'calc(100vh - 300px)' }}>
-              <DependencyNetworkGraph 
-                tasks={tasks as any}
                 dependencies={taskDependencies}
                 onTaskClick={openTaskDetailsModal}
               />
@@ -2741,13 +3897,29 @@ export default function ProjectTasksPage() {
                     <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
                       <InputLabel>📊 Status</InputLabel>
                       <Select value={form.status} label="📊 Status" onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                      {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                        <MenuItem value=""><em>Select status</em></MenuItem>
+                        {statuses.map((s) => (
+                          <MenuItem key={s} value={s}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusColor(s) }} />
+                              {s}
+                            </Box>
+                          </MenuItem>
+                        ))}
                     </Select>
                   </FormControl>
                     <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
                       <InputLabel>🚩 Priority</InputLabel>
                       <Select value={form.priority} label="🚩 Priority" onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                      {priorities.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        <MenuItem value=""><em>Select priority</em></MenuItem>
+                        {priorities.map((p) => (
+                          <MenuItem key={p} value={p}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <FlagIcon sx={{ fontSize: 14, color: getPriorityColor(p) === 'error' ? '#ef4444' : '#9ca3af' }} />
+                              {p}
+                            </Box>
+                          </MenuItem>
+                        ))}
                     </Select>
                   </FormControl>
                   <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
@@ -2779,8 +3951,8 @@ export default function ProjectTasksPage() {
                   </Typography>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                     <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                      <InputLabel>⚡ Feature</InputLabel>
-                      <Select value={form.feature_id} label="⚡ Feature" onChange={(e) => setForm({ ...form, feature_id: e.target.value })}>
+                      <InputLabel>⚡ Feature *</InputLabel>
+                      <Select value={form.feature_id} label="⚡ Feature *" onChange={(e) => setForm({ ...form, feature_id: e.target.value })}>
                       <MenuItem value=""><em>Không chọn</em></MenuItem>
                       {features.map((f) => <MenuItem key={f.id} value={f.id}>{f.title}</MenuItem>)}
                     </Select>
@@ -2793,6 +3965,23 @@ export default function ProjectTasksPage() {
                     </Select>
                   </FormControl>
                 </Stack>
+                <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
+                  <InputLabel>🔧 Function (Chức năng)</InputLabel>
+                  <Select 
+                    value={form.function_id} 
+                    label="🔧 Function (Chức năng)" 
+                    onChange={(e) => setForm({ ...form, function_id: e.target.value })}
+                    disabled={!form.feature_id}
+                  >
+                    <MenuItem value=""><em>Không chọn</em></MenuItem>
+                    {functions.map((fn) => <MenuItem key={fn._id} value={fn._id}>{fn.title}</MenuItem>)}
+                  </Select>
+                  {!form.feature_id && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.5 }}>
+                      Vui lòng chọn Feature trước
+                    </Typography>
+                  )}
+                </FormControl>
                 </Box>
               </Stack>
             </DialogContent>
@@ -2837,6 +4026,7 @@ export default function ProjectTasksPage() {
           <TaskDetailsModal 
             open={openTaskDetails}
             taskId={selectedTaskId}
+            projectId={projectId}
             onClose={() => {
               setOpenTaskDetails(false);
               setSelectedTaskId(null);

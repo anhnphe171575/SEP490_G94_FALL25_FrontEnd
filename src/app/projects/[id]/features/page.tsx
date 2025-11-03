@@ -7,6 +7,8 @@ import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import GanttChart from "@/components/GanttChart";
 import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ModalMilestone from "@/components/ModalMilestone";
+import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
+import StarIcon from "@mui/icons-material/Star";
 import {
   Box,
   Button,
@@ -37,12 +39,20 @@ import {
   TableHead,
   TableRow,
   Alert,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import FunctionsIcon from "@mui/icons-material/Functions";
+import AssignmentIcon from "@mui/icons-material/Assignment";
 import CreateMilestoneFromFeatures from "@/components/CreateMilestoneFromFeatures";
+import TuneIcon from "@mui/icons-material/Tune";
+import SearchIcon from "@mui/icons-material/Search";
+import InputAdornment from "@mui/material/InputAdornment";
+import Badge from "@mui/material/Badge";
+import Popover from "@mui/material/Popover";
 
 type Milestone = {
   _id: string;
@@ -152,6 +162,13 @@ export default function ProjectFeaturesPage() {
   const [allocationSuggestions, setAllocationSuggestions] = useState<any>(null);
   const [openAllocationDialog, setOpenAllocationDialog] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
+  
+  // View tab state
+  const [viewTab, setViewTab] = useState<'table' | 'gantt'>('table');
   
   // Estimated hours suggestion based on complexity
   const getEstimatedHoursByComplexity = (complexityId: string | Setting | undefined) => {
@@ -582,42 +599,321 @@ export default function ProjectFeaturesPage() {
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
-          <div className="mb-6 md:mb-8 flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="text-[10px] md:text-xs uppercase tracking-wider text-foreground/60">Dự án</div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">Features</h1>
+          {/* Modern Header */}
+          <Box sx={{ mb: 3 }}>
+          <ProjectBreadcrumb 
+            projectId={projectId}
+            items={[
+              { label: 'Features', icon: <StarIcon sx={{ fontSize: 16 }} /> }
+            ]}
+          />
+          
+            <Box sx={{ 
+              bgcolor: 'white', 
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              border: '1px solid #e8e9eb',
+              mb: 3
+            }}>
+              <Box sx={{ 
+                px: 3, 
+                py: 2.5, 
+                borderBottom: '1px solid #e8e9eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+                flexWrap: 'wrap'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                  }}>
+                    <StarIcon sx={{ fontSize: 28, color: 'white' }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
+                      Features
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                      Quản lý các feature trong dự án
+                    </Typography>
+                  </Box>
               {selectedFeatureIds.length > 0 && (
                 <Chip 
-                  label={`${selectedFeatureIds.length} features đã chọn`} 
+                      label={`${selectedFeatureIds.length} đã chọn`} 
                   color="primary" 
                   size="small"
                   onDelete={() => setSelectedFeatureIds([])}
-                />
-              )}
-            </div>
-            <div className="flex items-center gap-2">
+                      sx={{
+                        ml: 2,
+                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                        color: 'white',
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Box>
+
+                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
               {selectedFeatureIds.length > 0 && (
                 <Button 
                   variant="contained" 
-                  color="secondary"
+                      size="small"
                   onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
-                >
-                  Tạo Milestone từ Features
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        height: 36,
+                        px: 2,
+                        borderRadius: 2.5,
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #059669, #047857)',
+                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      Tạo Milestone
                 </Button>
               )}
               <Button 
                 variant="outlined" 
-                color="info"
+                    size="small"
                 onClick={() => fetchAllocationSuggestions('complexity')}
                 disabled={loadingSuggestions}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      borderColor: '#e2e8f0',
+                      borderWidth: '1.5px',
+                      color: '#49516f',
+                      height: 36,
+                      px: 2,
+                      borderRadius: 2.5,
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f9fafb',
+                      }
+                    }}
               >
                 💡 Gợi ý phân bổ
               </Button>
-              <Button variant="contained" onClick={handleOpenForm}>Tạo Feature</Button>
-              <Button variant="outlined" onClick={() => router.push(`/projects/${projectId}`)}>Milestones</Button>
-              <Button variant="outlined" onClick={() => router.back()}>Quay lại</Button>
-            </div>
-          </div>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleOpenForm}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                      height: 36,
+                      px: 2.5,
+                      borderRadius: 2.5,
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
+                        transform: 'translateY(-1px)',
+                      },
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    Tạo Feature
+                  </Button>
+                </Stack>
+              </Box>
+
+              {/* Toolbar with Search and Filters */}
+              <Box sx={{ 
+                px: 3, 
+                py: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+                flexWrap: 'wrap',
+              }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                  <TextField
+                    placeholder="Quick search features..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    size="small"
+                    sx={{ 
+                      width: 250,
+                      '& .MuiOutlinedInput-root': { 
+                        fontSize: '13px',
+                        borderRadius: 2,
+                        bgcolor: '#f8f9fb',
+                        height: 36,
+                        '& fieldset': { borderColor: 'transparent' },
+                        '&:hover': { 
+                          bgcolor: '#f3f4f6',
+                          '& fieldset': { borderColor: '#e8e9eb' }
+                        },
+                        '&.Mui-focused': { 
+                          bgcolor: 'white',
+                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                        }
+                      } 
+                    }}
+                    InputProps={{ 
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                        </InputAdornment>
+                      ) 
+                    }}
+                  />
+
+                  <Badge 
+                    badgeContent={searchTerm ? 1 : 0}
+                    color="primary"
+                    sx={{
+                      '& .MuiBadge-badge': {
+                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                        color: 'white',
+                        fontWeight: 700,
+                        fontSize: '10px',
+                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                        border: '2px solid white',
+                      }
+                    }}
+                  >
+                    <Button
+                      variant={filterAnchorEl ? "contained" : "outlined"}
+                      size="small"
+                      startIcon={<TuneIcon fontSize="small" />}
+                      onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                        borderWidth: '1.5px',
+                        color: filterAnchorEl ? 'white' : '#49516f',
+                        background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                        height: 36,
+                        px: 2,
+                        borderRadius: 2.5,
+                        boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                        '&:hover': {
+                          borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                          background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      Quick Nav
+                    </Button>
+                  </Badge>
+                </Stack>
+
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                  Showing: {features.filter(f => !searchTerm || f.title.toLowerCase().includes(searchTerm.toLowerCase())).length} features
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Quick Navigation Popover */}
+          <Popover
+            open={Boolean(filterAnchorEl)}
+            anchorEl={filterAnchorEl}
+            onClose={() => setFilterAnchorEl(null)}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+            slotProps={{
+              paper: {
+                sx: {
+                  mt: 1.5,
+                  width: 300,
+                  borderRadius: 3,
+                  boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
+                  overflow: 'hidden',
+                  background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                }
+              }
+            }}
+          >
+            <Box sx={{ p: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: '#2d3748' }}>
+                Quick Navigation
+              </Typography>
+              <Stack spacing={1}>
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                🎯 Milestones
+              </Button>
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/functions`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                🔧 Functions
+              </Button>
+                <Button 
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    router.push(`/projects/${projectId}/tasks`);
+                    setFilterAnchorEl(null);
+                  }}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderColor: '#e2e8f0',
+                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                  }}
+                >
+                ✅ Tasks
+              </Button>
+              </Stack>
+            </Box>
+          </Popover>
 
           {loading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -629,137 +925,40 @@ export default function ProjectFeaturesPage() {
             </Box>
           ) : (
             <Stack spacing={3}>
-              {/* Project Capacity Card */}
-              {projectData && (
-                <Paper variant="outlined" sx={{ p: 3, bgcolor: 'background.paper' }}>
-                  <Stack spacing={2}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="h6" fontWeight={600}>
-                        📊 Công suất dự án
-                      </Typography>
-                      <Stack direction="row" spacing={1}>
-                        <Chip 
-                          label={`${capacityInfo.teamMemberCount} thành viên`}
-                          color={capacityInfo.teamMemberCount > 0 ? "primary" : "error"}
-                          size="small"
-                        />
-                        <Chip 
-                          label={`${capacityInfo.hoursPerDay}h/ngày`}
-                          color={capacityInfo.hoursPerDay > 0 ? "secondary" : "error"}
-                          size="small"
-                        />
-                        <Chip 
-                          label={`${capacityInfo.projectDurationDays} ngày`}
-                          color={capacityInfo.projectDurationDays > 0 ? "info" : "error"}
-                          size="small"
-                        />
-                      </Stack>
-                    </Stack>
-                    
-                    {capacityInfo.totalCapacityHours > 0 ? (
-                      <>
-                        <Alert severity="info" sx={{ mb: 1 }}>
-                          💡 Công thức: {capacityInfo.teamMemberCount} người × {capacityInfo.hoursPerDay}h/ngày × {capacityInfo.projectDurationDays} ngày = <strong>{capacityInfo.totalCapacityHours} giờ</strong>
-                        </Alert>
-                      </>
-                    ) : (
-                      <Alert severity="warning">
-                        ⚠️ Không thể tính capacity. Vui lòng kiểm tra:
-                        {capacityInfo.teamMemberCount === 0 && <div>• Chưa có team members (vào trang Team để thêm)</div>}
-                        {!projectData.start_date && <div>• Project chưa có start_date</div>}
-                        {!projectData.end_date && <div>• Project chưa có end_date</div>}
-                        {capacityInfo.hoursPerDay === 0 && <div>• Project chưa có man_days (giờ làm việc/ngày)</div>}
-                      </Alert>
-                    )}
-                    
-                    {capacityInfo.totalCapacityHours > 0 && (
-                      <>
-                      <Stack direction="row" spacing={4} alignItems="center">
-                        <Box flex={1}>
-                          <Typography variant="caption" color="text.secondary">
-                            Tổng công suất
-                          </Typography>
-                          <Typography variant="h5" fontWeight={600}>
-                            {capacityInfo.totalCapacityHours} giờ
-                          </Typography>
-                        </Box>
-                        
-                        <Divider orientation="vertical" flexItem />
-                        
-                        <Box flex={1}>
-                          <Typography variant="caption" color="text.secondary">
-                            Đã phân bổ
-                          </Typography>
-                          <Typography variant="h5" fontWeight={600} color="primary.main">
-                            {capacityInfo.usedHours} giờ
-                          </Typography>
-                        </Box>
-                        
-                        <Divider orientation="vertical" flexItem />
-                        
-                        <Box flex={1}>
-                          <Typography variant="caption" color="text.secondary">
-                            Còn lại
-                          </Typography>
-                          <Typography 
-                            variant="h5" 
-                            fontWeight={600}
-                            color={capacityInfo.remainingHours < 0 ? 'error.main' : 'success.main'}
-                          >
-                            {capacityInfo.remainingHours} giờ
-                          </Typography>
-                        </Box>
-                        
-                        <Divider orientation="vertical" flexItem />
-                        
-                        <Box flex={1}>
-                          <Typography variant="caption" color="text.secondary">
-                            Tỷ lệ sử dụng
-                          </Typography>
-                          <Typography 
-                            variant="h5" 
-                            fontWeight={600}
-                            color={
-                              capacityInfo.usagePercentage > 100 ? 'error.main' : 
-                            capacityInfo.usagePercentage > 80 ? 'warning.main' : 
-                            'text.primary'
-                          }
-                        >
-                          {capacityInfo.usagePercentage.toFixed(1)}%
-                        </Typography>
-                      </Box>
-                      </Stack>
-                      
-                        <Box sx={{ width: '100%' }}>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={Math.min(capacityInfo.usagePercentage, 100)} 
-                            color={
-                              capacityInfo.usagePercentage > 100 ? "error" : 
-                              capacityInfo.usagePercentage > 80 ? "warning" : 
-                              "primary"
-                            }
-                            sx={{ height: 10, borderRadius: 5 }}
-                          />
-                        </Box>
-                        
-                        {capacityInfo.usagePercentage > 100 && (
-                          <Alert severity="error" sx={{ mt: 1 }}>
-                            ⚠️ Cảnh báo: Đã vượt quá công suất dự án {Math.abs(capacityInfo.remainingHours)} giờ ({(capacityInfo.usagePercentage - 100).toFixed(1)}%)
-                          </Alert>
-                        )}
-                        {capacityInfo.usagePercentage > 80 && capacityInfo.usagePercentage <= 100 && (
-                          <Alert severity="warning" sx={{ mt: 1 }}>
-                            💡 Lưu ý: Đã sử dụng hơn 80% công suất dự án. Còn {capacityInfo.remainingHours} giờ.
-                          </Alert>
-                        )}
-                      </>
-                    )}
-                  </Stack>
-                </Paper>
-              )}
-              
-              <Paper variant="outlined" sx={{ p: 2 }}>
+              {/* View Tabs */}
+              <Paper variant="outlined" sx={{ borderRadius: 3 }}>
+                <Tabs 
+                  value={viewTab} 
+                  onChange={(e, newValue) => setViewTab(newValue)}
+                  sx={{
+                    borderBottom: '1px solid #e2e8f0',
+                    px: 2,
+                    '& .MuiTab-root': {
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      minHeight: 48,
+                      color: '#6b7280',
+                      '&.Mui-selected': {
+                        color: '#7b68ee',
+                      }
+                    },
+                    '& .MuiTabs-indicator': {
+                      backgroundColor: '#7b68ee',
+                      height: 3,
+                      borderRadius: '3px 3px 0 0',
+                    }
+                  }}
+                >
+                  <Tab label="📋 Table View" value="table" />
+                  <Tab label="📊 Gantt Chart" value="gantt" />
+                </Tabs>
+
+                {/* Table View - see below */}
+
+                {/* Gantt View */}
+                {viewTab === 'gantt' && (
+                  <Box sx={{ p: 2 }}>
                 <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
                   <FormControl size="small" sx={{ minWidth: 140 }}>
                     <InputLabel id="view-mode-label">View</InputLabel>
@@ -837,10 +1036,12 @@ export default function ProjectFeaturesPage() {
                     }
                   }}
                 />
+                  </Box>
+                )}
               </Paper>
-              {/* Expanded inline editor for full model fields */}
-              {/* Removed expanded editor panel; inline editing only */}
-              {/* Feature Table Section - inline editors only */}
+
+              {/* Table View Content */}
+              {viewTab === 'table' && (
               <Paper variant="outlined" sx={{ p: 0 }}>
                 <Box sx={{ overflowX: 'auto', width: '100%', '&::-webkit-scrollbar': { height: 8 }, '&::-webkit-scrollbar-thumb': { background: 'rgba(0,0,0,0.3)', borderRadius: 8 } }}>
                 <Table size="small" sx={{ minWidth: 1400, '& td, & th': { borderColor: 'var(--border)' } }}>
@@ -1162,10 +1363,33 @@ export default function ProjectFeaturesPage() {
                           </TableCell>
                           
                           <TableCell>
-                            <Tooltip title="Tự động tính từ Functions">
+                            <Stack direction="row" spacing={0.5}>
+                              <Tooltip title="Xem Functions của Feature này">
                               <IconButton
                                 size="small"
                                 color="primary"
+                                  onClick={() => {
+                                    router.push(`/projects/${projectId}/functions?featureId=${f._id}`);
+                                  }}
+                                >
+                                  <FunctionsIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Xem Tasks của Feature này">
+                                <IconButton
+                                  size="small"
+                                  color="success"
+                                  onClick={() => {
+                                    router.push(`/projects/${projectId}/tasks?featureId=${f._id}`);
+                                  }}
+                                >
+                                  <AssignmentIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Tự động tính effort từ Functions">
+                                <IconButton
+                                  size="small"
+                                  color="secondary"
                                 onClick={async () => {
                                   try {
                                     // Call API to calculate effort from functions
@@ -1181,9 +1405,10 @@ export default function ProjectFeaturesPage() {
                                   }
                                 }}
                               >
-                                <FunctionsIcon fontSize="small" />
+                                  <span style={{ fontSize: '14px' }}>🔄</span>
                               </IconButton>
                             </Tooltip>
+                            </Stack>
                           </TableCell>
                         </TableRow>
                       );
@@ -1192,7 +1417,9 @@ export default function ProjectFeaturesPage() {
                 </Table>
                 </Box>
               </Paper>
-              {features.length === 0 && (
+              )}
+
+              {viewTab === 'table' && features.length === 0 && (
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="body2" sx={{ opacity: 0.7 }}>
                     Chưa có feature nào. Bấm "Tạo Feature" để thêm.
@@ -1473,16 +1700,7 @@ export default function ProjectFeaturesPage() {
             fullWidth
           >
             <DialogTitle sx={{ fontWeight: 'bold' }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box component="span">Chi tiết Feature</Box>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => router.push(`/projects/${projectId}/features/${selectedFeatureDetail?._id}`)}
-                >
-                  Xem Breakdown
-                </Button>
-              </Stack>
+              Chi tiết Feature
             </DialogTitle>
             <DialogContent>
             {selectedFeatureDetail && (
@@ -1650,12 +1868,6 @@ export default function ProjectFeaturesPage() {
                 setSelectedFeatureDetail(null);
               }}>
                 Đóng
-              </Button>
-              <Button 
-                variant="contained" 
-                onClick={() => router.push(`/projects/${projectId}/features/${selectedFeatureDetail?._id}`)}
-              >
-                Xem Breakdown
               </Button>
             </DialogActions>
           </Dialog>
