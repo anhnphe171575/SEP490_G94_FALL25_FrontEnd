@@ -126,6 +126,17 @@ export default function MilestoneFeaturesPage() {
     fetchMilestone();
   }, [projectId, milestoneId]);
 
+  // Auto-refresh progress every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (projectId && milestoneId) {
+        fetchMilestone();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [projectId, milestoneId]);
+
   const getProgressColor = (percentage: number) => {
     if (percentage >= 80) return "success";
     if (percentage >= 50) return "warning";
@@ -332,6 +343,13 @@ export default function MilestoneFeaturesPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button 
+                variant="outlined" 
+                onClick={fetchMilestone}
+                disabled={loading}
+              >
+                🔄 Refresh Progress
+              </Button>
               <Button 
                 variant="outlined" 
                 startIcon={<ArrowBackIcon />} 

@@ -43,8 +43,9 @@ type Feature = {
   title: string;
   description?: string;
   project_id: string;
-  status: string;
-  priority: string;
+  status_id?: Setting | string;
+  priority_id?: Setting | string;
+  complexity_id?: Setting | string;
   estimated_hours?: number;
   actual_effort?: number;
   start_date?: string;
@@ -61,10 +62,10 @@ type FunctionType = {
   _id: string;
   title: string;
   feature_id: string;
-  type_id?: Setting | string;
+  complexity_id?: Setting | string;
   estimated_effort: number;
   actual_effort: number;
-  status: string;
+  status: Setting | string;
   description?: string;
   start_date?: string;
   deadline?: string;
@@ -76,7 +77,7 @@ type Task = {
   feature_id: string;
   assignee_id?: any;
   assigner_id?: any;
-  status: string;
+  status: Setting | string;
   description?: string;
   deadline?: string;
 };
@@ -397,15 +398,20 @@ export default function FeatureBreakdownPage() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={fn.status}
-                        size="small"
-                        sx={{
-                          bgcolor: getStatusColor(fn.status),
-                          color: "#fff",
-                          fontWeight: 600,
-                        }}
-                      />
+                      {(() => {
+                        const statusName = typeof fn.status === 'object' ? fn.status?.name : fn.status;
+                        return (
+                          <Chip
+                            label={statusName || '-'}
+                            size="small"
+                            sx={{
+                              bgcolor: getStatusColor(statusName || ''),
+                              color: "#fff",
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>{fn.estimated_effort}</TableCell>
                     <TableCell>{fn.actual_effort}</TableCell>
@@ -468,15 +474,20 @@ export default function FeatureBreakdownPage() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={task.status}
-                        size="small"
-                        sx={{
-                          bgcolor: getStatusColor(task.status),
-                          color: "#fff",
-                          fontWeight: 600,
-                        }}
-                      />
+                      {(() => {
+                        const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
+                        return (
+                          <Chip
+                            label={statusName || '-'}
+                            size="small"
+                            sx={{
+                              bgcolor: getStatusColor(statusName || ''),
+                              color: "#fff",
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {task.assignee_id?.full_name || "-"}

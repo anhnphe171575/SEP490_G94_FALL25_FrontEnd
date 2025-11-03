@@ -55,6 +55,7 @@ type Feature = {
   _id: string;
   title: string;
   project_id: string;
+  estimated_hours?: number;
 };
 
 type FunctionType = {
@@ -117,6 +118,42 @@ export default function ProjectFunctionsPage() {
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedFunction, setSelectedFunction] = useState<FunctionType | null>(null);
+  
+  // Effort validation warnings
+  const [effortWarnings, setEffortWarnings] = useState<{[featureId: string]: any}>({});
+  
+  // Get effort validation for selected feature
+  const getEffortValidation = (featureId: string, effort: number) => {
+    if (!featureId || !effort) return null;
+    
+    const feature = features.find(f => f._id === featureId);
+    if (!feature || !feature.estimated_hours) return null;
+    
+    const currentFunctions = functions.filter(f => 
+      typeof f.feature_id === 'object' ? f.feature_id?._id === featureId : f.feature_id === featureId
+    );
+    
+    const otherFunctionsEffort = currentFunctions
+      .filter(f => editingFunction ? f._id !== editingFunction._id : true)
+      .reduce((sum, f) => sum + (f.estimated_effort || 0), 0);
+    
+    const newTotalEffort = otherFunctionsEffort + effort;
+    const featureEffort = feature.estimated_hours;
+    
+    if (newTotalEffort > featureEffort) {
+      return {
+        valid: false,
+        feature_title: feature.title,
+        feature_effort: featureEffort,
+        other_functions_effort: otherFunctionsEffort,
+        new_function_effort: effort,
+        new_total_effort: newTotalEffort,
+        overflow: newTotalEffort - featureEffort
+      };
+    }
+    
+    return { valid: true };
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -132,21 +169,69 @@ export default function ProjectFunctionsPage() {
         axiosInstance.get(`/api/projects/${projectId}/functions/stats`),
         axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
       ]);
-      
+      console.log(allSettingsRes.data);
       const allSettings = allSettingsRes.data || [];
       const complexitySettings = allSettings.filter((s: any) => s.type_id === 1);
+      console.log(complexitySettings);
       const statusSettings = allSettings.filter((s: any) => s.type_id === 2);
-      
-      setFunctions(functionsRes.data || []);
-      setFeatures(featuresRes.data || []);
+
+      const rawFunctions = functionsRes?.data;
+      const normalizedFunctions = Array.isArray(rawFunctions)
+        ? rawFunctions
+        : Array.isArray(rawFunctions?.data)
+          ? rawFunctions.data
+          : Array.isArray(rawFunctions?.functions)
+            ? rawFunctions.functions
+            : [];
+
+      const rawFeatures = featuresRes?.data;
+      const normalizedFeatures = Array.isArray(rawFeatures)
+        ? rawFeatures
+        : Array.isArray(rawFeatures?.data)
+          ? rawFeatures.data
+          : Array.isArray(rawFeatures?.features)
+            ? rawFeatures.features
+            : [];
+
+      setFunctions(normalizedFunctions);
+      setFeatures(normalizedFeatures);
       setStats(statsRes.data);
       setComplexityTypes(complexitySettings);
       setStatusTypes(statusSettings);
+      
+      // Calculate effort warnings
+      calculateEffortWarnings(normalizedFunctions, normalizedFeatures);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tải dữ liệu");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate effort warnings for features
+  const calculateEffortWarnings = (functionsData: FunctionType[], featuresData: Feature[]) => {
+    const warnings: {[featureId: string]: any} = {};
+    
+    featuresData.forEach(feature => {
+      const featureFunctions = functionsData.filter(f => 
+        typeof f.feature_id === 'object' ? f.feature_id?._id === feature._id : f.feature_id === feature._id
+      );
+      
+      const totalFunctionEffort = featureFunctions.reduce((sum, f) => sum + (f.estimated_effort || 0), 0);
+      const featureEffort = feature.estimated_hours || 0;
+      
+      if (featureEffort > 0 && totalFunctionEffort > featureEffort) {
+        warnings[feature._id] = {
+          feature_title: feature.title,
+          feature_effort: featureEffort,
+          functions_effort: totalFunctionEffort,
+          overflow: totalFunctionEffort - featureEffort,
+          percentage: Math.round((totalFunctionEffort / featureEffort) * 100)
+        };
+      }
+    });
+    
+    setEffortWarnings(warnings);
   };
 
   const handleOpenDialog = (func?: FunctionType) => {
@@ -207,7 +292,18 @@ export default function ProjectFunctionsPage() {
       handleCloseDialog();
       loadAllData();
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể lưu function");
+      const errorData = e?.response?.data;
+      let errorMessage = errorData?.message || "Không thể lưu function";
+      
+      // Handle effort exceeded error
+      if (errorData?.error === 'EFFORT_EXCEEDED') {
+        errorMessage = `${errorMessage}\n\n💡 ${errorData.suggestion}`;
+        if (errorData.details) {
+          errorMessage += `\n\nChi tiết: Feature (${errorData.details.feature_effort}h) < Functions (${errorData.details.new_total_effort}h)`;
+        }
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -252,6 +348,38 @@ export default function ProjectFunctionsPage() {
       return matchSearch && matchStatus && matchFeature;
     });
   }, [functions, searchTerm, filterStatus, filterFeature]);
+
+  // Resolve display names when API returns only IDs
+  const resolveFeatureTitle = (func: FunctionType) => {
+    if (typeof func.feature_id === "object") return func.feature_id?.title || "-";
+    if (!func.feature_id) return "-";
+    const match = features.find((f) => f._id === func.feature_id);
+    return match?.title || "-";
+  };
+
+  const resolveComplexityName = (func: FunctionType) => {
+    if (typeof func.complexity_id === "object") return func.complexity_id?.name || "-";
+    if (!func.complexity_id) return "-";
+    const target = String(func.complexity_id);
+    const match = complexityTypes.find((c) =>
+      String((c as any)?._id) === target ||
+      String((c as any)?.value) === target ||
+      String((c as any)?.name) === target
+    );
+    return (match as any)?.name || "-";
+  };
+
+  const resolveStatusName = (func: FunctionType) => {
+    if (typeof func.status === "object") return func.status?.name || "-";
+    if (!func.status) return "-";
+    const target = String(func.status);
+    const match = statusTypes.find((s) =>
+      String((s as any)?._id) === target ||
+      String((s as any)?.value) === target ||
+      String((s as any)?.name) === target
+    );
+    return (match as any)?.name || "-";
+  };
 
   const getStatusColor = (statusName: string) => {
     const colors: any = {
@@ -405,6 +533,27 @@ export default function ProjectFunctionsPage() {
             </Box>
           )}
 
+          {/* Effort Validation Warnings */}
+          {Object.keys(effortWarnings).length > 0 && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+                ⚠️ Effort Overflow Warning
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
+                Các features sau có tổng effort của functions vượt quá effort của feature:
+              </Typography>
+              {Object.entries(effortWarnings).map(([featureId, warning]) => (
+                <Typography key={featureId} variant="caption" sx={{ display: 'block', ml: 2 }}>
+                  • <strong>{warning.feature_title}</strong>: Functions ({warning.functions_effort}h) &gt; Feature ({warning.feature_effort}h) 
+                  <span style={{ color: '#d32f2f', fontWeight: 600 }}> (+{warning.overflow}h, {warning.percentage}%)</span>
+                </Typography>
+              ))}
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
+                💡 Suggestion: Giảm effort của functions hoặc tăng effort của features
+              </Typography>
+            </Alert>
+          )}
+
           {/* Filters */}
           <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -477,9 +626,9 @@ export default function ProjectFunctionsPage() {
                     const progress = func.estimated_effort > 0 
                       ? Math.min(100, Math.round((func.actual_effort / func.estimated_effort) * 100))
                       : 0;
-                    const featureName = typeof func.feature_id === "object" ? func.feature_id?.title : "-";
-                    const complexityName = typeof func.complexity_id === "object" ? func.complexity_id?.name : "-";
-                    const statusName = typeof func.status === "object" ? func.status?.name : "-";
+                    const featureName = resolveFeatureTitle(func);
+                    const complexityName = resolveComplexityName(func);
+                    const statusName = resolveStatusName(func);
                     
                     return (
                       <TableRow key={func._id} hover>
@@ -679,6 +828,17 @@ export default function ProjectFunctionsPage() {
                     onChange={(e) => setFunctionForm({ ...functionForm, estimated_effort: Number(e.target.value) })}
                     fullWidth
                     placeholder="VD: 8"
+                    error={(() => {
+                      const validation = getEffortValidation(functionForm.feature_id, functionForm.estimated_effort);
+                      return validation ? !validation.valid : false;
+                    })()}
+                    helperText={(() => {
+                      const validation = getEffortValidation(functionForm.feature_id, functionForm.estimated_effort);
+                      if (validation && !validation.valid) {
+                        return `⚠️ Vượt quá effort của feature "${validation.feature_title}" (${validation.feature_effort}h). Tổng sẽ là ${validation.new_total_effort}h (+${validation.overflow}h)`;
+                      }
+                      return '';
+                    })()}
                   />
                   <TextField
                     label="Start Date"
