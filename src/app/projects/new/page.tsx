@@ -87,9 +87,17 @@ export default function NewProjectPage() {
       const res = await axiosInstance.post('/api/projects', projectData);
 
       if (res.status === 201) {
-        // Hiển thị thông báo thành công và chuyển hướng
-        router.replace('/dashboard');
+        const projectId = res.data?.project?._id || res.data?._id;
+        if (projectId) {
+          try {
+            await axiosInstance.post(`/api/projects/${projectId}/seed-templates`);
+          } catch (seedErr) {
+            console.error('Lỗi nạp template mặc định:', seedErr);
+          }
+          router.replace('/dashboard');
+        }
       }
+
     } catch (e: any) {
       console.error('Lỗi tạo dự án:', e);
 
@@ -174,6 +182,7 @@ export default function NewProjectPage() {
                 <p>• Mỗi sinh viên chỉ có thể tạo <strong>1 dự án trong 1 học kì</strong></p>
                 <p>• Khi tạo dự án, bạn sẽ tự động được nâng cấp thành <strong>Student Leader</strong></p>
                 <p>• Dự án sẽ có các tính năng quản lý milestone và timeline</p>
+                <p>• Sau khi tạo, hệ thống sẽ tự động khởi tạo 11 tài liệu mẫu trong Documents</p>
               </div>
             </div>
           </div>
@@ -321,7 +330,7 @@ export default function NewProjectPage() {
                       <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      <span>Đang tạo...</span>
+                      <span>Đang tạo dự án & khởi tạo tài liệu...</span>
                     </>
                   ) : (
                     <>

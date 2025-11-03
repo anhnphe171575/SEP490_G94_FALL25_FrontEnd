@@ -542,7 +542,7 @@ export default function ProjectDetailPage() {
   }, [selectedMilestones]);
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-white text-black">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
@@ -869,7 +869,7 @@ export default function ProjectDetailPage() {
           {showToolbar && (
             <Card sx={{
               mb: 3,
-              bgcolor: '#E3F2FD',
+              bgcolor: '#ffffff',
               color: '#1976D2',
               position: 'fixed',
               bottom: 0,
@@ -969,7 +969,7 @@ export default function ProjectDetailPage() {
           )}
 
           {loading ? (
-            <div className="rounded-xl border border-[var(--border)] p-6 bg-[color-mix(in_olab,_var(--accent)_10%,_var(--background))] animate-pulse">
+            <div className="rounded-xl border border-[var(--border)] p-6 bg-white animate-pulse">
               <div className="h-6 w-32 rounded bg-foreground/10 mb-4"></div>
               <div className="h-4 w-48 rounded bg-foreground/10 mb-2"></div>
               <div className="h-72 w-full rounded bg-foreground/10"></div>
@@ -1003,7 +1003,7 @@ export default function ProjectDetailPage() {
                 </Card>
               ) : (
                 <>
-                  <                  Timeline
+                  <Timeline
                     milestones={getFilteredMilestones()}
                     projectId={projectId}
                     onLocalUpdate={setMilestones}
@@ -1051,12 +1051,12 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
   const [autoFit, setAutoFit] = useState<boolean>(true);
   const [openModal, setOpenModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
   if (!milestones || milestones.length === 0) {
-    return <div className="opacity-70">Chưa có milestone nào.</div>;
+    return <div className="text-black">Chưa có milestone nào.</div>;
   }
 
   return (
     <div className="w-full">
-      <div className="sticky top-0 z-10 -mx-4 md:-mx-6 mb-4 bg-[color-mix(in_olab,_var(--background)_80%,_transparent)]/80 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_olab,_var(--background)_70%,_transparent)] px-4 md:px-6 py-3 border-b border-[var(--border)]">
+      <div className="sticky top-0 z-10 -mx-4 md:-mx-6 mb-4 bg-white px-4 md:px-6 py-3 border-b border-[var(--border)]">
         <div className="flex flex-wrap items-center gap-3">
           <MUISelect
             value={viewMode}
@@ -1077,7 +1077,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
         </div>
       </div>
 
-      <div className="rounded-xl border border-[var(--border)] bg-[color-mix(in_olab,_var(--accent)_8%,_var(--background))] shadow-sm">
+      <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
         <div>
           <GanttChart
             milestones={milestones || []}
