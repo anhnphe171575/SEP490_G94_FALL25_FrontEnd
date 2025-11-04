@@ -22,6 +22,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Tooltip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -35,9 +36,20 @@ import axiosInstance from "../../../ultis/axios";
 interface TaskDetailsSubtasksProps {
   taskId: string | null;
   task?: any;
+  statusOptions?: any[]; // Receive from parent to avoid re-fetching
+  teamMembers?: any[]; // Team members for assignee dropdown
+  projectId?: string; // For loading team members
+  onSubtaskClick?: (subtaskId: string) => void; // Callback to handle subtask click
 }
 
-export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtasksProps) {
+export default function TaskDetailsSubtasks({ 
+  taskId, 
+  task, 
+  statusOptions = [],
+  teamMembers = [],
+  projectId,
+  onSubtaskClick
+}: TaskDetailsSubtasksProps) {
   const [subtasks, setSubtasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
@@ -45,30 +57,43 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
     title: '',
     description: '',
     estimate: 0,
+    assignee_id: '',
   });
   
   // Inline editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   
-  // Status options from settings
-  const [statusOptions, setStatusOptions] = useState<any[]>([]);
+  // Load team members if not provided
+  const [localTeamMembers, setLocalTeamMembers] = useState<any[]>(teamMembers);
+
+  useEffect(() => {
+    if (teamMembers.length > 0) {
+      setLocalTeamMembers(teamMembers);
+    } else if (projectId) {
+      loadTeamMembers();
+    }
+  }, [teamMembers, projectId]);
+
+  const loadTeamMembers = async () => {
+    if (!projectId) return;
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
+      // API returns { team_members: { leaders: [], members: [] } }
+      const teamData = response.data?.team_members || {};
+      const allMembers = [...(teamData.leaders || []), ...(teamData.members || [])];
+      setLocalTeamMembers(allMembers);
+    } catch (error) {
+      console.error('Error loading team members:', error);
+      setLocalTeamMembers([]); // Set empty array on error
+    }
+  };
 
   useEffect(() => {
     if (taskId) {
       loadSubtasks();
-      loadStatusOptions();
     }
   }, [taskId]);
-  
-  const loadStatusOptions = async () => {
-    try {
-      const response = await axiosInstance.get('/api/settings?type_id=2'); // type_id=2 is Status
-      setStatusOptions(response.data || []);
-    } catch (error) {
-      console.error('Error loading status options:', error);
-    }
-  };
 
   const loadSubtasks = async () => {
     if (!taskId) return;
@@ -88,7 +113,7 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
     try {
       await axiosInstance.post(`/api/tasks/${taskId}/subtasks`, newSubtask);
       setOpenDialog(false);
-      setNewSubtask({ title: '', description: '', estimate: 0 });
+      setNewSubtask({ title: '', description: '', estimate: 0, assignee_id: '' });
       await loadSubtasks();
     } catch (error: any) {
       console.error("Error creating subtask:", error);
@@ -124,11 +149,17 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
       ? subtask.status?._id 
       : subtask.status;
     
+    // Handle assignee - get the ID if it's an object, otherwise keep as is
+    const assigneeValue = typeof subtask.assignee_id === 'object'
+      ? subtask.assignee_id?._id
+      : subtask.assignee_id;
+    
     setEditForm({
       title: subtask.title,
       description: subtask.description || '',
       estimate: subtask.estimate || 0,
       status: statusValue,
+      assignee_id: assigneeValue || '',
     });
   };
   
@@ -221,20 +252,20 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
         </Box>
         {/* Only show Add button if this is NOT a subtask */}
         {!isSubtask && (
-          <Button 
-            variant="contained" 
-            startIcon={<AddIcon />}
-            onClick={() => setOpenDialog(true)}
-            sx={{ 
-              borderRadius: 2, 
-              textTransform: 'none', 
-              fontWeight: 600,
-              bgcolor: '#667eea',
-              '&:hover': { bgcolor: '#5568d3' }
-            }}
-          >
-            Thêm Subtask
-          </Button>
+        <Button 
+          variant="contained" 
+          startIcon={<AddIcon />}
+          onClick={() => setOpenDialog(true)}
+          sx={{ 
+            borderRadius: 2, 
+            textTransform: 'none', 
+            fontWeight: 600,
+            bgcolor: '#667eea',
+            '&:hover': { bgcolor: '#5568d3' }
+          }}
+        >
+          Thêm Subtask
+        </Button>
         )}
       </Box>
 
@@ -287,60 +318,167 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
               }}
             >
               {isEditing ? (
-                // Edit Mode
+                // Edit Mode - Simplified
                 <Box sx={{ width: '100%' }}>
-                  <Stack spacing={2}>
-                    <TextField
-                      label="Tên subtask"
-                      fullWidth
-                      size="small"
-                      value={editForm.title}
-                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                      autoFocus
-                    />
-                    <TextField
-                      label="Mô tả"
-                      fullWidth
-                      size="small"
-                      multiline
-                      rows={2}
-                      value={editForm.description}
-                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    />
-                    <Stack direction="row" spacing={2}>
-                      <FormControl size="small" sx={{ minWidth: 150 }}>
-                        <InputLabel>Status</InputLabel>
-                        <Select
-                          value={editForm.status || ''}
-                          label="Status"
-                          onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                        >
-                          {statusOptions.length === 0 ? (
-                            <MenuItem disabled>Loading...</MenuItem>
-                          ) : (
-                            statusOptions.map((status) => (
-                              <MenuItem key={status._id} value={status._id}>
-                                {status.name}
-                              </MenuItem>
-                            ))
-                          )}
-                        </Select>
-                      </FormControl>
+                  <Stack spacing={2.5}>
+                    {/* Title Field */}
+                    <Box>
+                      <Typography fontSize="12px" fontWeight={600} color="#374151" sx={{ mb: 0.5 }}>
+                        Tên subtask <Typography component="span" color="error">*</Typography>
+                      </Typography>
                       <TextField
-                        label="Estimate (giờ)"
-                        type="number"
+                        fullWidth
                         size="small"
-                        sx={{ width: 150 }}
-                        value={editForm.estimate}
-                        onChange={(e) => setEditForm({ ...editForm, estimate: Number(e.target.value) })}
+                        placeholder="Nhập tên subtask..."
+                        value={editForm.title}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        autoFocus
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1.5,
+                          }
+                        }}
                       />
+                    </Box>
+
+                    {/* Description Field */}
+                    <Box>
+                      <Typography fontSize="12px" fontWeight={600} color="#374151" sx={{ mb: 0.5 }}>
+                        Mô tả
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        multiline
+                        rows={2}
+                        placeholder="Mô tả chi tiết..."
+                        value={editForm.description || ''}
+                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1.5,
+                          }
+                        }}
+                      />
+                    </Box>
+
+                    {/* Inline Row: Status, Assignee & Estimate */}
+                    <Stack direction="row" spacing={2}>
+                      <Box sx={{ width: 140 }}>
+                        <Typography fontSize="12px" fontWeight={600} color="#374151" sx={{ mb: 0.5 }}>
+                          Status
+                        </Typography>
+                        <FormControl size="small" fullWidth>
+                          <Select
+                            value={editForm.status || ''}
+                            onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                            displayEmpty
+                            sx={{
+                              borderRadius: 1.5,
+                            }}
+                          >
+                            <MenuItem value="" disabled>
+                              <em>Chọn status</em>
+                            </MenuItem>
+                            {statusOptions.map((status) => (
+                              <MenuItem key={status._id} value={status._id}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Box sx={{ 
+                                    width: 8, 
+                                    height: 8, 
+                                    borderRadius: '50%', 
+                                    bgcolor: status.name === 'Completed' || status.name === 'Done' ? '#10b981' : '#f59e0b'
+                                  }} />
+                                  {status.name}
+                                </Box>
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Box>
+
+                      <Box sx={{ flex: 1 }}>
+                        <Typography fontSize="12px" fontWeight={600} color="#374151" sx={{ mb: 0.5 }}>
+                          Assignee
+                        </Typography>
+                        <FormControl size="small" fullWidth>
+                          <Select
+                            value={editForm.assignee_id || ''}
+                            onChange={(e) => setEditForm({ ...editForm, assignee_id: e.target.value })}
+                            displayEmpty
+                            sx={{
+                              borderRadius: 1.5,
+                            }}
+                          >
+                            <MenuItem value="">
+                              <em>Chưa gán</em>
+                            </MenuItem>
+                            {localTeamMembers.map((member: any) => {
+                              const userId = member.user_id?._id || member._id;
+                              const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
+                              const userInitial = userName.charAt(0).toUpperCase();
+                              return (
+                                <MenuItem key={userId} value={userId}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Box 
+                                      sx={{ 
+                                        width: 20, 
+                                        height: 20, 
+                                        borderRadius: '50%', 
+                                        bgcolor: '#667eea', 
+                                        color: 'white',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '10px',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      {userInitial}
+                                    </Box>
+                                    <Typography fontSize="12px">{userName}</Typography>
+                                  </Box>
+                                </MenuItem>
+                              );
+                            })}
+                          </Select>
+                        </FormControl>
+                      </Box>
+
+                      <Box sx={{ width: 100 }}>
+                        <Typography fontSize="12px" fontWeight={600} color="#374151" sx={{ mb: 0.5 }}>
+                          Estimate (h)
+                        </Typography>
+                        <TextField
+                          type="number"
+                          size="small"
+                          fullWidth
+                          placeholder="0"
+                          value={editForm.estimate || ''}
+                          onChange={(e) => setEditForm({ ...editForm, estimate: Number(e.target.value) })}
+                          inputProps={{ min: 0, step: 0.5 }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 1.5,
+                            }
+                          }}
+                        />
+                      </Box>
                     </Stack>
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+
+                    {/* Action Buttons */}
+                    <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ pt: 1 }}>
                       <Button
                         size="small"
                         onClick={cancelEdit}
-                        startIcon={<CloseIcon />}
-                        sx={{ textTransform: 'none' }}
+                        startIcon={<CloseIcon fontSize="small" />}
+                        sx={{ 
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          color: '#6b7280',
+                          borderRadius: 1.5,
+                          '&:hover': { bgcolor: '#f3f4f6' }
+                        }}
                       >
                         Hủy
                       </Button>
@@ -348,10 +486,13 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
                         size="small"
                         variant="contained"
                         onClick={() => saveEdit(subtask._id)}
-                        startIcon={<SaveIcon />}
+                        startIcon={<SaveIcon fontSize="small" />}
                         sx={{ 
                           textTransform: 'none',
+                          fontWeight: 700,
                           bgcolor: '#667eea',
+                          borderRadius: 1.5,
+                          px: 2,
                           '&:hover': { bgcolor: '#5568d3' }
                         }}
                       >
@@ -361,126 +502,322 @@ export default function TaskDetailsSubtasks({ taskId, task }: TaskDetailsSubtask
                   </Stack>
                 </Box>
               ) : (
-                // View Mode
-                <>
-                  <IconButton 
-                    onClick={() => toggleSubtaskStatus(subtask)}
-                    sx={{ mr: 1 }}
-                  >
-                    {subtask.status === 'Completed' ? (
-                      <CheckCircleIcon color="success" />
-                    ) : (
-                      <RadioButtonUncheckedIcon />
-                    )}
-                  </IconButton>
-                  <ListItemText
-                    primary={
-                      <Typography 
-                        sx={{ 
-                          textDecoration: subtask.status === 'Completed' ? 'line-through' : 'none',
-                          color: subtask.status === 'Completed' ? 'text.secondary' : 'text.primary',
+                // View Mode - Simplified & Clean
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  width: '100%',
+                  gap: 2
+                }}>
+                  {/* Checkbox */}
+              <IconButton 
+                onClick={() => toggleSubtaskStatus(subtask)}
+                    size="small"
+                    sx={{ 
+                      p: 0,
+                      color: subtask.status === 'Completed' ? '#10b981' : '#d1d5db',
+                      '&:hover': { 
+                        bgcolor: subtask.status === 'Completed' ? '#dcfce7' : '#f3f4f6' 
+                      }
+                    }}
+              >
+                {subtask.status === 'Completed' ? (
+                      <CheckCircleIcon fontSize="small" />
+                ) : (
+                      <RadioButtonUncheckedIcon fontSize="small" />
+                )}
+              </IconButton>
+
+                  {/* Title with Assignee */}
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Typography 
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent event bubbling
+                      if (onSubtaskClick) {
+                        console.log('Clicking subtask:', subtask._id, subtask.title);
+                        onSubtaskClick(subtask._id);
+                      } else {
+                        console.warn('onSubtaskClick callback not provided');
+                      }
+                    }}
+                    sx={{ 
+                      textDecoration: subtask.status === 'Completed' ? 'line-through' : 'none',
+                          color: subtask.status === 'Completed' ? '#9ca3af' : '#1f2937',
                           fontWeight: 500,
-                        }}
-                      >
-                        {subtask.title}
-                      </Typography>
-                    }
-                    secondary={
-                      <Box>
-                        {subtask.description && (
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
-                            {subtask.description}
-                          </Typography>
-                        )}
-                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                          <Chip 
-                            label={typeof subtask.status === 'object' ? subtask.status?.name : subtask.status} 
-                            size="small"
-                            sx={{
-                              bgcolor: (typeof subtask.status === 'object' ? subtask.status?.name : subtask.status) === 'Completed' ? '#dcfce7' : '#f3f4f6',
-                              color: (typeof subtask.status === 'object' ? subtask.status?.name : subtask.status) === 'Completed' ? '#16a34a' : '#6b7280',
-                            }}
-                          />
-                          {subtask.estimate > 0 && (
-                            <Chip 
-                              label={`${subtask.estimate}h`} 
-                              size="small" 
-                              variant="outlined"
-                              sx={{ borderColor: '#d1d5db' }}
-                            />
-                          )}
-                        </Stack>
-                      </Box>
-                    }
-                    secondaryTypographyProps={{ component: 'div' }}
-                  />
-                  <ListItemSecondaryAction>
-                    <Stack direction="row" spacing={0.5}>
-                      <IconButton 
-                        edge="end" 
-                        onClick={() => startEdit(subtask)}
-                        sx={{
-                          color: '#667eea',
-                          '&:hover': { bgcolor: '#f0f1ff' }
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton 
-                        edge="end" 
-                        onClick={() => deleteSubtask(subtask._id)}
-                        sx={{
-                          color: '#ef4444',
-                          '&:hover': { bgcolor: '#fee2e2' }
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Stack>
-                  </ListItemSecondaryAction>
-                </>
+                          fontSize: '14px',
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          cursor: onSubtaskClick ? 'pointer' : 'default',
+                          '&:hover': onSubtaskClick ? {
+                            color: '#667eea',
+                            textDecoration: 'underline',
+                          } : {},
+                    }}
+                  >
+                    {subtask.title}
+                  </Typography>
+                      
+                      {/* Assignee Avatar - Mini */}
+                      {subtask.assignee_id && (() => {
+                        const assignee = typeof subtask.assignee_id === 'object' 
+                          ? subtask.assignee_id 
+                          : null;
+                        const assigneeName = assignee?.full_name || assignee?.email || '';
+                        const assigneeInitial = assigneeName ? assigneeName.charAt(0).toUpperCase() : '?';
+                        
+                        return assigneeName ? (
+                          <Tooltip title={assigneeName} arrow>
+                            <Box 
+                              sx={{ 
+                                width: 24, 
+                                height: 24, 
+                                borderRadius: '50%', 
+                                bgcolor: '#667eea', 
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {assigneeInitial}
+                            </Box>
+                          </Tooltip>
+                        ) : null;
+                      })()}
+
+                      {/* Estimate Badge - Mini */}
+                    {subtask.estimate > 0 && (
+                        <Typography 
+                          fontSize="11px" 
+                          fontWeight={600}
+                          sx={{ 
+                            color: '#6b7280',
+                            bgcolor: '#f3f4f6',
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: 1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {subtask.estimate}h
+                        </Typography>
+                    )}
+                  </Stack>
+                  </Box>
+
+                  {/* Action Buttons */}
+                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                    <IconButton 
+                      size="small"
+                      onClick={() => startEdit(subtask)}
+                      sx={{
+                        color: '#667eea',
+                        '&:hover': { bgcolor: '#ede9fe' }
+                      }}
+                    >
+                      <EditIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                    <IconButton 
+                      size="small"
+                      onClick={() => deleteSubtask(subtask._id)}
+                      sx={{
+                        color: '#ef4444',
+                        '&:hover': { bgcolor: '#fee2e2' }
+                      }}
+                    >
+                      <DeleteIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+                  </Stack>
+                </Box>
               )}
             </ListItem>
           )})}
         </List>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Tạo Subtask Mới</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 2 }}>
+      {/* Create Dialog - Simple & Clean */}
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#f8f9ff', 
+          fontWeight: 700,
+          fontSize: '18px',
+          borderBottom: '1px solid #e5e7eb',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <AddIcon sx={{ color: '#667eea' }} />
+          Tạo Subtask Mới
+          <Typography variant="caption" sx={{ ml: 'auto', color: '#9ca3af' }}>
+            Đơn giản, nhanh chóng
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 3 }}>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography fontSize="13px" fontWeight={600} color="#374151" sx={{ mb: 1 }}>
+                Tên subtask <Typography component="span" color="error">*</Typography>
+              </Typography>
             <TextField 
-              label="Tên subtask *"
               fullWidth
+                placeholder="VD: Viết unit test cho API login"
               value={newSubtask.title}
               onChange={(e) => setNewSubtask({ ...newSubtask, title: e.target.value })}
-            />
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  }
+                }}
+              />
+            </Box>
+            
+            <Box>
+              <Typography fontSize="13px" fontWeight={600} color="#374151" sx={{ mb: 1 }}>
+                Mô tả
+                <Typography component="span" fontSize="12px" fontWeight={400} color="#9ca3af" sx={{ ml: 1 }}>
+                  (Tùy chọn)
+                </Typography>
+              </Typography>
             <TextField 
-              label="Mô tả"
               fullWidth
               multiline
               rows={3}
+                placeholder="Mô tả chi tiết subtask này..."
               value={newSubtask.description}
               onChange={(e) => setNewSubtask({ ...newSubtask, description: e.target.value })}
-            />
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  }
+                }}
+              />
+            </Box>
+            
+            {/* Inline Row: Assignee & Estimate */}
+            <Stack direction="row" spacing={2}>
+              <Box sx={{ flex: 1 }}>
+                <Typography fontSize="13px" fontWeight={600} color="#374151" sx={{ mb: 1 }}>
+                  Assignee
+                  <Typography component="span" fontSize="12px" fontWeight={400} color="#9ca3af" sx={{ ml: 1 }}>
+                    (Người thực hiện)
+                  </Typography>
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={newSubtask.assignee_id}
+                    onChange={(e) => setNewSubtask({ ...newSubtask, assignee_id: e.target.value })}
+                    displayEmpty
+                    sx={{
+                      borderRadius: 2,
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>Chưa gán</em>
+                    </MenuItem>
+                    {localTeamMembers.map((member: any) => {
+                      const userId = member.user_id?._id || member._id;
+                      const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
+                      const userInitial = userName.charAt(0).toUpperCase();
+                      return (
+                        <MenuItem key={userId} value={userId}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box 
+                              sx={{ 
+                                width: 28, 
+                                height: 28, 
+                                borderRadius: '50%', 
+                                bgcolor: '#667eea', 
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {userInitial}
+                            </Box>
+                            <Typography fontSize="13px">{userName}</Typography>
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box sx={{ width: 140 }}>
+                <Typography fontSize="13px" fontWeight={600} color="#374151" sx={{ mb: 1 }}>
+                  Estimate
+                  <Typography component="span" fontSize="12px" fontWeight={400} color="#9ca3af" sx={{ ml: 1 }}>
+                    (giờ)
+                  </Typography>
+                </Typography>
             <TextField 
-              label="Estimate (giờ)"
               type="number"
               fullWidth
-              value={newSubtask.estimate}
+                  size="small"
+                  placeholder="0"
+                  value={newSubtask.estimate || ''}
               onChange={(e) => setNewSubtask({ ...newSubtask, estimate: Number(e.target.value) })}
-            />
+                  inputProps={{ min: 0, step: 0.5 }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    }
+                  }}
+                />
+              </Box>
+            </Stack>
+
+            <Typography fontSize="11px" color="#9ca3af" sx={{ ml: 1 }}>
+              💡 Subtask thừa kế feature, priority từ task cha
+            </Typography>
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Hủy</Button>
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #e5e7eb', gap: 1 }}>
+          <Button 
+            onClick={() => setOpenDialog(false)}
+            sx={{ 
+              textTransform: 'none',
+              fontWeight: 600,
+              color: '#6b7280',
+              '&:hover': { bgcolor: '#f3f4f6' }
+            }}
+          >
+            Hủy
+          </Button>
           <Button 
             variant="contained" 
             onClick={createSubtask}
             disabled={!newSubtask.title}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              bgcolor: '#667eea',
+              borderRadius: 2,
+              px: 3,
+              '&:hover': { bgcolor: '#5568d3' },
+              '&:disabled': { bgcolor: '#e5e7eb', color: '#9ca3af' }
+            }}
           >
-            Tạo
+            Tạo Subtask
           </Button>
         </DialogActions>
       </Dialog>
