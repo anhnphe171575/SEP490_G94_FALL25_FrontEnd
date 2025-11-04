@@ -134,12 +134,25 @@ export default function CalendarPage() {
   });
 
   const parseMeetingDate = (m: Meeting) => {
-    // meeting_date 'YYYY-MM-DD', times 'HH:MM'
-    const [y, mo, da] = m.meeting_date.split('-').map(n => parseInt(n, 10));
+    // meeting_date có thể là ISO hoặc 'YYYY-MM-DD'
+    const md: any = (m as any).meeting_date;
+    let base: Date;
+    if (md instanceof Date) {
+      base = md;
+    } else if (typeof md === 'string' && md.includes('T')) {
+      // ISO -> tạo Date rồi lấy local Y/M/D
+      const iso = new Date(md);
+      base = new Date(iso.getFullYear(), iso.getMonth(), iso.getDate());
+    } else if (typeof md === 'string') {
+      const [y, mo, da] = md.split('-').map(n => parseInt(n, 10));
+      base = new Date(y, (mo || 1) - 1, da || 1);
+    } else {
+      base = new Date();
+    }
     const [sh, sm] = m.start_time.split(':').map(n => parseInt(n, 10));
     const [eh, em] = m.end_time.split(':').map(n => parseInt(n, 10));
-    const start = new Date(y, (mo || 1) - 1, da || 1, sh || 0, sm || 0, 0, 0);
-    const end = new Date(y, (mo || 1) - 1, da || 1, eh || 0, em || 0, 0, 0);
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), sh || 0, sm || 0, 0, 0);
+    const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), eh || 0, em || 0, 0, 0);
     return { start, end };
   };
 
@@ -485,18 +498,18 @@ export default function CalendarPage() {
                 </div>
                 <div className="flex gap-2">
                   {userRole === "4" && (
-                    <Button
-                      variant="outlined"
+                  <Button
+                    variant="outlined"
                       onClick={() => setPendingDialogOpen(true)}
                     >
                       Yêu cầu chờ duyệt
-                    </Button>
+                  </Button>
                   )}
                   <div className="mr-2">
                     <div className="inline-flex rounded-md overflow-hidden border">
                       <button className={`px-3 py-1 text-sm ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white'}`} onClick={() => setViewMode('day')}>Day</button>
                       <button className={`px-3 py-1 text-sm ${viewMode === 'week' ? 'bg-blue-600 text-white' : 'bg-white'}`} onClick={() => setViewMode('week')}>Week</button>
-                    </div>
+                </div>
                   </div>
                   {(userRole === "1" || userRole === "4") && (
                     <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateMeetingOpen(true)}>
@@ -555,7 +568,7 @@ export default function CalendarPage() {
                             ))}
                         </div>
                       ))}
-                    </div>
+                        </div>
 
                     {/* Grid */}
                     <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
@@ -600,13 +613,13 @@ export default function CalendarPage() {
                                 >
                                   <div className="text-xs font-semibold truncate">{m.topic}</div>
                                   <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
-                                </div>
+                                  </div>
                               );
                             })}
-                          </div>
+                                    </div>
                         );
                       })}
-                    </div>
+                                    </div>
                   </>
                 ) : (
                   // Day view
@@ -628,9 +641,9 @@ export default function CalendarPage() {
                           .filter(m => isAllDay(m) && isSameDay(parseMeetingDate(m).start, currentMonth))
                           .map(m => (
                             <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute left-1 right-1 top-1 bottom-1 text-white rounded px-2 text-xs flex items-center truncate" style={{ background: getStatusGradient(m.status) }} title={m.topic}>{m.topic}</div>
-                          ))}
-                      </div>
-                    </div>
+                            ))}
+                          </div>
+                        </div>
                     {/* Grid */}
                     <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
                       <div className="relative border-r">
@@ -990,7 +1003,7 @@ export default function CalendarPage() {
     <DialogActions sx={{ p: 2.5, backgroundColor: '#f8fafc' }}>
       <Button onClick={() => setPendingDialogOpen(false)} variant="outlined">Đóng</Button>
     </DialogActions>
-  </Dialog>
+      </Dialog>
     </div>
   );
 }
