@@ -60,183 +60,7 @@ type Project = {
   code: string;
 };
 
-// Contribution Calendar Component (GitHub-style)
-const ContributionCalendar = ({ assigneeId, projectId }: { assigneeId: string; projectId?: string }) => {
-  const [calendarData, setCalendarData] = useState<{ [key: string]: number }>({});
-  const [loading, setLoading] = useState(true);
-  const [hoverDate, setHoverDate] = useState<{ date: string; count: number } | null>(null);
-
-  useEffect(() => {
-    fetchCalendarData();
-  }, [assigneeId, projectId]);
-
-  const fetchCalendarData = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (projectId) params.append('project_id', projectId);
-      if (assigneeId) params.append('assignee_id', assigneeId);
-
-      const response = await axiosInstance.get(`/api/tasks/dashboard/contribution/calendar?${params.toString()}`);
-      
-      if (response.data.calendar) {
-        setCalendarData(response.data.calendar);
-      } else {
-        setCalendarData({});
-      }
-    } catch (e) {
-      console.error('Error fetching calendar data:', e);
-      setCalendarData({});
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getIntensityColor = (count: number) => {
-    if (count === 0) return 'bg-gray-100 hover:bg-gray-200';
-    if (count === 1) return 'bg-green-200 hover:bg-green-300';
-    if (count === 2) return 'bg-green-400 hover:bg-green-500';
-    if (count === 3) return 'bg-green-600 hover:bg-green-700';
-    return 'bg-green-800 hover:bg-green-900';
-  };
-
-  const generateCalendarDays = () => {
-    const days: Array<{ date: Date; count: number } | null> = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Get the date 364 days ago
-    const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - 364);
-    
-    // Find the Sunday of that week
-    const startDayOfWeek = startDate.getDay();
-    const daysToSunday = startDayOfWeek === 0 ? 0 : 7 - startDayOfWeek;
-    startDate.setDate(startDate.getDate() + daysToSunday);
-    
-    // Generate all days (including padding days before start)
-    const totalDays = 371; // 53 weeks * 7 days
-    for (let i = 0; i < totalDays; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      
-      if (date > today) {
-        days.push(null); // Future date
-      } else {
-        const dateKey = date.toISOString().split('T')[0];
-        days.push({
-          date,
-          count: calendarData[dateKey] || 0
-        });
-      }
-    }
-    return days;
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('vi-VN', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="animate-pulse mt-4">
-        <div className="h-24 bg-gray-200 rounded"></div>
-      </div>
-    );
-  }
-
-  const days = generateCalendarDays();
-  const weeks: Array<Array<{ date: Date; count: number } | null>> = [];
-  
-  // Group days into weeks
-  for (let i = 0; i < days.length; i += 7) {
-    weeks.push(days.slice(i, i + 7));
-  }
-
-  return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium text-gray-700">Đóng góp trong năm qua</span>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>Ít hơn</span>
-          <div className="flex gap-0.5">
-            <div className="w-2.5 h-2.5 bg-gray-100 rounded"></div>
-            <div className="w-2.5 h-2.5 bg-green-200 rounded"></div>
-            <div className="w-2.5 h-2.5 bg-green-400 rounded"></div>
-            <div className="w-2.5 h-2.5 bg-green-600 rounded"></div>
-            <div className="w-2.5 h-2.5 bg-green-800 rounded"></div>
-          </div>
-          <span>Nhiều hơn</span>
-        </div>
-      </div>
-      
-      <div className="relative">
-        {/* Tooltip */}
-        {hoverDate && (
-          <div 
-            className="absolute z-50 px-3 py-2 bg-gray-900 text-white text-xs rounded shadow-xl pointer-events-none"
-            style={{
-              bottom: '100%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              marginBottom: '8px'
-            }}
-          >
-            <p className="font-semibold text-white">{hoverDate.count} task{hoverDate.count !== 1 ? 's' : ''}</p>
-            <p className="text-gray-300">{hoverDate.date}</p>
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-          </div>
-        )}
-
-        {/* Calendar Grid */}
-        <div className="flex gap-1 overflow-x-auto pb-2" style={{ minWidth: 'fit-content' }}>
-          {/* Week labels */}
-          <div className="flex flex-col gap-1 mr-2 text-xs text-gray-500" style={{ paddingTop: '14px' }}>
-            <span className="h-2.5"></span>
-            <span className="h-2.5">T2</span>
-            <span className="h-2.5"></span>
-            <span className="h-2.5">T4</span>
-            <span className="h-2.5"></span>
-            <span className="h-2.5">T6</span>
-          </div>
-
-          {/* Weeks */}
-          {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="flex flex-col gap-1">
-              {week.map((day, dayIdx) => {
-                if (!day) {
-                  return (
-                    <div
-                      key={`${weekIdx}-${dayIdx}`}
-                      className="w-2.5 h-2.5 rounded opacity-0"
-                    />
-                  );
-                }
-                
-                const dateKey = day.date.toISOString().split('T')[0];
-                
-                return (
-                  <div
-                    key={`${weekIdx}-${dayIdx}`}
-                    className={`w-2.5 h-2.5 rounded ${getIntensityColor(day.count)} cursor-pointer transition-all`}
-                    onMouseEnter={() => setHoverDate({ date: formatDate(day.date), count: day.count })}
-                    onMouseLeave={() => setHoverDate(null)}
-                    title={`${formatDate(day.date)}: ${day.count} task${day.count !== 1 ? 's' : ''}`}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
+// (Removed) ContributionCalendar component and related UI
 
 export default function ContributorPage() {
   const router = useRouter();
@@ -410,29 +234,7 @@ export default function ContributorPage() {
           </p>
         </div>
 
-        {/* Filter */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Bộ lọc</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dự án
-              </label>
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-gray-900"
-              >
-                <option value="">Tất cả dự án</option>
-                {projects.map((project) => (
-                  <option key={project._id} value={project._id}>
-                    {project.code} - {project.topic}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+    
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -492,7 +294,7 @@ export default function ContributorPage() {
                 <BarChart data={comparisonData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "12px" }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: "12px" }} />
+                  <YAxis stroke="#64748b" style={{ fontSize: "12px" }} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
                     labelStyle={{ color: "#0f172a" }}
@@ -558,9 +360,15 @@ export default function ContributorPage() {
                 return (
                   <div
                     key={contributor.assignee_id}
-                    className="bg-white rounded-xl border border-gray-200 p-6 hover:bg-gray-50 transition-colors shadow-sm"
+                    className="bg-white rounded-xl border border-gray-200 p-6 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      params.set('userId', contributor.user?._id || contributor.assignee_id);
+                      if (selectedProject) params.set('project_id', selectedProject);
+                      router.push(`/supervisor/contributor/detail?${params.toString()}`);
+                    }}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
                       {/* Member Info */}
                       <div className="flex items-center gap-3">
                         <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
@@ -594,10 +402,7 @@ export default function ContributorPage() {
                         <p className="text-2xl font-bold text-blue-600">{contributor.total_tasks}</p>
                       </div>
 
-                      {/* Contribution Calendar */}
-                      <div className="md:col-span-2">
-                        <ContributionCalendar assigneeId={contributor.assignee_id} projectId={selectedProject || undefined} />
-                      </div>
+                      
                     </div>
                   </div>
                 );

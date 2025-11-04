@@ -108,7 +108,7 @@ export default function LoginPage() {
       
       // Redirect based on role
       if (userRole === 4) {
-        router.replace("/dashboard-supervisor");
+        router.replace("/supervisor/dashboard-supervisor");
       } else {
         router.replace("/dashboard");
       }
