@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import QuickNav from "@/components/QuickNav";
 import {
   BarChart,
   Bar,
@@ -226,12 +227,14 @@ export default function ContributorPage() {
       <main className="p-4 md:p-6 md:ml-64">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            Thống kê Đóng góp 📊
-          </h1>
-          <p className="text-gray-600">
-            Theo dõi và phân tích đóng góp của các thành viên trong dự án
-          </p>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Thống kê Đóng góp 📊</h1>
+              <p className="text-gray-600">Theo dõi và phân tích đóng góp của các thành viên trong dự án</p>
+            </div>
+            {/* Quick Nav */}
+            <QuickNav selectedProject={selectedProject} />
+          </div>
         </div>
 
     

@@ -18,6 +18,16 @@ const navItems = [
     )
   },
   { 
+    href: "/supervisor/dashboard", 
+    label: "Giảng viên", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10a2 2 0 002 2h12a2 2 0 002-2V9" />
+      </svg>
+    )
+  },
+  { 
     href: "/projects", 
     label: "Dự án", 
     icon: (
@@ -88,7 +98,7 @@ export default function ResponsiveSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [me, setMe] = useState<{ _id?: string; id?: string; full_name?: string; email?: string; avatar?: string } | null>(null);
+  const [me, setMe] = useState<{ _id?: string; id?: string; full_name?: string; email?: string; avatar?: string; role?: number } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState<{ team_unread: number; direct_unread: number; total_unread: number }>({ team_unread: 0, direct_unread: 0, total_unread: 0 });
@@ -106,7 +116,6 @@ export default function ResponsiveSidebar() {
         const res = await axiosInstance.get('/api/users/me');
         const userData = res.data || null;
         setMe(userData);
-        // Join socket room với user_id nếu đã có socket
         if (userData?._id || userData?.id) {
           const userId = userData._id || userData.id;
           const sock = getSocket();
@@ -119,7 +128,7 @@ export default function ResponsiveSidebar() {
           }
         }
       } catch {
-        // silently ignore
+        // ignore
       }
     })();
   }, []);
@@ -267,6 +276,15 @@ export default function ResponsiveSidebar() {
     setShowDropdown(false);
   };
 
+  // Compute href based on user role
+  // If role = 4 (supervisor), redirect /projects to /supervisor/projects
+  const computeHref = (href: string) => {
+    if (href === "/projects" && me?.role === 4) {
+      return "/supervisor/projects";
+    }
+    return href;
+  };
+
   return (
     <>
       {/* Mobile Menu Button */}
@@ -356,13 +374,14 @@ export default function ResponsiveSidebar() {
                 Điều hướng
               </h3>
               {navItems.map((item) => {
-                const active = pathname === item.href;
+                const targetHref = computeHref(item.href);
+                const active = pathname === targetHref;
                 const isNotification = item.href === '/notifications';
                 const isMessages = item.href === '/messages';
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={targetHref}
                     className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                       active
                         ? 'bg-orange-50 text-orange-700 border-l-4 border-orange-500'
@@ -434,13 +453,14 @@ export default function ResponsiveSidebar() {
               </div>
               <div className="space-y-1">
                 {navItems.map((item) => {
-                  const active = pathname === item.href;
+                  const targetHref = computeHref(item.href);
+                  const active = pathname === targetHref;
                   const isNotification = item.href === '/notifications';
                   const isMessages = item.href === '/messages';
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={targetHref}
                       className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                         active
                           ? 'bg-orange-50 text-orange-700 border-l-4 border-orange-500'

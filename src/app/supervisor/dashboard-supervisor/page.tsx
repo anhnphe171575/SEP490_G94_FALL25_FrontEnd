@@ -137,7 +137,7 @@ const ProjectCard = ({ project, router }: {
         }}
         className="w-full text-purple-500 hover:text-purple-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-purple-200 hover:bg-purple-50 rounded-lg"
       >
-        Xem đóng góp →
+        Xem chi tiết →
       </button>
     </div>
   </div>

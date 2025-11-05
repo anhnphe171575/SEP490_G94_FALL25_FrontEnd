@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../../../ultis/axios";
 import ResponsiveSidebar from "../../../components/ResponsiveSidebar";
+import QuickNav from "@/components/QuickNav";
 
 type Project = {
   _id: string;
@@ -137,7 +138,7 @@ const ProjectCard = ({ project, router }: {
         }}
         className="w-full text-purple-500 hover:text-purple-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-purple-200 hover:bg-purple-50 rounded-lg"
       >
-        Xem đóng góp →
+        Xem chi tiết →
       </button>
     </div>
   </div>
@@ -304,6 +305,7 @@ export default function DashboardSupervisorPage() {
                 </p>
               )}
             </div>
+            <QuickNav />
           </div>
 
           {/* Stats Cards */}
