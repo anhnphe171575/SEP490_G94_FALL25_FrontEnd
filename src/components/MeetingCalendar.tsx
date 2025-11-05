@@ -67,6 +67,11 @@ type Meeting = {
   google_meet_link?: string;
   meeting_notes?: string;
   reject_reason?: string;
+  project_id?: {
+    _id: string;
+    topic: string;
+    code: string;
+  };
   mentor_id: {
     _id: string;
     full_name: string;
@@ -471,6 +476,7 @@ export default function MeetingCalendar({
                             >
                               <div className="text-xs font-semibold truncate">{m.topic}</div>
                               <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
+                              <div className="text-[10px] opacity-90 truncate">{m.project_id?.topic || ''}</div>
                           </div>
                           );
                         })}

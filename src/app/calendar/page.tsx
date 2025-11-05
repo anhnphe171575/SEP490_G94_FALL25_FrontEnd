@@ -110,6 +110,7 @@ export default function CalendarPage() {
 
   // Week-view helpers (Google Calendar-like)
   const SLOT_HEIGHT = 48; // px per hour row
+  const HALF_SLOT = SLOT_HEIGHT / 2; // 30-minute subtle guide
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
   const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
@@ -462,6 +463,16 @@ export default function CalendarPage() {
         .calendar-scroll::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
         }
+        /* Subtle grid lines */
+        .gc-grid-line { border-bottom: 1px solid rgba(226,232,240,0.7); }
+        .gc-grid-half { border-bottom: 1px dotted rgba(203,213,225,0.6); }
+        .gc-day-header { box-shadow: 0 1px 0 rgba(226,232,240,0.8); }
+        .gc-sticky { position: sticky; top: 0; z-index: 10; background: #fff; }
+        .gc-today-col { background: linear-gradient(to bottom, rgba(59,130,246,0.06), rgba(59,130,246,0.02)); }
+        .gc-weekend { background: linear-gradient(to bottom, rgba(2,6,23,0.02), rgba(2,6,23,0)); }
+        .gc-event { transition: transform .06s ease, box-shadow .12s ease; }
+        .gc-event:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(2,6,23,0.15); }
+        .gc-all-day-chip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       `}</style>
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
@@ -536,17 +547,25 @@ export default function CalendarPage() {
                 {viewMode === 'week' ? (
                   <>
                     {/* Header row */}
-                    <div className="grid sticky top-0 z-10" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
-                      <div className="bg-white border-b border-r h-12" />
-                      {weekDaysW.map((d, idx) => (
-                        <div key={idx} className="bg-white border-b text-center h-12 flex items-center justify-center">
-                          <div className="flex flex-col items-center">
-                            <span className="text-xs text-gray-500">{dayNames[d.getDay()]}</span>
-                            <span className={`text-sm font-semibold ${isSameDay(d, new Date()) ? 'text-blue-600' : 'text-gray-900'}`}>{d.getDate()}</span>
-                          </div>
-                    </div>
-                  ))}
-                </div>
+                      <div className="grid sticky top-0 z-10" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                        <div className="bg-white gc-day-header border-r h-12 flex items-center justify-end pr-2 text-xs text-gray-500">GMT+07</div>
+                        {weekDaysW.map((d, idx) => {
+                          const isTodayCol = isSameDay(d, new Date());
+                          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                          return (
+                            <div
+                              key={idx}
+                              className={`gc-day-header text-center h-12 flex items-center justify-center ${isTodayCol ? 'border-b-2 border-blue-500' : ''}`}
+                              style={{ background: '#fff' }}
+                            >
+                              <div className="flex flex-col items-center">
+                                <span className="text-xs text-gray-500">{dayNames[d.getDay()]}</span>
+                                <span className={`text-sm font-semibold ${isTodayCol ? 'text-blue-600' : 'text-gray-900'}`}>{d.getDate()}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
 
                     {/* All-day row */}
                     <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
@@ -561,9 +580,12 @@ export default function CalendarPage() {
                                 onClick={() => handleMeetingClick(m)}
                                 className="absolute left-1 right-1 top-1 bottom-1 text-white rounded px-2 text-xs flex items-center truncate"
                                 style={{ background: getStatusGradient(m.status) }}
-                                title={m.topic}
+                                title={`${m.topic}${m.project_id?.topic ? ` • ${m.project_id.topic}` : ''}`}
                               >
-                                {m.topic}
+                                <div className="gc-all-day-chip truncate">
+                                  {m.topic}
+                                  {m.project_id?.topic ? ` • ${m.project_id.topic}` : ''}
+                                </div>
                               </div>
                             ))}
                         </div>
@@ -571,15 +593,20 @@ export default function CalendarPage() {
                         </div>
 
                     {/* Grid */}
-                    <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
-                      {/* Time gutter */}
-                      <div className="relative border-r">
-                        {HOURS.map((h) => (
-                          <div key={h} className="border-b text-right pr-2 text-xs text-gray-500" style={{ height: SLOT_HEIGHT }}>
-                            {h === 0 ? '' : `${h}:00`}
-                                  </div>
-                        ))}
-                                    </div>
+                      <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+                        {/* Time gutter */}
+                        <div className="relative border-r">
+                          {HOURS.map((h) => (
+                            <div key={h} style={{ height: SLOT_HEIGHT }} className="relative">
+                              <div className="gc-grid-line text-right pr-2 text-xs text-gray-500">
+                                {h === 0 ? '' : `${h}:00`}
+                              </div>
+                              <div className="absolute left-0 right-0" style={{ top: HALF_SLOT }}>
+                                <div className="gc-grid-half" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
 
                       {/* Day columns */}
                       {weekDaysW.map((day, idx) => {
@@ -590,9 +617,18 @@ export default function CalendarPage() {
                         const now = new Date();
                         const nowTop = (now.getHours() + now.getMinutes() / 60) * SLOT_HEIGHT;
                         return (
-                          <div key={idx} className="relative border-r" style={{ height: HOURS.length * SLOT_HEIGHT }}>
+                          <div
+                            key={idx}
+                            className={`relative border-r ${showNow ? 'gc-today-col' : ''} ${(day.getDay()===0||day.getDay()===6) ? 'gc-weekend' : ''}`}
+                            style={{ height: HOURS.length * SLOT_HEIGHT }}
+                          >
                             {HOURS.map((h) => (
-                              <div key={h} className="border-b border-gray-100" style={{ height: SLOT_HEIGHT }} />
+                              <div key={h} className="relative" style={{ height: SLOT_HEIGHT }}>
+                                <div className="gc-grid-line" />
+                                <div className="absolute left-0 right-0" style={{ top: HALF_SLOT }}>
+                                  <div className="gc-grid-half" />
+                                </div>
+                              </div>
                             ))}
                             {showNow && (
                               <div className="absolute left-0 right-0" style={{ top: nowTop }}>
@@ -607,12 +643,15 @@ export default function CalendarPage() {
                                 <div
                                   key={m._id}
                                   onClick={() => handleMeetingClick(m)}
-                                  className="absolute rounded-md shadow-sm cursor-pointer"
+                                  className="absolute rounded-md gc-event cursor-pointer border border-white/60 shadow-sm"
                                   style={{ top, height, left: `${m._posLeft}%`, width: `${m._posWidth}%`, background: getStatusGradient(m.status), color: 'white', padding: '6px' }}
-                                  title={`${m.topic} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}
+                                  title={`${m.topic}${m.project_id?.topic ? ` • ${m.project_id.topic}` : ''} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}
                                 >
                                   <div className="text-xs font-semibold truncate">{m.topic}</div>
                                   <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
+                                  {m.project_id?.topic && (
+                                    <div className="text-[10px] opacity-90 truncate">{m.project_id.topic}</div>
+                                  )}
                                   </div>
                               );
                             })}
@@ -640,7 +679,12 @@ export default function CalendarPage() {
                         {(meetingsData?.allMeetings || [])
                           .filter(m => isAllDay(m) && isSameDay(parseMeetingDate(m).start, currentMonth))
                           .map(m => (
-                            <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute left-1 right-1 top-1 bottom-1 text-white rounded px-2 text-xs flex items-center truncate" style={{ background: getStatusGradient(m.status) }} title={m.topic}>{m.topic}</div>
+                            <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute left-1 right-1 top-1 bottom-1 text-white rounded px-2 text-xs flex items-center truncate" style={{ background: getStatusGradient(m.status) }} title={`${m.topic}${m.project_id?.topic ? ` • ${m.project_id.topic}` : ''}`}>
+                              <div className="gc-all-day-chip truncate">
+                                {m.topic}
+                                {m.project_id?.topic ? ` • ${m.project_id.topic}` : ''}
+                              </div>
+                            </div>
                             ))}
                           </div>
                         </div>
@@ -648,14 +692,24 @@ export default function CalendarPage() {
                     <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
                       <div className="relative border-r">
                         {HOURS.map((h) => (
-                          <div key={h} className="border-b text-right pr-2 text-xs text-gray-500" style={{ height: SLOT_HEIGHT }}>
-                            {h === 0 ? '' : `${h}:00`}
+                          <div key={h} style={{ height: SLOT_HEIGHT }} className="relative">
+                            <div className="gc-grid-line text-right pr-2 text-xs text-gray-500">
+                              {h === 0 ? '' : `${h}:00`}
+                            </div>
+                            <div className="absolute left-0 right-0" style={{ top: HALF_SLOT }}>
+                              <div className="gc-grid-half" />
+                            </div>
                           </div>
                         ))}
                       </div>
                       <div className="relative border-r" style={{ height: HOURS.length * SLOT_HEIGHT }}>
                         {HOURS.map((h) => (
-                          <div key={h} className="border-b border-gray-100" style={{ height: SLOT_HEIGHT }} />
+                          <div key={h} className="relative" style={{ height: SLOT_HEIGHT }}>
+                            <div className="gc-grid-line" />
+                            <div className="absolute left-0 right-0" style={{ top: HALF_SLOT }}>
+                              <div className="gc-grid-half" />
+                            </div>
+                          </div>
                         ))}
                         {isSameDay(currentMonth, new Date()) && (
                           <div className="absolute left-0 right-0" style={{ top: (new Date().getHours() + new Date().getMinutes() / 60) * SLOT_HEIGHT }}>
@@ -667,9 +721,12 @@ export default function CalendarPage() {
                           const { start, end } = parseMeetingDate(m);
                           const { top, height } = getTopAndHeight(start, end);
                           return (
-                            <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute rounded-md shadow-sm cursor-pointer" style={{ top, height, left: `${m._posLeft}%`, width: `${m._posWidth}%`, background: getStatusGradient(m.status), color: 'white', padding: '6px' }} title={`${m.topic} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}>
+                            <div key={m._id} onClick={() => handleMeetingClick(m)} className="absolute rounded-md gc-event cursor-pointer border border-white/60 shadow-sm" style={{ top, height, left: `${m._posLeft}%`, width: `${m._posWidth}%`, background: getStatusGradient(m.status), color: 'white', padding: '6px' }} title={`${m.topic}${m.project_id?.topic ? ` • ${m.project_id.topic}` : ''} — ${formatTime(m.start_time)} - ${formatTime(m.end_time)}`}>
                               <div className="text-xs font-semibold truncate">{m.topic}</div>
                               <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
+                              {m.project_id?.topic && (
+                                <div className="text-[10px] opacity-90 truncate">{m.project_id.topic}</div>
+                              )}
                       </div>
                     );
                   })}

@@ -4,89 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import { Box, Button, Card, CardContent, Typography, Stack, Alert, Paper, Breadcrumbs, Link, List, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, ButtonBase, Chip } from "@mui/material";
+import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, BarChart as ChartIcon, Star as StarIcon, StarBorder as StarBorderIcon } from "@mui/icons-material";
+import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 import DocumentUpload from "@/components/DocumentUpload";
-import DocumentPreview from "@/components/DocumentPreview";
-import FolderManager from "@/components/FolderManager";
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Typography,
-  TextField,
-  InputAdornment,
-  IconButton,
-  Chip,
-  Stack,
-  Grid,
-  Alert,
-  Tooltip,
-  MenuItem,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Checkbox,
-  FormControl,
-  InputLabel,
-  Select,
-  Breadcrumbs,
-  Link
-} from "@mui/material";
-import {
-  Add as AddIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  CloudUpload as UploadIcon,
-  Folder as FolderIcon,
-  InsertDriveFile as FileIcon,
-  MoreVert as MoreVertIcon,
-  Download as DownloadIcon,
-  Visibility as ViewIcon,
-  Description as DescriptionIcon,
-  Image as ImageIcon,
-  Code as CodeIcon,
-  PictureAsPdf as PdfIcon,
-  TableChart as SpreadsheetIcon,
-  Home as HomeIcon,
-  NavigateNext as NavigateNextIcon
-} from "@mui/icons-material";
-import { toast } from "sonner";
-
-type Document = {
-  _id: string;
-  title: string;
-  type: string;
-  version: string;
-  file_url: string;
-  description?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  comments?: string;
-  created_by: {
-    _id: string;
-    full_name: string;
-    email: string;
-  };
-  approve_by: {
-    _id: string;
-    full_name: string;
-    email: string;
-  };
-  project_id: {
-    _id: string;
-    topic: string;
-    code: string;
-  };
-  milestone_id: {
-    _id: string;
-    title: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
+import { InsertDriveFile as FileIcon, PictureAsPdf as PdfIcon, Image as ImageIcon, TableChart as SheetIcon, Description as DocIcon, Download as DownloadIcon } from "@mui/icons-material";
+ 
 
 type Folder = {
   _id: string;
@@ -94,7 +17,7 @@ type Folder = {
   description?: string;
   parentId?: string;
   createdAt: string;
-  createdBy: {
+  createdBy?: {
     _id: string;
     full_name: string;
   };
@@ -102,204 +25,367 @@ type Folder = {
   subfolderCount: number;
 };
 
-type DocumentCategory = {
+type FolderTree = Folder & { children?: FolderTree[] };
+
+type MilestoneOption = {
   _id: string;
-  name: string;
-  description: string;
-  color: string;
-  icon: string;
+  title: string;
+};
+
+type DocumentItem = {
+  _id: string;
+  type: string;
+  title: string;
+  version: string;
+  file_url: string;
+  createdAt?: string;
+  created_by?: { _id: string; full_name: string };
+  project_id?: { _id: string; topic: string } | string;
+  folder_id?: { _id: string; name: string } | string | null;
+  is_final_release?: boolean;
+};
+
+ 
+
+const getDocIcon = (type: string) => {
+  const t = (type || '').toLowerCase();
+  if (t.includes('pdf')) return <PdfIcon color="error" />;
+  if (t.includes('image') || t.includes('jpg') || t.includes('png')) return <ImageIcon color="primary" />;
+  if (t.includes('sheet') || t.includes('excel') || t.includes('xls')) return <SheetIcon color="success" />;
+  if (t.includes('doc') || t.includes('word')) return <DocIcon color="primary" />;
+  return <FileIcon />;
+};
+
+const isRootDoc = (doc: DocumentItem) => {
+  const f = doc.folder_id as unknown;
+  if (f === null || f === undefined) return true;
+  if (typeof f === 'string') return f.trim() === '';
+  return false;
 };
 
 export default function DocumentsPage() {
-  const router = useRouter();
   const params = useParams();
+  const router = useRouter();
   const projectId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string);
   
-  // State management
-  const [documents, setDocuments] = useState<Document[]>([]);
+  // State management - chỉ thư mục
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [categories, setCategories] = useState<DocumentCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [folderTree, setFolderTree] = useState<FolderTree[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
   
-  // Search and filter states
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [sortBy] = useState<"name" | "date" | "size" | "type">("date");
-  const [sortOrder] = useState<"asc" | "desc">("desc");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   
   // Dialog states
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [folderManagerOpen, setFolderManagerOpen] = useState(false);
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [createRootOpen, setCreateRootOpen] = useState(false);
+  const [createChildOpen, setCreateChildOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [renameName, setRenameName] = useState('');
+  const [moveTargetId, setMoveTargetId] = useState('');
+  const [actionFolderId, setActionFolderId] = useState<string | null>(null);
+  
+  // Document rename states
+  const [renameDocOpen, setRenameDocOpen] = useState(false);
+  const [renameDocTitle, setRenameDocTitle] = useState('');
+  const [actionDocumentId, setActionDocumentId] = useState<string | null>(null);
   
   // Current folder navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [folderPath] = useState<Folder[]>([]);
-  
-  // Preview state
-  const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
+  const [folderPath, setFolderPath] = useState<Folder[]>([]);
 
-  const loadDocuments = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await axiosInstance.get(`/api/documents/project/${projectId}`, {
-        params: {
-          type: selectedCategory !== "all" ? selectedCategory : undefined,
-          page: 1,
-          limit: 100
-        }
-      });
-      setDocuments(response.data.documents || []);
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { message?: string } } };
-      setError(error?.response?.data?.message || 'Không thể tải tài liệu');
-      toast.error(`Lỗi tải tài liệu: ${error?.response?.data?.message || 'Unknown error'}`);
-    } finally {
-      setLoading(false);
+
+  const findPath = useCallback((nodes: FolderTree[], targetId: string, path: Folder[] = []): Folder[] | null => {
+    for (const n of nodes) {
+      const newPath = [...path, n];
+      if (n._id === targetId) return newPath;
+      if (n.children) {
+        const found = findPath(n.children, targetId, newPath);
+        if (found) return found;
+      }
     }
-  }, [projectId, selectedCategory]);
+    return null;
+  }, []);
 
   const loadFolders = useCallback(async () => {
     try {
-      // Tạm thời để trống vì API backend chưa có folder management
-      setFolders([]);
+      const rootsRes = await axiosInstance.get(`/api/folders/project/${projectId}`, { params: { parentId: 'null' } });
+      const roots: Folder[] = rootsRes.data.folders || [];
+      const trees: FolderTree[] = [];
+      for (const r of roots) {
+        try {
+          const treeRes = await axiosInstance.get(`/api/folders/${r._id}/tree`);
+          const children = (treeRes.data.tree || []) as FolderTree[];
+          trees.push({ ...r, children });
+        } catch {
+          trees.push({ ...r, children: [] });
+        }
+      }
+      setFolderTree(trees);
+      if (currentFolderId) {
+        const detailRes = await axiosInstance.get(`/api/folders/${currentFolderId}`);
+        const children: Folder[] = detailRes.data.children || [];
+        setFolders(
+          [...children].sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', 'vi', { sensitivity: 'base', numeric: true })
+          )
+        );
+        const path = findPath(trees, currentFolderId);
+        setFolderPath(path || []);
+      } else {
+        setFolders(
+          [...roots].sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', 'vi', { sensitivity: 'base', numeric: true })
+          )
+        );
+        setFolderPath([]);
+      }
     } catch (e: unknown) {
       console.error('Error loading folders:', e);
+      setFolders([]);
+      setFolderTree([]);
+      setError('Không thể tải thư mục');
     }
-  }, []);
-
-  const loadCategories = useCallback(async () => {
-    try {
-      // Sử dụng các loại tài liệu từ API backend
-      const categories = [
-        { _id: 'design', name: 'Thiết kế', description: 'Tài liệu thiết kế', color: '#1976d2', icon: 'design' },
-        { _id: 'documentation', name: 'Tài liệu', description: 'Tài liệu hướng dẫn', color: '#388e3c', icon: 'documentation' },
-        { _id: 'code', name: 'Mã nguồn', description: 'Source code', color: '#f57c00', icon: 'code' },
-        { _id: 'presentation', name: 'Thuyết trình', description: 'Slide thuyết trình', color: '#7b1fa2', icon: 'presentation' },
-        { _id: 'report', name: 'Báo cáo', description: 'Báo cáo dự án', color: '#d32f2f', icon: 'report' }
-      ];
-      setCategories(categories);
-    } catch (e: unknown) {
-      console.error('Error loading categories:', e);
-    }
-  }, []);
+  }, [projectId, currentFolderId, findPath]);
 
   useEffect(() => {
     if (!projectId) return;
-    loadDocuments();
     loadFolders();
-    loadCategories();
-  }, [projectId, currentFolderId, loadDocuments, loadFolders, loadCategories]);
+  }, [projectId, currentFolderId, loadFolders]);
 
-  // Search and filter handlers
+  const loadDocuments = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setDocsLoading(true);
+      setDocsError(null);
+
+      let list: DocumentItem[] = [];
+      if (currentFolderId) {
+        const res = await axiosInstance.get(`/api/documents/folder/${currentFolderId}`, { params: { limit: 100 } });
+        list = res.data.documents || res.data || [];
+      } else {
+        const res = await axiosInstance.get(`/api/documents/project/${projectId}`, { params: { limit: 100 } });
+        const all = res.data.documents || res.data || [];
+        list = (all as DocumentItem[]).filter(isRootDoc);
+      }
+      // Sắp xếp tài liệu theo version (giảm dần)
+      list.sort((a, b) => {
+        const vA = parseFloat(a.version) || 0;
+        const vB = parseFloat(b.version) || 0;
+        return vB - vA;
+      });
+      setDocuments(list);
+    } catch {
+      setDocsError('Không thể tải danh sách tài liệu');
+      setDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [projectId, currentFolderId]);
+
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
       loadDocuments();
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, selectedCategory, sortBy, sortOrder, loadDocuments]);
+  }, [loadDocuments]);
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value);
+  const handleDownload = async (doc: DocumentItem) => {
+    if (doc.file_url) window.open(doc.file_url, '_blank');
   };
 
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
+  
+
+  const handleDeleteDocument = async (doc: DocumentItem) => {
+    if (!window.confirm('Xóa tài liệu này?')) return;
+    try {
+      await axiosInstance.delete(`/api/documents/${doc._id}`);
+      loadDocuments();
+    } catch {
+      setDocsError('Không thể xóa tài liệu');
+    }
   };
 
-  // Upload handlers
-  const handleUploadComplete = () => {
-    loadDocuments();
-    setUploadDialogOpen(false);
+  const handleToggleFinalRelease = async (doc: DocumentItem) => {
+    try {
+      const newStatus = !doc.is_final_release;
+      await axiosInstance.patch(`/api/documents/${doc._id}/final-release`, {
+        is_final_release: newStatus
+      });
+      loadDocuments();
+    } catch (err: any) {
+      setDocsError(err?.response?.data?.message || 'Không thể cập nhật Final Release');
+    }
   };
 
-  // Folder navigation
+  const openRenameDoc = (docId: string, currentTitle: string) => {
+    setActionDocumentId(docId);
+    setRenameDocTitle(currentTitle);
+    setRenameDocOpen(true);
+  };
+
+  const handleRenameDoc = async () => {
+    if (!actionDocumentId || !renameDocTitle.trim()) return;
+    try {
+      await axiosInstance.put(`/api/documents/${actionDocumentId}`, { title: renameDocTitle });
+      setRenameDocOpen(false);
+      setRenameDocTitle('');
+      setActionDocumentId(null);
+      loadDocuments();
+    } catch {
+      setDocsError('Không thể đổi tên tài liệu');
+    }
+  };
+
   const navigateToFolder = (folderId: string | null) => {
     setCurrentFolderId(folderId);
   };
 
+  const openCreateChildFor = (folderId: string) => {
+    setActionFolderId(folderId);
+    setCreateChildOpen(true);
+  };
 
-  // Document actions
-  const handleDownload = async (document: Document) => {
+  const openRenameFor = (folderId: string, currentName: string) => {
+    setActionFolderId(folderId);
+    setRenameName(currentName);
+    setRenameOpen(true);
+  };
+
+  const openMoveFor = (folderId: string) => {
+    setActionFolderId(folderId);
+    setMoveOpen(true);
+  };
+
+  const deleteFolderById = async (folderId: string) => {
+    if (!window.confirm('Xóa thư mục này?')) return;
     try {
-      // Redirect to Firebase Storage URL
-      window.open(document.file_url, '_blank');
-      toast.success(`Đang tải xuống ${document.title}`);
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { message?: string } } };
-      toast.error(`Lỗi tải xuống: ${error?.response?.data?.message || 'Unknown error'}`);
+      await axiosInstance.delete(`/api/folders/${folderId}`);
+      if (currentFolderId === folderId) {
+        router.push(`/projects/${projectId}/documents`);
+      } else {
+        loadFolders();
+      }
+    } catch {
+      setError('Không thể xóa thư mục');
     }
   };
 
-  const handleDelete = async (documentId: string) => {
-    if (!window.confirm('Bạn có chắc muốn xóa tài liệu này?')) return;
-    
+  const renderFolderTree = (nodes: FolderTree[]) => (
+    <List>
+      {nodes.map((node) => (
+        <Box key={node._id} sx={{ ml: 1, mb: 0.5 }}>
+          <Button
+            size="small"
+            onClick={() => navigateToFolder(node._id)}
+            sx={{
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              width: '100%',
+              px: 1,
+              py: 0.75,
+              borderRadius: 1,
+              transition: 'background-color 120ms ease, color 120ms ease',
+              '&:hover': {
+                bgcolor: '#000',
+                color: '#fff',
+                '& .folder-icon': { color: '#fff' }
+              }
+            }}
+          >
+            <FolderIcon className="folder-icon" sx={{ mr: 1, transition: 'color 120ms ease' }} />
+            {node.name}
+          </Button>
+          {node.children && node.children.length > 0 && (
+            <Box sx={{ ml: 2, mt: 0.25 }}>
+              {renderFolderTree(node.children)}
+            </Box>
+          )}
+        </Box>
+      ))}
+    </List>
+  );
+
+  const resetInputs = () => {
+    setNewFolderName('');
+    setRenameName('');
+    setMoveTargetId('');
+    setActionFolderId(null);
+  };
+
+  const flattenTree = (nodes: FolderTree[], acc: Folder[] = []): Folder[] => {
+    for (const n of nodes) {
+      acc.push(n);
+      if (n.children) flattenTree(n.children, acc);
+    }
+    return acc;
+  };
+
+  const handleCreateRoot = async () => {
+    if (!newFolderName.trim()) return;
     try {
-      await axiosInstance.delete(`/api/documents/${documentId}`);
-      toast.success('Đã xóa tài liệu');
-      loadDocuments();
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { message?: string } } };
-      toast.error(`Lỗi xóa: ${error?.response?.data?.message || 'Unknown error'}`);
+      await axiosInstance.post('/api/folders/root', { name: newFolderName, project_id: projectId });
+      setCreateRootOpen(false);
+      resetInputs();
+      loadFolders();
+    } catch {
+      setError('Không thể tạo thư mục gốc');
     }
   };
 
-  const handlePreview = (document: Document) => {
-    setPreviewDocument(document);
-    setPreviewDialogOpen(true);
-  };
-
-  // Folder actions
-  const handleFolderCreated = () => {
-    loadFolders();
-  };
-
-  const handleFolderUpdated = () => {
-    loadFolders();
-  };
-
-  const handleFolderDeleted = () => {
-    loadFolders();
-  };
-
-  // Utility functions
-
-  const getFileIcon = (type: string) => {
-    switch (type) {
-      case 'design': return <ImageIcon />;
-      case 'code': return <CodeIcon />;
-      case 'documentation': return <DescriptionIcon />;
-      case 'presentation': return <PdfIcon />;
-      case 'report': return <SpreadsheetIcon />;
-      default: return <FileIcon />;
+  const handleCreateChild = async () => {
+    if (!actionFolderId || !newFolderName.trim()) return;
+    try {
+      await axiosInstance.post('/api/folders', { name: newFolderName, project_id: projectId, parent_folder_id: actionFolderId });
+      setCreateChildOpen(false);
+      resetInputs();
+      loadFolders();
+    } catch {
+      setError('Không thể tạo thư mục con');
     }
   };
 
-  const getCategoryColor = (categoryId: string) => {
-    const category = categories.find(c => c._id === categoryId);
-    return category?.color || '#1976d2';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return 'success';
-      case 'pending': return 'warning';
-      case 'rejected': return 'error';
-      default: return 'default';
+  const handleRename = async () => {
+    if (!actionFolderId || !renameName.trim()) return;
+    try {
+      await axiosInstance.put(`/api/folders/${actionFolderId}`, { name: renameName });
+      setRenameOpen(false);
+      resetInputs();
+      loadFolders();
+    } catch {
+      setError('Không thể đổi tên thư mục');
     }
   };
 
-  if (loading && documents.length === 0) {
+  const handleMove = async () => {
+    if (!actionFolderId || !moveTargetId || moveTargetId === actionFolderId) return;
+    try {
+      await axiosInstance.put(`/api/folders/${actionFolderId}`, { parent_folder_id: moveTargetId });
+      setMoveOpen(false);
+      resetInputs();
+      loadFolders();
+    } catch {
+      setError('Không thể di chuyển thư mục');
+    }
+  };
+
+  if (error) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white text-black">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-              <p className="text-gray-600">Đang tải tài liệu...</p>
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+              <Button
+                variant="outlined"
+                size="medium"
+                onClick={() => loadFolders()}
+              >
+                Thử lại
+              </Button>
             </div>
           </div>
         </main>
@@ -308,44 +394,85 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-white text-black">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
-          {/* Header */}
-          <div className="mb-6 md:mb-8 flex items-center justify-between">
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '260px 1fr' }, gap: 2 }}>
+            <Card sx={{ display: { xs: currentFolderId ? 'none' : 'block', md: 'block' } }}>
+              <CardContent>
+                <Typography variant="subtitle1" gutterBottom>
+                  Thư mục
+                </Typography>
+                {folderTree.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">Chưa có thư mục</Typography>
+                ) : (
+                  renderFolderTree(folderTree)
+                )}
+              </CardContent>
+            </Card>
+            <Box>
+          <div className="mb-6 md:mb-8 flex items-end justify-between">
             <div className="space-y-1">
-              <div className="text-[10px] md:text-xs uppercase tracking-wider text-foreground/60">Dự án</div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">Quản lý tài liệu</h1>
+              <div className="text-[10px] md:text-xs uppercase tracking-wider text-black">Dự án</div>
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-black">Quản lý tài liệu</h1>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outlined"
                 size="medium"
-                startIcon={<AddIcon />}
-                onClick={() => setFolderManagerOpen(true)}
+                startIcon={<ChartIcon />}
+                onClick={() => router.push(`/projects/${projectId}/documents/dashboard`)}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  px: 2,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                  '&:hover': {
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+                  }
+                }}
               >
-                Quản lý thư mục
+                Dashboard
               </Button>
               <Button
                 variant="contained"
+                color="primary"
                 size="medium"
-                startIcon={<UploadIcon />}
-                onClick={() => setUploadDialogOpen(true)}
+                startIcon={<CloudUploadIcon />}
+                onClick={() => setUploadOpen(true)}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  px: 2,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                  '&:hover': {
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+                  }
+                }}
               >
                 Tải lên
               </Button>
               <Button
-                variant="outlined"
+                variant="contained"
                 size="medium"
-                onClick={() => router.back()}
+                startIcon={<CreateFolderIcon />}
+                onClick={() => setCreateRootOpen(true)}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  px: 2,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                  '&:hover': {
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+                  }
+                }}
               >
-                Quay lại
+                Tạo folder gốc
               </Button>
             </div>
           </div>
 
-          {/* Breadcrumbs */}
           <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} className="mb-4">
             <Link
               color="inherit"
@@ -370,331 +497,222 @@ export default function DocumentsPage() {
             ))}
           </Breadcrumbs>
 
-          {/* Search and Filter Bar */}
-          <Card sx={{ mb: 3 }}>
+          <Card>
             <CardContent>
-              <Stack spacing={2}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-                  <TextField
-                    fullWidth
-                    placeholder="Tìm kiếm tài liệu..."
-                    value={searchTerm}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                    size="small"
-                  />
-                  <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Danh mục</InputLabel>
-                    <Select
-                      value={selectedCategory}
-                      onChange={(e) => handleCategoryChange(e.target.value)}
-                      label="Danh mục"
-                    >
-                      <MenuItem value="all">Tất cả</MenuItem>
-                      {categories.map((category) => (
-                        <MenuItem key={category._id} value={category._id}>
-                          {category.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<FilterIcon />}
-                  >
-                    Bộ lọc
-                  </Button>
-                </Stack>
-              </Stack>
-            </CardContent>
-          </Card>
+              <Typography variant="h6" sx={{ mb: 2 }}>Nội dung</Typography>
 
-          {/* Content */}
-          {error ? (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          ) : (
-            <>
-              {/* Folders */}
-              {folders.length > 0 && (
-                <Card sx={{ mb: 3 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Thư mục ({folders.length})
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: {
-                          xs: '1fr',
-                          sm: 'repeat(2, 1fr)',
-                          md: 'repeat(3, 1fr)',
-                          lg: 'repeat(4, 1fr)'
-                        },
-                        gap: 2
-                      }}
-                    >
-                      {folders.map((folder) => (
-                        <Box key={folder._id}>
-                          <Paper
-                            variant="outlined"
-                            sx={{
-                              p: 2,
-                              cursor: 'pointer',
-                              '&:hover': { bgcolor: 'action.hover' }
-                            }}
-                            onClick={() => navigateToFolder(folder._id)}
-                          >
-                            <Stack direction="row" alignItems="center" spacing={2}>
-                              <FolderIcon color="primary" />
-                              <Box>
-                                <Typography variant="subtitle2" noWrap>
-                                  {folder.name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {folder.documentCount} tài liệu
-                                </Typography>
-                              </Box>
-                            </Stack>
-                          </Paper>
-                        </Box>
-                      ))}
-                    </Box>
-                  </CardContent>
-                </Card>
+              {docsError && (
+                <Alert severity="error" sx={{ mb: 2 }}>{docsError}</Alert>
               )}
 
-              {/* Documents */}
-              <Card>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h6">
-                      Tài liệu ({documents.length})
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <Button
-                        size="small"
-                        variant={viewMode === 'grid' ? 'contained' : 'outlined'}
-                        onClick={() => setViewMode('grid')}
-                      >
-                        Lưới
-                      </Button>
-                      <Button
-                        size="small"
-                        variant={viewMode === 'list' ? 'contained' : 'outlined'}
-                        onClick={() => setViewMode('list')}
-                      >
-                        Danh sách
-                      </Button>
-                    </Stack>
-                  </Box>
-
-                  {documents.length === 0 ? (
-                    <Box textAlign="center" py={6}>
-                      <DescriptionIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                      <Typography variant="h6" gutterBottom>
-                        Chưa có tài liệu nào
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        Tải lên tài liệu đầu tiên của bạn
-                      </Typography>
-                      <Button
-                        variant="contained"
-                        startIcon={<UploadIcon />}
-                        onClick={() => setUploadDialogOpen(true)}
-                      >
-                        Tải lên tài liệu
-                      </Button>
-                    </Box>
-                  ) : viewMode === 'grid' ? (
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: {
-                          xs: '1fr',
-                          sm: 'repeat(2, 1fr)',
-                          md: 'repeat(3, 1fr)',
-                          lg: 'repeat(4, 1fr)'
-                        },
-                        gap: 2
-                      }}
-                    >
-                      {documents.map((document) => (
-                        <Box key={document._id}>
-                          <Paper
-                            variant="outlined"
-                            sx={{
-                              p: 2,
-                              '&:hover': { boxShadow: 2 }
-                            }}
-                          >
-                            <Stack spacing={2}>
-                              <Box display="flex" alignItems="center" justifyContent="space-between">
-                                {getFileIcon(document.type)}
-                                <IconButton size="small">
-                                  <MoreVertIcon />
-                                </IconButton>
-                              </Box>
-                              <Box>
-                                <Typography variant="subtitle2" noWrap title={document.title}>
-                                  {document.title}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  v{document.version} • {document.type}
-                                </Typography>
-                              </Box>
-                              <Stack direction="row" spacing={1}>
-                                <Button
-                                  size="small"
-                                  startIcon={<ViewIcon />}
-                                  onClick={() => handlePreview(document)}
-                                >
-                                  Xem
-                                </Button>
-                                <Button
-                                  size="small"
-                                  startIcon={<DownloadIcon />}
-                                  onClick={() => handleDownload(document)}
-                                >
-                                  Tải
-                                </Button>
-                              </Stack>
-                            </Stack>
-                          </Paper>
+              <Stack spacing={1}>
+                {docsLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <Paper key={i} variant="outlined" sx={{ px: 2, py: 1.25, height: 52, bgcolor: 'action.hover' }} />
+                  ))
+                ) : folders.length === 0 && documents.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">Thư mục trống</Typography>
+                ) : (
+                  <>
+                    {folders.map((folder) => (
+                      <Paper key={folder._id} variant="outlined" sx={{ px: 2, py: 1.25 }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', columnGap: 12 }}>
+                          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+                            <FolderIcon color="primary" />
+                            <ButtonBase
+                              onClick={(e) => { e.stopPropagation(); navigateToFolder(folder._id); }}
+                              sx={{ p: 0, borderRadius: 0.5, '&:hover': { backgroundColor: 'transparent' } }}
+                            >
+                              <Typography variant="subtitle1" noWrap sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: { xs: '0.95rem', md: '1.05rem' }, fontWeight: 600 }}>
+                                {folder.name}
+                              </Typography>
+                            </ButtonBase>
+                          </Stack>
+                          <Stack direction="row" spacing={0.5} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                            <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openCreateChildFor(folder._id); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <SubFolderIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openRenameFor(folder._id, folder.name); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <RenameIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openMoveFor(folder._id); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <MoveIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); deleteFolderById(folder._id); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
                         </Box>
-                      ))}
-                    </Box>
-                  ) : (
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell padding="checkbox">
-                              <Checkbox />
-                            </TableCell>
-                            <TableCell>Tên</TableCell>
-                            <TableCell>Loại</TableCell>
-                            <TableCell>Trạng thái</TableCell>
-                            <TableCell>Ngày tạo</TableCell>
-                            <TableCell>Người tạo</TableCell>
-                            <TableCell align="right">Thao tác</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {documents.map((document) => (
-                            <TableRow key={document._id} hover>
-                              <TableCell padding="checkbox">
-                                <Checkbox />
-                              </TableCell>
-                              <TableCell>
-                                <Stack direction="row" alignItems="center" spacing={1}>
-                                  {getFileIcon(document.type)}
-                                  <Box>
-                                    <Typography variant="body2" noWrap>
-                                      {document.title}
-                                    </Typography>
-                                    {document.description && (
-                                      <Typography variant="caption" color="text.secondary">
-                                        {document.description}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                </Stack>
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={document.type}
-                                  size="small"
-                                  sx={{ bgcolor: getCategoryColor(document.type) + '20', color: getCategoryColor(document.type) }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={document.status}
-                                  size="small"
-                                  color={getStatusColor(document.status)}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {new Date(document.createdAt).toLocaleDateString('vi-VN')}
-                              </TableCell>
-                              <TableCell>{document.created_by.full_name}</TableCell>
-                              <TableCell align="right">
-                                <Stack direction="row" spacing={1}>
-                                  <Tooltip title="Xem trước">
-                                    <IconButton size="small" onClick={() => handlePreview(document)}>
-                                      <ViewIcon />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Tải xuống">
-                                    <IconButton size="small" onClick={() => handleDownload(document)}>
-                                      <DownloadIcon />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Thao tác khác">
-                                    <IconButton size="small">
-                                      <MoreVertIcon />
-                                    </IconButton>
-                                  </Tooltip>
-                                </Stack>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
+                      </Paper>
+                    ))}
+                    {documents.map(doc => (
+                      <Paper 
+                        key={doc._id} 
+                        variant="outlined" 
+                        sx={{ 
+                          px: 2, 
+                          py: 1.25,
+                          backgroundColor: doc.is_final_release ? '#fff8e1' : 'white',
+                          borderColor: doc.is_final_release ? '#ffc107' : undefined,
+                          borderWidth: doc.is_final_release ? 2 : undefined,
+                          '&:hover': {
+                            backgroundColor: doc.is_final_release ? '#fff9c4' : 'action.hover'
+                          }
+                        }}
+                      >
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0, flex: 1 }}>
+                            {getDocIcon(doc.title)}
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <Typography
+                                  variant="subtitle1"
+                                  noWrap
+                                  title={`${doc.title} v${doc.version}`}
+                                  sx={{ fontSize: { xs: '0.95rem', md: '1.05rem' }, fontWeight: doc.is_final_release ? 700 : 600 }}
+                                >
+                                  {doc.title} <Typography component="span" sx={{ color: 'text.secondary', fontSize: '0.9em' }}>v{doc.version}</Typography>
+                                </Typography>
+                                {doc.is_final_release && (
+                                  <Chip 
+                                    label="Final Release" 
+                                    size="small" 
+                                    color="warning"
+                                    icon={<StarIcon />}
+                                    sx={{ 
+                                      fontWeight: 600,
+                                      '& .MuiChip-icon': {
+                                        color: '#ff9800'
+                                      }
+                                    }}
+                                  />
+                                )}
+                              </Stack>
+                            </Box>
+                          </Stack>
+                          <Stack direction="row" spacing={0.5} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                            <IconButton 
+                              size="small" 
+                              disableRipple 
+                              disableFocusRipple 
+                              onClick={(e) => { e.stopPropagation(); handleToggleFinalRelease(doc); }} 
+                              sx={{ 
+                                '&:hover': { backgroundColor: 'transparent' },
+                                color: doc.is_final_release ? '#ff9800' : 'inherit'
+                              }}
+                              title={doc.is_final_release ? 'Bỏ đánh dấu Final Release' : 'Đánh dấu Final Release'}
+                            >
+                              {doc.is_final_release ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                            </IconButton>
+                            <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openRenameDoc(doc._id, doc.title); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <RenameIcon fontSize="small" />
+                            </IconButton>
+                            
+                            <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); handleDownload(doc); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <DownloadIcon fontSize="small" />
+                            </IconButton>
+                            
+                            <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </>
+                )}
+              </Stack>
                 </CardContent>
               </Card>
-            </>
-          )}
+            </Box>
+          </Box>
         </div>
       </main>
 
-      {/* Document Upload Component */}
+      
+      
+
+      <Dialog open={createRootOpen} onClose={() => setCreateRootOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Tạo folder gốc</DialogTitle>
+        <DialogContent>
+          <TextField label="Tên" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} fullWidth sx={{ mt: 1 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateRootOpen(false)}>Hủy</Button>
+          <Button variant="contained" onClick={handleCreateRoot} disabled={!newFolderName.trim()}>Tạo</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={createChildOpen} onClose={() => setCreateChildOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Tạo thư mục con</DialogTitle>
+        <DialogContent>
+          <TextField label="Tên" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} fullWidth sx={{ mt: 1 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateChildOpen(false)}>Hủy</Button>
+          <Button variant="contained" onClick={handleCreateChild} disabled={!newFolderName.trim() || !actionFolderId}>Tạo</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={renameOpen} onClose={() => setRenameOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Đổi tên thư mục</DialogTitle>
+        <DialogContent>
+          <TextField label="Tên mới" value={renameName} onChange={(e) => setRenameName(e.target.value)} fullWidth sx={{ mt: 1 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenameOpen(false)}>Hủy</Button>
+          <Button variant="contained" onClick={handleRename} disabled={!renameName.trim() || !actionFolderId}>Lưu</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={moveOpen} onClose={() => setMoveOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Di chuyển thư mục</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 1 }}>
+            <InputLabel>Thư mục đích</InputLabel>
+            <Select label="Thư mục đích" value={moveTargetId} onChange={(e) => setMoveTargetId(e.target.value)}>
+              {flattenTree(folderTree)
+                .filter(f => f._id !== actionFolderId)
+                .map(f => (
+                  <MenuItem key={f._id} value={f._id}>{f.name}</MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMoveOpen(false)}>Hủy</Button>
+          <Button variant="contained" onClick={handleMove} disabled={!moveTargetId || !actionFolderId}>Di chuyển</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={renameDocOpen} onClose={() => setRenameDocOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Đổi tên tài liệu</DialogTitle>
+        <DialogContent>
+          <TextField 
+            label="Tên mới" 
+            value={renameDocTitle} 
+            onChange={(e) => setRenameDocTitle(e.target.value)} 
+            fullWidth 
+            sx={{ mt: 1 }}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenameDocOpen(false)}>Hủy</Button>
+          <Button variant="contained" onClick={handleRenameDoc} disabled={!renameDocTitle.trim() || !actionDocumentId}>Lưu</Button>
+        </DialogActions>
+      </Dialog>
+
       <DocumentUpload
-        open={uploadDialogOpen}
-        onClose={() => setUploadDialogOpen(false)}
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
         projectId={projectId}
-        folderId={currentFolderId || undefined}
-        onUploadComplete={handleUploadComplete}
-      />
-
-      {/* Folder Manager Component */}
-      <FolderManager
-        open={folderManagerOpen}
-        onClose={() => setFolderManagerOpen(false)}
-        projectId={projectId}
-        folders={folders}
-        currentFolderId={currentFolderId || undefined}
-        onFolderCreated={handleFolderCreated}
-        onFolderUpdated={handleFolderUpdated}
-        onFolderDeleted={handleFolderDeleted}
-      />
-
-      {/* Document Preview Component */}
-      <DocumentPreview
-        open={previewDialogOpen}
-        onClose={() => setPreviewDialogOpen(false)}
-        document={previewDocument}
-        onDownload={handleDownload}
-        onEdit={(doc) => {
-          // Handle edit document
-          console.log('Edit document:', doc);
+        onUploadComplete={() => {
+          setUploadOpen(false);
+          loadDocuments();
         }}
-        onDelete={(doc) => handleDelete(doc._id)}
-        onShare={(doc) => {
-          // Handle share document
-          console.log('Share document:', doc);
-        }}
+        defaultFolderId={currentFolderId || undefined}
+        folderOptions={flattenTree(folderTree).map(f => ({ _id: f._id, name: f.name }))}
       />
     </div>
   );
