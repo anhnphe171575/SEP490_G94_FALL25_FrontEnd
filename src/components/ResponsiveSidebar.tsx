@@ -44,9 +44,9 @@ const navItems = [
       </svg>
     )
   },
-  {
-    href: "/calendar",
-    label: "Lịch họp",
+  { 
+    href: "/calendar", 
+    label: "Lịch họp", 
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -91,6 +91,7 @@ export default function ResponsiveSidebar() {
   const [me, setMe] = useState<{ _id?: string; id?: string; full_name?: string; email?: string; avatar?: string } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState<{ team_unread: number; direct_unread: number; total_unread: number }>({ team_unread: 0, direct_unread: 0, total_unread: 0 });
 
   useEffect(() => {
     setOpen(false);
@@ -169,6 +170,60 @@ export default function ResponsiveSidebar() {
       };
     }
   }, [me?._id, me?.id]);
+
+  // Fetch unread messages count (team + direct)
+  useEffect(() => {
+    const fetchUnreadMessages = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+        if (!token) return;
+        const res = await axiosInstance.get('/api/messages/unread-count', {
+          validateStatus: (status) => {
+            // Không throw error cho các status code này, để xử lý trong catch
+            return status < 500;
+          }
+        });
+        if (res.status === 200 && res.data) {
+          setUnreadMessages({
+            team_unread: res.data.team_unread || 0,
+            direct_unread: res.data.direct_unread || 0,
+            total_unread: res.data.total_unread || 0,
+          });
+        }
+      } catch (err: any) {
+        // Chỉ log trong development, không crash app
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to fetch unread messages count:', err?.response?.status || err?.message);
+        }
+        // Giữ nguyên giá trị hiện tại hoặc set về 0 nếu chưa có
+        setUnreadMessages(prev => prev.total_unread === undefined ? { team_unread: 0, direct_unread: 0, total_unread: 0 } : prev);
+      }
+    };
+
+    fetchUnreadMessages();
+    // Poll mỗi 30s
+    const interval = setInterval(fetchUnreadMessages, 30000);
+
+    // Cập nhật realtime theo socket events
+    const sock = getSocket();
+    const refresh = () => fetchUnreadMessages();
+    sock.on('new-team-message', refresh);
+    sock.on('new-direct-message', refresh);
+    sock.on('message-read', refresh);
+    sock.on('joined-team', refresh);
+    sock.on('connect', refresh);
+
+    return () => {
+      clearInterval(interval);
+      sock.off('new-team-message', refresh);
+      sock.off('new-direct-message', refresh);
+      sock.off('message-read', refresh);
+      sock.off('joined-team', refresh);
+      sock.off('connect', refresh);
+    };
+  }, []);
+
+  
 
   const onLogout = () => {
     if (typeof window !== "undefined") {
@@ -292,7 +347,8 @@ export default function ResponsiveSidebar() {
               </h3>
               {navItems.map((item) => {
                 const active = pathname === item.href;
-                const isNotification = item.href === "/notifications";
+                const isNotification = item.href === '/notifications';
+                const isMessages = item.href === '/messages';
                 return (
                   <Link
                     key={item.href}
@@ -307,7 +363,12 @@ export default function ResponsiveSidebar() {
                       {item.icon}
                       {isNotification && unreadCount > 0 && (
                         <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
-                          {unreadCount > 99 ? "99+" : unreadCount}
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                      {isMessages && unreadMessages.total_unread > 0 && (
+                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
+                          {unreadMessages.total_unread > 99 ? '99+' : unreadMessages.total_unread}
                         </span>
                       )}
                     </div>
@@ -362,7 +423,8 @@ export default function ResponsiveSidebar() {
               <div className="space-y-1">
                 {navItems.map((item) => {
                   const active = pathname === item.href;
-                  const isNotification = item.href === "/notifications";
+                  const isNotification = item.href === '/notifications';
+                  const isMessages = item.href === '/messages';
                   return (
                     <Link
                       key={item.href}
@@ -377,7 +439,12 @@ export default function ResponsiveSidebar() {
                         {item.icon}
                         {isNotification && unreadCount > 0 && (
                           <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
-                            {unreadCount > 99 ? "99+" : unreadCount}
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                        {isMessages && unreadMessages.total_unread > 0 && (
+                          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
+                            {unreadMessages.total_unread > 99 ? '99+' : unreadMessages.total_unread}
                           </span>
                         )}
                       </div>

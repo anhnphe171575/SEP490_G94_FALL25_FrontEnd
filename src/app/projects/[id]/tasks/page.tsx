@@ -75,6 +75,8 @@ import BlockIcon from "@mui/icons-material/Block";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import CloseIcon from "@mui/icons-material/Close";
 
 type Task = {
   _id: string;
@@ -610,8 +612,9 @@ export default function ProjectTasksPage() {
   // Use fetched filter options
   const features = allFeatures.map(f => ({ id: f._id, title: f.title }));
   const milestones = allMilestones.map(m => ({ id: m._id, title: m.title }));
-  const statuses = allStatuses.map(s => s.name);
-  const priorities = allPriorities.map(p => p.name);
+  // Keep full objects with _id and name for status/priority
+  const statuses = allStatuses;
+  const priorities = allPriorities;
 
   const filteredSorted = useMemo(() => {
     let filtered = tasks;
@@ -841,12 +844,9 @@ export default function ProjectTasksPage() {
             borderBottom: '1px solid #dbeafe',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             gap: 1
           }}>
-            <Typography sx={{ fontSize: '12px', color: '#3b82f6', fontWeight: 500 }}>
-              💡 Quick Edit: Double-click task name to rename, click dropdowns to change assignee/status/priority/date
-            </Typography>
             <Stack direction="row" spacing={2} alignItems="center">
               <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
                 Showing: {filteredSorted.length} {filteredSorted.length !== tasks.length && `of ${tasks.length}`} tasks
@@ -1316,69 +1316,75 @@ export default function ProjectTasksPage() {
                   />
                 )}
                 
-                {filterStatus !== 'all' && (
+              {filterStatus !== 'all' && (() => {
+                const statusName = allStatuses.find(s => s._id === filterStatus)?.name || 'Status';
+                return (
                   <Chip
-                    icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusColor(filterStatus), boxShadow: `0 0 0 2px ${getStatusColor(filterStatus)}20` }} />}
-                    label={filterStatus}
+                  icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusColor(statusName), boxShadow: `0 0 0 2px ${getStatusColor(statusName)}20` }} />}
+                  label={statusName}
                     size="small"
                     onDelete={() => setFilterStatus('all')}
                     sx={{
-                      bgcolor: 'white',
-                      border: '1.5px solid #ccfbf1',
+                    bgcolor: 'white',
+                    border: '1.5px solid #ccfbf1',
                       color: '#115e59',
                       fontWeight: 600,
                       fontSize: '12px',
-                      px: 0.5,
+                    px: 0.5,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      borderColor: '#14b8a6',
+                      boxShadow: '0 2px 8px rgba(20, 184, 166, 0.2)',
+                      bgcolor: '#f0fdfa',
+                    },
+                    '& .MuiChip-deleteIcon': { 
+                      color: '#5eead4', 
+                      fontSize: '18px',
                       transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: '#14b8a6',
-                        boxShadow: '0 2px 8px rgba(20, 184, 166, 0.2)',
-                        bgcolor: '#f0fdfa',
-                      },
-                      '& .MuiChip-deleteIcon': { 
-                        color: '#5eead4', 
-                        fontSize: '18px',
-                        transition: 'all 0.2s ease',
-                        '&:hover': { 
-                          color: '#ef4444',
-                          transform: 'scale(1.1)'
-                        } 
-                      }
-                    }}
-                  />
-                )}
+                      '&:hover': { 
+                        color: '#ef4444',
+                        transform: 'scale(1.1)'
+                      } 
+                    }
+                  }}
+                />
+                );
+              })()}
                 
-                {filterPriority !== 'all' && (
+              {filterPriority !== 'all' && (() => {
+                const priorityName = allPriorities.find(p => p._id === filterPriority)?.name || 'Priority';
+                return (
                   <Chip
-                    icon={<FlagIcon sx={{ fontSize: 16, color: getPriorityColor(filterPriority) === 'error' ? '#ef4444' : '#f59e0b' }} />}
-                    label={filterPriority}
+                  icon={<FlagIcon sx={{ fontSize: 16, color: getPriorityColor(priorityName) === 'error' ? '#ef4444' : '#f59e0b' }} />}
+                  label={priorityName}
                     size="small"
                     onDelete={() => setFilterPriority('all')}
                     sx={{
-                      bgcolor: 'white',
-                      border: '1.5px solid #fecaca',
+                    bgcolor: 'white',
+                    border: '1.5px solid #fecaca',
                       color: '#991b1b',
                       fontWeight: 600,
                       fontSize: '12px',
-                      px: 0.5,
+                    px: 0.5,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      borderColor: '#ef4444',
+                      boxShadow: '0 2px 8px rgba(239, 68, 68, 0.2)',
+                      bgcolor: '#fef2f2',
+                    },
+                    '& .MuiChip-deleteIcon': { 
+                      color: '#fca5a5', 
+                      fontSize: '18px',
                       transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: '#ef4444',
-                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.2)',
-                        bgcolor: '#fef2f2',
-                      },
-                      '& .MuiChip-deleteIcon': { 
-                        color: '#fca5a5', 
-                        fontSize: '18px',
-                        transition: 'all 0.2s ease',
-                        '&:hover': { 
-                          color: '#dc2626',
-                          transform: 'scale(1.1)'
-                        } 
-                      }
-                    }}
-                  />
-                )}
+                      '&:hover': { 
+                        color: '#dc2626',
+                        transform: 'scale(1.1)'
+                      } 
+                    }
+                  }}
+                />
+                );
+              })()}
                 
                 <Button
                   variant="outlined"
@@ -1646,16 +1652,16 @@ export default function ProjectTasksPage() {
                           </Box>
                         </MenuItem>
                         {statuses.map((s) => (
-                          <MenuItem key={s} value={s}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                              <Box sx={{ 
-                                width: 10, 
-                                height: 10, 
-                                borderRadius: '50%', 
-                                bgcolor: getStatusColor(s),
-                                boxShadow: `0 0 0 2px ${getStatusColor(s)}20`
-                              }} />
-                              <Typography sx={{ fontSize: '14px' }}>{s}</Typography>
+                        <MenuItem key={s._id} value={s._id}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box sx={{ 
+                              width: 10, 
+                              height: 10, 
+                              borderRadius: '50%', 
+                              bgcolor: getStatusColor(s.name),
+                              boxShadow: `0 0 0 2px ${getStatusColor(s.name)}20`
+                            }} />
+                            <Typography sx={{ fontSize: '14px' }}>{s.name}</Typography>
                             </Box>
                           </MenuItem>
                         ))}
@@ -1686,13 +1692,13 @@ export default function ProjectTasksPage() {
                           </Box>
                         </MenuItem>
                         {priorities.map((p) => (
-                          <MenuItem key={p} value={p}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                              <FlagIcon sx={{ 
-                                fontSize: 16, 
-                                color: getPriorityColor(p) === 'error' ? '#ef4444' : getPriorityColor(p) === 'warning' ? '#f59e0b' : '#9ca3af' 
-                              }} />
-                              <Typography sx={{ fontSize: '14px' }}>{p}</Typography>
+                        <MenuItem key={p._id} value={p._id}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <FlagIcon sx={{ 
+                              fontSize: 16, 
+                              color: getPriorityColor(p.name) === 'error' ? '#ef4444' : getPriorityColor(p.name) === 'warning' ? '#f59e0b' : '#9ca3af' 
+                            }} />
+                            <Typography sx={{ fontSize: '14px' }}>{p.name}</Typography>
                             </Box>
                           </MenuItem>
                         ))}
@@ -2267,7 +2273,20 @@ export default function ProjectTasksPage() {
                                     <BlockIcon sx={{ fontSize: 14, color: '#f59e0b' }} />
                                   </Tooltip>
                                 )}
-                                <Tooltip title="Double-click to edit" placement="top">
+                                <Tooltip 
+                                  title={
+                                    <Box>
+                                      <Typography fontSize="12px" fontWeight={600} sx={{ mb: 0.5 }}>
+                                        {t.title}
+                                      </Typography>
+                                      <Typography fontSize="11px" color="rgba(255,255,255,0.8)">
+                                        Double-click to edit
+                                      </Typography>
+                                    </Box>
+                                  } 
+                                  placement="top"
+                                  arrow
+                                >
                                   <Typography 
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
@@ -2284,6 +2303,8 @@ export default function ProjectTasksPage() {
                                       px: 1,
                                       py: 0.5,
                                       borderRadius: 1,
+                                      cursor: 'pointer',
+                                      maxWidth: '100%',
                                       '&:hover': {
                                         bgcolor: '#f3f4f6',
                                       }
@@ -2360,8 +2381,9 @@ export default function ProjectTasksPage() {
                                   );
                                 })()}
                                 
-                                {/* Hierarchy badges: Milestone → Feature → Function - Clickable */}
+                                {/* Hierarchy badges: Milestone → Feature → Function - Clickable with truncation */}
                                 {t.milestone_id && typeof t.milestone_id === 'object' && (
+                                  <Tooltip title={`Milestone: ${(t.milestone_id as any).title}`} arrow>
                                   <Chip 
                                     label={`🎯 ${(t.milestone_id as any).title}`}
                                     size="small"
@@ -2371,12 +2393,18 @@ export default function ProjectTasksPage() {
                                     }}
                                     sx={{ 
                                       height: 18,
+                                        maxWidth: 120,
                                       fontSize: '10px',
                                       fontWeight: 600,
                                       bgcolor: '#fef3c7',
                                       color: '#92400e',
                                       cursor: 'pointer',
-                                      '& .MuiChip-label': { px: 0.75 },
+                                        '& .MuiChip-label': { 
+                                          px: 0.75,
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                        },
                                       '&:hover': {
                                         bgcolor: '#fde68a',
                                         transform: 'scale(1.05)',
@@ -2384,8 +2412,10 @@ export default function ProjectTasksPage() {
                                       transition: 'all 0.2s',
                                     }}
                                   />
+                                  </Tooltip>
                                 )}
                                 {t.feature_id && typeof t.feature_id === 'object' && (
+                                  <Tooltip title={`Feature: ${(t.feature_id as any).title}`} arrow>
                                   <Chip 
                                     label={`⚡ ${(t.feature_id as any).title}`}
                                     size="small"
@@ -2395,12 +2425,18 @@ export default function ProjectTasksPage() {
                                     }}
                                     sx={{ 
                                       height: 18,
+                                        maxWidth: 120,
                                       fontSize: '10px',
                                       fontWeight: 600,
                                       bgcolor: '#dbeafe',
                                       color: '#1e40af',
                                       cursor: 'pointer',
-                                      '& .MuiChip-label': { px: 0.75 },
+                                        '& .MuiChip-label': { 
+                                          px: 0.75,
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                        },
                                       '&:hover': {
                                         bgcolor: '#bfdbfe',
                                         transform: 'scale(1.05)',
@@ -2408,8 +2444,10 @@ export default function ProjectTasksPage() {
                                       transition: 'all 0.2s',
                                     }}
                                   />
+                                  </Tooltip>
                                 )}
                                 {(t as any).function_id && typeof (t as any).function_id === 'object' && (
+                                  <Tooltip title={`Function: ${((t as any).function_id as any).title}`} arrow>
                                   <Chip 
                                     label={`🔧 ${((t as any).function_id as any).title}`}
                                     size="small"
@@ -2419,12 +2457,18 @@ export default function ProjectTasksPage() {
                                     }}
                                     sx={{ 
                                       height: 18,
+                                        maxWidth: 120,
                                       fontSize: '10px',
                                       fontWeight: 600,
                                       bgcolor: '#e0e7ff',
                                       color: '#4338ca',
                                       cursor: 'pointer',
-                                      '& .MuiChip-label': { px: 0.75 },
+                                        '& .MuiChip-label': { 
+                                          px: 0.75,
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                        },
                                       '&:hover': {
                                         bgcolor: '#c7d2fe',
                                         transform: 'scale(1.05)',
@@ -2432,6 +2476,7 @@ export default function ProjectTasksPage() {
                                       transition: 'all 0.2s',
                                     }}
                                   />
+                                  </Tooltip>
                                 )}
                           </Box>
                             )}
@@ -2567,13 +2612,13 @@ export default function ProjectTasksPage() {
                           {/* Status - inline edit */}
                           <Box sx={{ display: { xs: 'none', md: 'block' } }} onClick={(e) => e.stopPropagation()}>
                             <Select
-                              value={typeof t.status === 'object' ? (t.status as any)?.name : t.status || ''}
+                            value={typeof t.status === 'object' ? (t.status as any)?._id : t.status || ''}
                               onChange={async (e) => {
                                 e.stopPropagation();
-                                const newStatus = e.target.value;
+                              const newStatusId = e.target.value;
                                 try {
                                   await axiosInstance.patch(`/api/tasks/${t._id}`, {
-                                    status: newStatus
+                                  status: newStatusId
                                   });
                                   await loadAll();
                                 } catch (error: any) {
@@ -2585,7 +2630,7 @@ export default function ProjectTasksPage() {
                                       open: true,
                                       violations: error.response.data.violations,
                                       taskId: t._id,
-                                      newStatus: newStatus
+                                    newStatus: newStatusId
                                     });
                                   } else {
                                     setError(error?.response?.data?.message || 'Không thể cập nhật status');
@@ -2594,56 +2639,56 @@ export default function ProjectTasksPage() {
                               }}
                               size="small"
                               displayEmpty
-                              renderValue={(value) => (
+                            renderValue={(value) => {
+                              const statusObj = allStatuses.find(s => s._id === value);
+                              const statusName = statusObj?.name || 'No Status';
+                              return (
                                 <Chip 
-                                  label={value || 'No Status'} 
+                                  label={statusName} 
                                   size="small"
                                   sx={{
                                     height: 22,
                                     fontSize: '11px',
                                     fontWeight: 600,
-                                    bgcolor: `${getStatusColor(String(value))}15`,
-                                    color: getStatusColor(String(value)),
+                                    bgcolor: `${getStatusColor(statusName)}15`,
+                                    color: getStatusColor(statusName),
                                     border: 'none',
                                   }}
                                 />
-                              )}
+                              );
+                            }}
                               sx={{
                                 '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                                 '& .MuiSelect-select': { p: 0 },
                                 '&:hover': { bgcolor: '#f3f4f6', borderRadius: 1 },
                               }}
                             >
-                              <MenuItem value="To Do">
-                                <Chip label="To Do" size="small" sx={{ bgcolor: '#9ca3af15', color: '#9ca3af', fontSize: '11px', fontWeight: 600 }} />
+                            {allStatuses.map((s) => (
+                              <MenuItem key={s._id} value={s._id}>
+                                <Chip 
+                                  label={s.name} 
+                                  size="small" 
+                                  sx={{ 
+                                    bgcolor: `${getStatusColor(s.name)}15`, 
+                                    color: getStatusColor(s.name), 
+                                    fontSize: '11px', 
+                                    fontWeight: 600 
+                                  }} 
+                                />
                               </MenuItem>
-                              <MenuItem value="In Progress">
-                                <Chip label="In Progress" size="small" sx={{ bgcolor: '#f59e0b15', color: '#f59e0b', fontSize: '11px', fontWeight: 600 }} />
-                              </MenuItem>
-                              <MenuItem value="Review">
-                                <Chip label="Review" size="small" sx={{ bgcolor: '#8b5cf615', color: '#8b5cf6', fontSize: '11px', fontWeight: 600 }} />
-                              </MenuItem>
-                              <MenuItem value="Testing">
-                                <Chip label="Testing" size="small" sx={{ bgcolor: '#06b6d415', color: '#06b6d4', fontSize: '11px', fontWeight: 600 }} />
-                              </MenuItem>
-                              <MenuItem value="Done">
-                                <Chip label="Done" size="small" sx={{ bgcolor: '#16a34a15', color: '#16a34a', fontSize: '11px', fontWeight: 600 }} />
-                              </MenuItem>
-                              <MenuItem value="Blocked">
-                                <Chip label="Blocked" size="small" sx={{ bgcolor: '#ef444415', color: '#ef4444', fontSize: '11px', fontWeight: 600 }} />
-                              </MenuItem>
+                            ))}
                             </Select>
                           </Box>
 
                           {/* Priority - inline edit */}
                           <Box sx={{ display: { xs: 'none', md: 'block' } }} onClick={(e) => e.stopPropagation()}>
                             <Select
-                              value={priorityName !== '-' ? priorityName : ''}
+                            value={typeof t.priority === 'object' ? (t.priority as any)?._id : t.priority || ''}
                               onChange={async (e) => {
                                 e.stopPropagation();
                                 try {
                                   await axiosInstance.patch(`/api/tasks/${t._id}`, {
-                                    priority: e.target.value
+                                  priority: e.target.value || null
                                   });
                                   await loadAll();
                                 } catch (error) {
@@ -2653,21 +2698,23 @@ export default function ProjectTasksPage() {
                               size="small"
                               displayEmpty
                               renderValue={(value) => {
-                                if (!value || value === '-') {
+                              if (!value) {
                                   return (
                                     <Typography sx={{ fontSize: '13px', color: '#9ca3af', px: 0.5 }}>
                                       No priority
                                     </Typography>
                                   );
                                 }
-                                const color = value.toLowerCase().includes('critical') || value.toLowerCase().includes('high') ? '#ef4444'
-                                  : value.toLowerCase().includes('medium') ? '#f59e0b'
+                              const priorityObj = allPriorities.find(p => p._id === value);
+                              const priorityName = priorityObj?.name || '-';
+                              const color = priorityName.toLowerCase().includes('critical') || priorityName.toLowerCase().includes('high') ? '#ef4444'
+                                : priorityName.toLowerCase().includes('medium') ? '#f59e0b'
                                   : '#3b82f6';
                                 return (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     <FlagIcon sx={{ fontSize: 14, color }} />
                                     <Typography sx={{ fontSize: '13px', fontWeight: 500, color }}>
-                                      {value}
+                                    {priorityName}
                                     </Typography>
                                   </Box>
                                 );
@@ -2681,30 +2728,21 @@ export default function ProjectTasksPage() {
                               <MenuItem value="">
                                 <Typography fontSize="13px" color="text.secondary">No Priority</Typography>
                               </MenuItem>
-                              <MenuItem value="Low">
+                            {allPriorities.map((p) => {
+                              const color = p.name.toLowerCase().includes('critical') || p.name.toLowerCase().includes('high') ? '#ef4444'
+                                : p.name.toLowerCase().includes('medium') ? '#f59e0b'
+                                : '#3b82f6';
+                              return (
+                                <MenuItem key={p._id} value={p._id}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <FlagIcon sx={{ fontSize: 14, color: '#3b82f6' }} />
-                                  <Typography fontSize="13px" color="#3b82f6">Low</Typography>
+                                    <FlagIcon sx={{ fontSize: 14, color }} />
+                                    <Typography fontSize="13px" color={color} fontWeight={p.name.toLowerCase().includes('critical') ? 700 : 400}>
+                                      {p.name}
+                                    </Typography>
                                 </Box>
                               </MenuItem>
-                              <MenuItem value="Medium">
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <FlagIcon sx={{ fontSize: 14, color: '#f59e0b' }} />
-                                  <Typography fontSize="13px" color="#f59e0b">Medium</Typography>
-                                </Box>
-                              </MenuItem>
-                              <MenuItem value="High">
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <FlagIcon sx={{ fontSize: 14, color: '#ef4444' }} />
-                                  <Typography fontSize="13px" color="#ef4444">High</Typography>
-                                </Box>
-                              </MenuItem>
-                              <MenuItem value="Critical">
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <FlagIcon sx={{ fontSize: 14, color: '#dc2626' }} />
-                                  <Typography fontSize="13px" color="#dc2626" fontWeight={700}>Critical</Typography>
-                                </Box>
-                              </MenuItem>
+                              );
+                            })}
                             </Select>
                           </Box>
 
@@ -2907,7 +2945,7 @@ export default function ProjectTasksPage() {
                             </Box>
 
                             {/* Subtask name with icon */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
                               <Box sx={{ 
                                 width: 20,
                                 height: 20,
@@ -2925,20 +2963,23 @@ export default function ProjectTasksPage() {
                                   bgcolor: '#7b68ee',
                                 }} />
                               </Box>
+                              <Tooltip title={subtask.title} arrow placement="top">
                               <Typography 
                                 sx={{ 
                                   fontWeight: 400, 
                                   fontSize: '13px', 
-                                  color: isSubtaskCompleted ? '#9ca3af' : '#4b5563',
+                                    color: isSubtaskCompleted ? '#9ca3af' : '#4b5563',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap',
-                                  textDecoration: isSubtaskCompleted ? 'line-through' : 'none',
-                                  flex: 1,
+                                    textDecoration: isSubtaskCompleted ? 'line-through' : 'none',
+                                    flex: 1,
+                                    cursor: 'pointer',
                                 }}
                               >
                                 {subtask.title}
                               </Typography>
+                              </Tooltip>
                               {/* Quick actions on hover */}
                               <Box 
                                 className="subtask-actions"
@@ -3790,76 +3831,162 @@ export default function ProjectTasksPage() {
           <Dialog 
             open={openDialog} 
             onClose={() => setOpenDialog(false)} 
-            maxWidth="md" 
+            maxWidth="lg" 
             fullWidth
             PaperProps={{
               sx: {
-                borderRadius: 4,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+                borderRadius: 3,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                bgcolor: '#fafbfc'
               }
             }}
           >
-            <DialogTitle 
-              sx={{ 
-                fontWeight: 'bold',
-                fontSize: '1.5rem',
+            {/* Modern Header */}
+            <Box sx={{ 
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                py: 3,
                 position: 'relative',
                 overflow: 'hidden',
                 '&::before': {
                   content: '""',
                   position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  width: '200px',
-                  height: '200px',
-                  background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+                top: '-50%',
+                right: '-10%',
+                width: '300px',
+                height: '300px',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
                   borderRadius: '50%',
-                  transform: 'translate(30%, -30%)',
-                }
-              }}
-            >
-              {editing ? '✏️ Chỉnh sửa Task' : '➕ Tạo Task mới'}
-            </DialogTitle>
-            <DialogContent sx={{ mt: 3, pb: 3 }}>
+              }
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                px: 4,
+                py: 3,
+                position: 'relative',
+                zIndex: 1
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <AssignmentIcon sx={{ fontSize: 28, color: 'white' }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" fontWeight={700} color="white">
+                      {editing ? 'Chỉnh sửa Task' : 'Tạo Task mới'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', mt: 0.5 }}>
+                      {editing ? 'Cập nhật thông tin task' : 'Thêm task mới vào dự án'}
+                    </Typography>
+                  </Box>
+                </Box>
+                <IconButton 
+                  onClick={() => setOpenDialog(false)}
+                  sx={{ 
+                    color: 'white',
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </Box>
+            <DialogContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4 }}>
+                {/* Left Column - Main Info */}
               <Stack spacing={3}>
+                  {/* Section: Basic Info */}
+                  <Box>
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        mb: 2, 
+                        fontWeight: 700, 
+                        color: '#374151',
+                        fontSize: '13px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}
+                    >
+                      <Box sx={{ width: 4, height: 16, bgcolor: '#667eea', borderRadius: 1 }} />
+                      Thông tin cơ bản
+                    </Typography>
+                    <Stack spacing={2.5}>
                 <TextField 
-                  label="📝 Tên task *" 
+                        label="Tên task *" 
                   value={form.title} 
                   onChange={(e) => setForm({ ...form, title: e.target.value })} 
                   fullWidth 
+                        required
+                        placeholder="Nhập tên task..."
                   sx={{ 
                     '& .MuiOutlinedInput-root': { 
-                      borderRadius: 2.5,
+                            bgcolor: 'white',
+                            borderRadius: 2,
                       '&:hover': {
                         '& .MuiOutlinedInput-notchedOutline': {
                           borderColor: '#667eea'
+                        }
+                            },
+                            '&.Mui-focused': {
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: '#667eea',
+                                borderWidth: 2
                         }
                       }
                     } 
                   }}
                 />
                 <TextField 
-                  label="📄 Mô tả" 
+                        label="Mô tả" 
                   value={form.description} 
                   onChange={(e) => setForm({ ...form, description: e.target.value })} 
                   fullWidth 
                   multiline 
                   rows={4} 
+                        placeholder="Nhập mô tả chi tiết..."
                   sx={{ 
                     '& .MuiOutlinedInput-root': { 
-                      borderRadius: 2.5
+                            bgcolor: 'white',
+                            borderRadius: 2
                     } 
                   }}
                 />
+                    </Stack>
+                  </Box>
                 
+                  {/* Section: Timeline */}
                 <Box>
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: 'text.secondary' }}>
-                    📅 Thời gian
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        mb: 2, 
+                        fontWeight: 700, 
+                        color: '#374151',
+                        fontSize: '13px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}
+                    >
+                      <Box sx={{ width: 4, height: 16, bgcolor: '#10b981', borderRadius: 1 }} />
+                      Thời gian & Effort
                   </Typography>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                    <Stack spacing={2.5}>
                     <TextField 
                       type="date" 
                       label="Ngày bắt đầu" 
@@ -3867,16 +3994,26 @@ export default function ProjectTasksPage() {
                       value={form.start_date} 
                       onChange={(e) => setForm({ ...form, start_date: e.target.value })} 
                       fullWidth 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+                        sx={{ 
+                          '& .MuiOutlinedInput-root': { 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          } 
+                        }}
                     />
                     <TextField 
                       type="date" 
-                      label="Deadline" 
+                        label="Deadline *" 
                       InputLabelProps={{ shrink: true }} 
                       value={form.deadline} 
                       onChange={(e) => setForm({ ...form, deadline: e.target.value })} 
                       fullWidth 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+                        sx={{ 
+                          '& .MuiOutlinedInput-root': { 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          } 
+                        }}
                     />
                     <TextField 
                       type="number" 
@@ -3884,58 +4021,137 @@ export default function ProjectTasksPage() {
                       value={form.estimate} 
                       onChange={(e) => setForm({ ...form, estimate: Number(e.target.value) })} 
                       fullWidth 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+                        placeholder="0"
+                        InputProps={{
+                          startAdornment: (
+                            <Box sx={{ mr: 1, color: '#9ca3af' }}>
+                              <AccessTimeIcon sx={{ fontSize: 20 }} />
+                            </Box>
+                          )
+                        }}
+                        sx={{ 
+                          '& .MuiOutlinedInput-root': { 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          } 
+                        }}
                     />
                 </Stack>
                 </Box>
+                </Stack>
 
+                {/* Right Column - Settings & Links */}
+                <Stack spacing={3}>
+                  {/* Section: Status & Assignment */}
                 <Box>
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: 'text.secondary' }}>
-                    ⚙️ Cấu hình
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        mb: 2, 
+                        fontWeight: 700, 
+                        color: '#374151',
+                        fontSize: '13px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}
+                    >
+                      <Box sx={{ width: 4, height: 16, bgcolor: '#f59e0b', borderRadius: 1 }} />
+                      Trạng thái & Phân công
                   </Typography>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                      <InputLabel>📊 Status</InputLabel>
-                      <Select value={form.status} label="📊 Status" onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                        <MenuItem value=""><em>Select status</em></MenuItem>
+                    <Stack spacing={2.5}>
+                      <FormControl fullWidth>
+                        <InputLabel>Status</InputLabel>
+                        <Select 
+                          value={form.status} 
+                          label="Status" 
+                          onChange={(e) => setForm({ ...form, status: e.target.value })}
+                          sx={{ 
+                            bgcolor: 'white',
+                            borderRadius: 2,
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#e5e7eb'
+                            }
+                          }}
+                        >
+                          <MenuItem value=""><em>Chọn status</em></MenuItem>
                         {statuses.map((s) => (
-                          <MenuItem key={s} value={s}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusColor(s) }} />
-                              {s}
+                            <MenuItem key={s._id} value={s._id}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Box sx={{ 
+                                  width: 10, 
+                                  height: 10, 
+                                  borderRadius: '50%', 
+                                  bgcolor: getStatusColor(s.name),
+                                  boxShadow: `0 0 0 2px ${getStatusColor(s.name)}20`
+                                }} />
+                                <Typography fontSize="14px" fontWeight={500}>{s.name}</Typography>
                             </Box>
                           </MenuItem>
                         ))}
                     </Select>
                   </FormControl>
-                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                      <InputLabel>🚩 Priority</InputLabel>
-                      <Select value={form.priority} label="🚩 Priority" onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                        <MenuItem value=""><em>Select priority</em></MenuItem>
+                      
+                      <FormControl fullWidth>
+                        <InputLabel>Priority</InputLabel>
+                        <Select 
+                          value={form.priority} 
+                          label="Priority" 
+                          onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                          sx={{ 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          }}
+                        >
+                          <MenuItem value=""><em>Chọn priority</em></MenuItem>
                         {priorities.map((p) => (
-                          <MenuItem key={p} value={p}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <FlagIcon sx={{ fontSize: 14, color: getPriorityColor(p) === 'error' ? '#ef4444' : '#9ca3af' }} />
-                              {p}
+                            <MenuItem key={p._id} value={p._id}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <FlagIcon sx={{ 
+                                  fontSize: 16, 
+                                  color: p.name.toLowerCase().includes('critical') || p.name.toLowerCase().includes('high') 
+                                    ? '#ef4444' 
+                                    : p.name.toLowerCase().includes('medium')
+                                    ? '#f59e0b'
+                                    : '#6b7280'
+                                }} />
+                                <Typography fontSize="14px" fontWeight={500}>{p.name}</Typography>
                             </Box>
                           </MenuItem>
                         ))}
                     </Select>
                   </FormControl>
-                  <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                    <InputLabel>👤 Assignee</InputLabel>
-                    <Select value={form.assignee} label="👤 Assignee" onChange={(e) => setForm({ ...form, assignee: e.target.value })}>
+                      
+                      <FormControl fullWidth>
+                        <InputLabel>Assignee</InputLabel>
+                        <Select 
+                          value={form.assignee} 
+                          label="Assignee" 
+                          onChange={(e) => setForm({ ...form, assignee: e.target.value })}
+                          sx={{ 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          }}
+                        >
                       <MenuItem value=""><em>Chưa gán</em></MenuItem>
                       {teamMembers.map((member, idx) => {
                         const userId = member.user_id?._id || member._id;
                         const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
                         return (
                           <MenuItem key={userId || idx} value={userId}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Avatar sx={{ width: 24, height: 24, bgcolor: '#7b68ee', fontSize: '11px' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                  <Avatar sx={{ 
+                                    width: 28, 
+                                    height: 28, 
+                                    bgcolor: '#667eea', 
+                                    fontSize: '12px',
+                                    fontWeight: 600
+                                  }}>
                                 {userName.charAt(0).toUpperCase()}
                               </Avatar>
-                              <Typography fontSize="14px">{userName}</Typography>
+                                  <Typography fontSize="14px" fontWeight={500}>{userName}</Typography>
                             </Box>
                           </MenuItem>
                         );
@@ -3945,80 +4161,194 @@ export default function ProjectTasksPage() {
                 </Stack>
                 </Box>
 
+                  {/* Section: Links */}
                 <Box>
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: 'text.secondary' }}>
-                    🎯 Liên kết
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        mb: 2, 
+                        fontWeight: 700, 
+                        color: '#374151',
+                        fontSize: '13px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}
+                    >
+                      <Box sx={{ width: 4, height: 16, bgcolor: '#8b5cf6', borderRadius: 1 }} />
+                      Liên kết Project
                   </Typography>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                      <InputLabel>⚡ Feature *</InputLabel>
-                      <Select value={form.feature_id} label="⚡ Feature *" onChange={(e) => setForm({ ...form, feature_id: e.target.value })}>
-                      <MenuItem value=""><em>Không chọn</em></MenuItem>
-                      {features.map((f) => <MenuItem key={f.id} value={f.id}>{f.title}</MenuItem>)}
+                    <Stack spacing={2.5}>
+                      <FormControl fullWidth required>
+                        <InputLabel>Feature *</InputLabel>
+                        <Select 
+                          value={form.feature_id} 
+                          label="Feature *" 
+                          onChange={(e) => setForm({ ...form, feature_id: e.target.value })}
+                          sx={{ 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          }}
+                        >
+                          <MenuItem value=""><em>Chọn feature</em></MenuItem>
+                          {features.map((f) => (
+                            <MenuItem key={f.id} value={f.id}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Box sx={{ 
+                                  width: 8, 
+                                  height: 8, 
+                                  borderRadius: '50%', 
+                                  bgcolor: '#3b82f6' 
+                                }} />
+                                <Typography fontSize="14px" fontWeight={500}>{f.title}</Typography>
+                              </Box>
+                            </MenuItem>
+                          ))}
                     </Select>
                   </FormControl>
-                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                      <InputLabel>🎯 Milestone</InputLabel>
-                      <Select value={form.milestone_id} label="🎯 Milestone" onChange={(e) => setForm({ ...form, milestone_id: e.target.value })}>
+                      
+                      <FormControl fullWidth>
+                        <InputLabel>Milestone</InputLabel>
+                        <Select 
+                          value={form.milestone_id} 
+                          label="Milestone" 
+                          onChange={(e) => setForm({ ...form, milestone_id: e.target.value })}
+                          sx={{ 
+                            bgcolor: 'white',
+                            borderRadius: 2 
+                          }}
+                        >
                       <MenuItem value=""><em>Không chọn</em></MenuItem>
-                      {milestones.map((m) => <MenuItem key={m.id} value={m.id}>{m.title}</MenuItem>)}
+                          {milestones.map((m) => (
+                            <MenuItem key={m.id} value={m.id}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Box sx={{ 
+                                  width: 8, 
+                                  height: 8, 
+                                  borderRadius: '50%', 
+                                  bgcolor: '#f59e0b' 
+                                }} />
+                                <Typography fontSize="14px" fontWeight={500}>{m.title}</Typography>
+                              </Box>
+                            </MenuItem>
+                          ))}
                     </Select>
                   </FormControl>
-                </Stack>
-                <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}>
-                  <InputLabel>🔧 Function (Chức năng)</InputLabel>
+                      
+                      <FormControl fullWidth>
+                        <InputLabel>Function</InputLabel>
                   <Select 
                     value={form.function_id} 
-                    label="🔧 Function (Chức năng)" 
+                          label="Function" 
                     onChange={(e) => setForm({ ...form, function_id: e.target.value })}
                     disabled={!form.feature_id}
+                          sx={{ 
+                            bgcolor: form.feature_id ? 'white' : '#f9fafb',
+                            borderRadius: 2 
+                          }}
                   >
                     <MenuItem value=""><em>Không chọn</em></MenuItem>
-                    {functions.map((fn) => <MenuItem key={fn._id} value={fn._id}>{fn.title}</MenuItem>)}
+                          {functions.map((fn) => (
+                            <MenuItem key={fn._id} value={fn._id}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Box sx={{ 
+                                  width: 8, 
+                                  height: 8, 
+                                  borderRadius: '50%', 
+                                  bgcolor: '#8b5cf6' 
+                                }} />
+                                <Typography fontSize="14px" fontWeight={500}>{fn.title}</Typography>
+                              </Box>
+                            </MenuItem>
+                          ))}
                   </Select>
                   {!form.feature_id && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.5 }}>
-                      Vui lòng chọn Feature trước
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              mt: 1, 
+                              ml: 1.5,
+                              color: '#9ca3af',
+                              fontSize: '12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}
+                          >
+                            ⓘ Vui lòng chọn Feature trước
                     </Typography>
                   )}
                 </FormControl>
+                    </Stack>
                 </Box>
               </Stack>
+              </Box>
             </DialogContent>
-            <DialogActions sx={{ p: 3, gap: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+            <DialogActions sx={{ 
+              px: 4, 
+              py: 3, 
+              bgcolor: '#fafbfc',
+              borderTop: '1px solid #e5e7eb',
+              gap: 2,
+              justifyContent: 'space-between'
+            }}>
+              <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '12px' }}>
+                * Trường bắt buộc
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2 }}>
               <Button 
                 onClick={() => setOpenDialog(false)}
                 variant="outlined"
+                  startIcon={<CloseIcon sx={{ fontSize: 18 }} />}
                 sx={{ 
-                  borderRadius: 2.5,
+                    borderRadius: 2,
                   px: 3,
+                    py: 1,
                   textTransform: 'none',
                   fontWeight: 600,
-                  borderColor: 'divider',
-                  color: 'text.secondary'
+                    fontSize: '14px',
+                    borderColor: '#e5e7eb',
+                    color: '#6b7280',
+                    '&:hover': {
+                      borderColor: '#d1d5db',
+                      bgcolor: '#f9fafb'
+                    }
                 }}
               >
                 Hủy
               </Button>
               <Button 
-                disabled={!form.title} 
+                  disabled={!form.title || !form.feature_id} 
                 variant="contained" 
                 onClick={saveTask}
+                  startIcon={editing ? <CheckCircleIcon sx={{ fontSize: 18 }} /> : <AddIcon sx={{ fontSize: 18 }} />}
                 sx={{
-                  borderRadius: 2.5,
+                    borderRadius: 2,
                   px: 4,
+                    py: 1,
                   textTransform: 'none',
                   fontWeight: 700,
-                  bgcolor: '#667eea',
+                    fontSize: '14px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
                   '&:hover': {
-                    bgcolor: '#5568d3',
-                    boxShadow: '0 6px 20px rgba(102, 126, 234, 0.5)'
-                  }
-                }}
-              >
-                {editing ? '💾 Cập nhật' : '➕ Tạo Task'}
+                      background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
+                      boxShadow: '0 6px 20px rgba(102, 126, 234, 0.6)',
+                      transform: 'translateY(-1px)'
+                    },
+                    '&:disabled': {
+                      background: '#e5e7eb',
+                      color: '#9ca3af',
+                      boxShadow: 'none'
+                    },
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {editing ? 'Cập nhật Task' : 'Tạo Task'}
               </Button>
+              </Box>
             </DialogActions>
           </Dialog>
 
@@ -4032,6 +4362,10 @@ export default function ProjectTasksPage() {
               setSelectedTaskId(null);
             }}
             onUpdate={loadAll}
+            onTaskChange={(newTaskId) => {
+              // Switch to view the selected subtask
+              setSelectedTaskId(newTaskId);
+            }}
           />
 
           {/* Dependency Violation Warning Dialog */}
