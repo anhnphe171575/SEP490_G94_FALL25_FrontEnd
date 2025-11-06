@@ -41,6 +41,8 @@ import axiosInstance from "../../ultis/axios";
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
 import TaskDetailsSubtasks from "./TaskDetails/TaskDetailsSubtasks";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
+import TaskDetailsDevelopment from "./TaskDetails/TaskDetailsDevelopment";
+import TaskDetailsCICD from "./TaskDetails/TaskDetailsCICD";
 import TaskDetailsTimeLogs from "./TaskDetails/TaskDetailsTimeLogs";
 import TaskDetailsComments from "./TaskDetails/TaskDetailsComments";
 import TaskDetailsAttachments from "./TaskDetails/TaskDetailsAttachments";
@@ -107,8 +109,8 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
       const tabMap = ['overview', 'time', 'comments', 'files', 'activity'];
       return tabMap[index];
     } else {
-      // For tasks: Overview, Subtasks, Dependencies, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'subtasks', 'dependencies', 'time', 'comments', 'files', 'activity'];
+      // For tasks: Overview, Subtasks, Dependencies, Development, CI/CD, Time, Comments, Files, Activity
+      const tabMap = ['overview', 'subtasks', 'dependencies', 'development', 'cicd', 'time', 'comments', 'files', 'activity'];
       return tabMap[index];
     }
   };
@@ -449,6 +451,8 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             <Tab label="Overview" />
             {!isSubtask && <Tab label="Subtasks" />}
             {!isSubtask && <Tab label="Dependencies" />}
+            {!isSubtask && <Tab label="Development" />}
+            {!isSubtask && <Tab label="CI/CD" />}
             <Tab label="Time" />
             <Tab label="Comments" />
             <Tab label="Files" />
@@ -479,6 +483,8 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
               {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
               {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'development' && <TaskDetailsDevelopment taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'cicd' && <TaskDetailsCICD taskId={taskId} projectId={projectId} />}
               {getTabContent(currentTab) === 'time' && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
               {getTabContent(currentTab) === 'comments' && <TaskDetailsComments taskId={taskId} />}
               {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments taskId={taskId} />}

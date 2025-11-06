@@ -6,13 +6,16 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+   "test": "echo \"No tests to run\" && exit 0"
+
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hookform/resolvers": "^3.10.0",
     "@mui/icons-material": "^7.3.4",
+    "@mui/lab": "^7.0.1-beta.19",
     "@mui/material": "^7.3.4",
     "@mui/x-date-pickers": "^8.14.1",
     "@mui/x-date-pickers-pro": "^7.29.4",
