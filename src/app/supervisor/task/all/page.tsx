@@ -6,6 +6,7 @@ import Link from "next/link";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
+import TaskDetailsComments from "@/components/TaskDetails/TaskDetailsComments";
 
 type TaskItem = {
   _id: string;
@@ -30,12 +31,20 @@ export default function AllTasksPage() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   // Filters
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [priority, setPriority] = useState("all");
   const [sortBy, setSortBy] = useState("deadline:asc");
+
+  const openComments = (taskId: string) => {
+    setActiveTaskId(taskId);
+    setCommentsOpen(true);
+  };
+  const closeComments = () => setCommentsOpen(false);
 
   useEffect(() => {
     if (!projectId) {
@@ -92,7 +101,7 @@ export default function AllTasksPage() {
     );
   }
 
-  return (
+  return (<>
     <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
@@ -255,9 +264,22 @@ export default function AllTasksPage() {
                             <span className="truncate">{priorityName || "—"}</span>
                           </div>
                         </div>
-                        <div className={`md:col-span-2 md:text-right text-sm ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
-                          {t.deadline ? new Date(t.deadline).toLocaleDateString("vi-VN") : "—"}
-                          {isOverdue && <span> ( Quá hạn )</span>}
+                        <div className="md:col-span-2 text-sm flex items-center justify-end gap-2">
+                          <span className={`${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
+                            {t.deadline ? new Date(t.deadline).toLocaleDateString("vi-VN") : "—"}
+                            {isOverdue && <span> ( Quá hạn )</span>}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openComments(t._id)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-purple-600 hover:bg-purple-50 border border-transparent hover:border-purple-200"
+                            title="Bình luận"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                              <path d="M8.25 9.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 9.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 10.5a.75.75 0 100-1.5.75.75 0 000 1.5z" />
+                              <path fillRule="evenodd" d="M3.75 4.5A2.25 2.25 0 016 2.25h12A2.25 2.25 0 0120.25 4.5v9A2.25 2.25 0 0118 15.75H8.318l-3.034 2.276A1.125 1.125 0 013 17.076V4.5zm2.25-.75A.75.75 0 005.25 4.5v11.44l2.513-1.887a1.5 1.5 0 01.9-.303H18a.75.75 0 00.75-.75v-9a.75.75 0 00-.75-.75H6z" clipRule="evenodd" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
                     </li>
@@ -284,7 +306,28 @@ export default function AllTasksPage() {
         </div>
       </main>
     </div>
-  );
+    {commentsOpen && (
+      <div className="fixed inset-0 z-50" key="comments-drawer">
+        <div className="absolute inset-0 bg-black/30" onClick={closeComments} />
+        <div className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Comments</h3>
+              {activeTaskId && (
+                <p className="text-xs text-gray-500">Task ID: {activeTaskId}</p>
+              )}
+            </div>
+            <button onClick={closeComments} className="p-2 rounded hover:bg-gray-100">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <TaskDetailsComments taskId={activeTaskId} />
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
 }
 
 
