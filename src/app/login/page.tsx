@@ -93,32 +93,40 @@ export default function LoginPage() {
     }
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await axiosInstance.post("/api/auth/login", { email, password });
-      const token = res.data?.token;
-      const userRole = res.data?.user?.role;
-      if (token) {
-        sessionStorage.setItem("token", token);
-        localStorage.setItem("token", token);
-      }
-      
-      // Redirect based on role
-      if (userRole === 4) {
-        router.replace("/supervisor/dashboard");
-      } else {
-        router.replace("/dashboard");
-      }
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { message?: string } } };
-      setError(error?.response?.data?.message || "Đăng nhập thất bại");
-    } finally {
-      setLoading(false);
+const onSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    setLoading(true);
+    setError(null);
+
+    const res = await axiosInstance.post("/api/auth/login", { email, password });
+    const token = res.data?.token;
+    const user = res.data?.user;
+
+    if (token) {
+      sessionStorage.setItem("token", token);
+      localStorage.setItem("token", token);
     }
-  };
+
+    // ✅ Ưu tiên redirectUrl từ backend nếu có
+    if (user?.redirectUrl) {
+      router.replace(user.redirectUrl);
+    } 
+    // ✅ Hoặc fallback theo role
+    else if (user?.role === 4) {
+      router.replace("/supervisor/dashboard");
+    } else {
+      router.replace("/dashboard");
+    }
+
+  } catch (e: any) {
+    setError(e?.response?.data?.message || "Đăng nhập thất bại");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col">
@@ -269,5 +277,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-
