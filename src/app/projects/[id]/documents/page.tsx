@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import { Box, Button, Card, CardContent, Typography, Stack, Alert, Paper, Breadcrumbs, Link, List, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, ButtonBase, Chip } from "@mui/material";
-import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, BarChart as ChartIcon, Star as StarIcon, StarBorder as StarBorderIcon } from "@mui/icons-material";
+import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, BarChart as ChartIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon } from "@mui/icons-material";
 import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 import DocumentUpload from "@/components/DocumentUpload";
 import { InsertDriveFile as FileIcon, PictureAsPdf as PdfIcon, Image as ImageIcon, TableChart as SheetIcon, Description as DocIcon, Download as DownloadIcon } from "@mui/icons-material";
@@ -43,6 +43,19 @@ type DocumentItem = {
   project_id?: { _id: string; topic: string } | string;
   folder_id?: { _id: string; name: string } | string | null;
   is_final_release?: boolean;
+};
+
+type ActivityLog = {
+  _id: string;
+  action: string;
+  user?: {
+    _id: string;
+    full_name: string;
+    email?: string;
+  };
+  created_at: string;
+  metadata?: any;
+  description?: string;
 };
 
  
@@ -92,6 +105,14 @@ export default function DocumentsPage() {
   const [renameDocOpen, setRenameDocOpen] = useState(false);
   const [renameDocTitle, setRenameDocTitle] = useState('');
   const [actionDocumentId, setActionDocumentId] = useState<string | null>(null);
+  
+  // History dialog states
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyData, setHistoryData] = useState<ActivityLog[]>([]);
+  const [historyItemId, setHistoryItemId] = useState<string | null>(null);
+  const [historyItemType, setHistoryItemType] = useState<'document' | 'folder' | null>(null);
+  const [historyItemName, setHistoryItemName] = useState<string>('');
   
   // Current folder navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -234,6 +255,94 @@ export default function DocumentsPage() {
       loadDocuments();
     } catch {
       setDocsError('Không thể đổi tên tài liệu');
+    }
+  };
+
+  const openHistory = async (itemId: string, itemType: 'document' | 'folder', itemName: string) => {
+    setHistoryItemId(itemId);
+    setHistoryItemType(itemType);
+    setHistoryItemName(itemName);
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryData([]);
+    
+    try {
+      const endpoint = itemType === 'document' 
+        ? `/api/documents/${itemId}/activity-logs`
+        : `/api/folders/${itemId}/activity-logs`;
+      
+      const res = await axiosInstance.get(endpoint, {
+        params: { limit: 50 }
+      });
+      
+      const logs = Array.isArray(res.data) ? res.data : (res.data.activity_logs || res.data.logs || []);
+      setHistoryData(logs);
+    } catch (err: any) {
+      console.error('Error loading history:', err);
+      // Nếu endpoint không tồn tại (404), hiển thị empty array
+      if (err.response?.status !== 404) {
+        setDocsError('Không thể tải lịch sử');
+      }
+      setHistoryData([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const getActivityDescription = (log: ActivityLog) => {
+    const userName = log.user?.full_name || 'Người dùng';
+    const action = log.action || '';
+    
+    switch (action.toUpperCase()) {
+      case 'CREATE':
+      case 'CREATED':
+        return `${userName} đã tạo`;
+      case 'UPDATE':
+      case 'UPDATED':
+      case 'EDIT':
+      case 'EDITED':
+        return `${userName} đã chỉnh sửa`;
+      case 'DELETE':
+      case 'DELETED':
+        return `${userName} đã xóa`;
+      case 'DOWNLOAD':
+      case 'DOWNLOADED':
+        return `${userName} đã tải xuống`;
+      case 'RENAME':
+      case 'RENAMED':
+        return `${userName} đã đổi tên`;
+      case 'MOVE':
+      case 'MOVED':
+        return `${userName} đã di chuyển`;
+      case 'UPLOAD':
+      case 'UPLOADED':
+        return `${userName} đã tải lên`;
+      case 'MARK_FINAL_RELEASE':
+        return `${userName} đã đánh dấu Final Release`;
+      default:
+        // Nếu có description, lấy phần đầu (trước dấu hai chấm hoặc dấu phẩy)
+        if (log.description) {
+          const desc = log.description.split(':')[0].split(',')[0].trim();
+          if (desc) {
+            return `${userName} ${desc}`;
+          }
+        }
+        return `${userName} đã thực hiện ${action}`;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('vi-VN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    } catch {
+      return dateString;
     }
   };
 
@@ -611,7 +720,9 @@ export default function DocumentsPage() {
                             <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); handleDownload(doc); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
                               <DownloadIcon fontSize="small" />
                             </IconButton>
-                            
+                            <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openHistory(doc._id, 'document', doc.title); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }} title="Xem lịch sử">
+                              <InfoIcon fontSize="small" />
+                            </IconButton>
                             <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -700,6 +811,53 @@ export default function DocumentsPage() {
         <DialogActions>
           <Button onClick={() => setRenameDocOpen(false)}>Hủy</Button>
           <Button variant="contained" onClick={handleRenameDoc} disabled={!renameDocTitle.trim() || !actionDocumentId}>Lưu</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Lịch sử {historyItemType === 'document' ? 'tài liệu' : 'thư mục'}: {historyItemName}
+        </DialogTitle>
+        <DialogContent>
+          {historyLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <Typography>Đang tải...</Typography>
+            </Box>
+          ) : historyData.length === 0 ? (
+            <Box sx={{ py: 4, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                Chưa có lịch sử hoạt động
+              </Typography>
+            </Box>
+          ) : (
+            <Stack spacing={1} sx={{ mt: 1 }}>
+              {historyData.map((log) => (
+                <Paper
+                  key={log._id}
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 1,
+                    '&:hover': {
+                      backgroundColor: 'action.hover'
+                    }
+                  }}
+                >
+                  <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                    <Typography variant="body2">
+                      {getActivityDescription(log)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {formatDate(log.created_at)}
+                    </Typography>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryOpen(false)}>Đóng</Button>
         </DialogActions>
       </Dialog>
 

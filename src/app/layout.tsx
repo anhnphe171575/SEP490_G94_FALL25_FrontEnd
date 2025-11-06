@@ -30,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans text-[var(--foreground)] bg-[var(--background)]`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans text-[var(--foreground)] bg-white`}
       >
         <EmotionRegistry>
           <MuiProvider>

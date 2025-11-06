@@ -307,7 +307,7 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="flex justify-center items-center min-h-screen">
@@ -320,7 +320,7 @@ export default function CalendarPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <Alert severity="error">{error}</Alert>
@@ -432,7 +432,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-white">
       <style>{`
         /* Custom scrollbar for calendar cells - Horizontal */
         .calendar-scroll::-webkit-scrollbar {
