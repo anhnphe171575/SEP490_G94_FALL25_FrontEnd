@@ -5,7 +5,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import axiosInstance from "../../../../ultis/axios";
 import { io, Socket } from "socket.io-client";
-import { LogOut, LayoutDashboard, Users, ChevronRight } from 'lucide-react';
+import { 
+  LogOut, 
+  LayoutDashboard, 
+  Users, 
+  ChevronRight, 
+  Bell,
+  Settings,
+  Menu
+} from 'lucide-react';
 
 let socket: Socket | null = null;
 
@@ -35,6 +43,7 @@ export default function LeftSidebarHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [me, setMe] = useState<any>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -74,37 +83,58 @@ export default function LeftSidebarHeader() {
   };
 
   return (
-    <aside className="fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white flex flex-col">
-      {/* Logo */}
-      <div className="px-6 py-8 border-b border-gray-700">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-            <span className="text-xl font-bold">A</span>
+    <aside className={`fixed top-0 left-0 h-full bg-white shadow-lg flex flex-col transition-all duration-300
+      ${isCollapsed ? 'w-20' : 'w-64'}`}>
+      
+      {/* Header with Logo */}
+      <div className="px-6 py-6 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 
+            rounded-xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
+            <span className="text-xl font-bold text-white">A</span>
           </div>
-          <span className="text-xl font-semibold">Admin<span className="text-blue-400">Panel</span></span>
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-gray-800">AdminPanel</span>
+              <span className="text-xs text-gray-500">Management System</span>
+            </div>
+          )}
         </Link>
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-6">
-        <ul className="space-y-1">
+      {/* Main Navigation */}
+      <nav className="flex-1 px-3 py-6">
+        <div className="mb-4 px-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {isCollapsed ? 'Menu' : 'Main Menu'}
+          </h2>
+        </div>
+        <ul className="space-y-1.5">
           {navItems.map(item => {
             const active = pathname === item.href;
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`flex items-center gap-3 px-6 py-3.5 transition-colors relative group
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
                     ${active ? 
-                      'text-white bg-gradient-to-r from-blue-600 to-blue-500' : 
-                      'text-gray-300 hover:text-white hover:bg-gray-800'
+                      'bg-gradient-to-r from-blue-600 to-indigo-500 text-white shadow-md' : 
+                      'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
-                  <ChevronRight className={`w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity
-                    ${active ? 'opacity-100' : ''}`} 
-                  />
+                  {!isCollapsed && (
+                    <>
+                      <span className="font-medium">{item.label}</span>
+                      {active && <ChevronRight className="w-4 h-4 ml-auto" />}
+                    </>
+                  )}
                 </Link>
               </li>
             );
@@ -112,35 +142,45 @@ export default function LeftSidebarHeader() {
         </ul>
       </nav>
 
-      {/* User Profile & Logout */}
-      <div className="border-t border-gray-700">
+      {/* Footer Actions */}
+      <div className="px-3 py-4 border-t border-gray-100">
+      
+
+        {/* User Profile & Logout */}
         {me && (
-          <div className="px-6 py-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 
-                flex items-center justify-center shadow-lg">
-                {me.avatar ? (
-                  <img src={me.avatar} alt="avatar" className="w-full h-full rounded-lg object-cover" />
-                ) : (
-                  <span className="text-white text-lg font-bold">
-                    {(me.full_name?.[0] || "U").toUpperCase()}
-                  </span>
-                )}
+          <div className={`p-3 rounded-xl bg-gray-50 ${isCollapsed ? 'text-center' : ''}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 
+                p-0.5 transform hover:scale-105 transition-transform mx-auto">
+                <div className="w-full h-full rounded-[10px] bg-white flex items-center justify-center overflow-hidden">
+                  {me.avatar ? (
+                    <img src={me.avatar} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-500 
+                      text-transparent bg-clip-text">
+                      {(me.full_name?.[0] || "U").toUpperCase()}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-white">{me.full_name || "Người dùng"}</p>
-              </div>
+              {!isCollapsed && (
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800 truncate">{me.full_name || "Người dùng"}</p>
+                  <p className="text-xs text-gray-500">Administrator</p>
+                </div>
+              )}
             </div>
+            <button
+              onClick={onLogout}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg
+                text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors
+                text-sm font-medium ${isCollapsed ? 'justify-center' : ''}`}
+            >
+              <LogOut className="w-4 h-4" />
+              {!isCollapsed && <span>Đăng xuất</span>}
+            </button>
           </div>
         )}
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-6 py-4 text-left 
-            text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-          <span>Đăng xuất</span>
-        </button>
       </div>
     </aside>
   );
