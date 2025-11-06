@@ -73,11 +73,18 @@ export default function LoginPage() {
       
       const res = await axiosInstance.post("/api/auth/google", { idToken });
       const token = res.data?.token;
+      const userRole = res.data?.user?.role;
       if (token) {
         sessionStorage.setItem("token", token);
         localStorage.setItem("token", token); // keep both for existing interceptor behavior
       }
-      router.replace("/dashboard");
+      
+      // Redirect based on role
+      if (userRole === 4) {
+        router.replace("/dashboard-supervisor");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: unknown) {
       const error = e as { response?: { data?: { message?: string } }; message?: string };
       setError(error?.response?.data?.message || error?.message || "Đăng nhập Google thất bại");
@@ -93,11 +100,18 @@ export default function LoginPage() {
       setError(null);
       const res = await axiosInstance.post("/api/auth/login", { email, password });
       const token = res.data?.token;
+      const userRole = res.data?.user?.role;
       if (token) {
         sessionStorage.setItem("token", token);
         localStorage.setItem("token", token);
       }
-      router.replace("/dashboard");
+      
+      // Redirect based on role
+      if (userRole === 4) {
+        router.replace("/supervisor/dashboard");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: unknown) {
       const error = e as { response?: { data?: { message?: string } } };
       setError(error?.response?.data?.message || "Đăng nhập thất bại");
