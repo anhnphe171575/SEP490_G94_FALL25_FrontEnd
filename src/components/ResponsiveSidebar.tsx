@@ -43,9 +43,9 @@ const navItems = [
       </svg>
     )
   },
-  { 
-    href: "/projects", 
-    label: "Dự án", 
+  {
+    href: "/projects",
+    label: "Dự án",
     icon: (
       <svg
         className="w-5 h-5"
@@ -72,9 +72,9 @@ const navItems = [
       </svg>
     )
   },
-  { 
-    href: "/messages", 
-    label: "Tin nhắn nhóm", 
+  {
+    href: "/messages",
+    label: "Tin nhắn nhóm",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -146,7 +146,7 @@ let socket: Socket | null = null;
 export function getSocket() {
   if (!socket) {
     socket = io("http://localhost:5000", {
-      transports: ['websocket', 'polling']
+      transports: ["websocket", "polling"]
     });
   }
   return socket;
@@ -183,10 +183,10 @@ export default function ResponsiveSidebar() {
           const userId = userData._id || userData.id;
           const sock = getSocket();
           if (sock.connected) {
-            sock.emit('join', userId.toString());
+            sock.emit("join", userId.toString());
           } else {
-            sock.once('connect', () => {
-              sock.emit('join', userId.toString());
+            sock.once("connect", () => {
+              sock.emit("join", userId.toString());
             });
           }
         }
@@ -197,13 +197,12 @@ export default function ResponsiveSidebar() {
     })();
   }, []);
 
-  // Fetch unread notifications count
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
-        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+        const token = typeof window !== "undefined" ? sessionStorage.getItem("token") || localStorage.getItem("token") : null;
         if (!token) return;
-        const res = await axiosInstance.get('/api/notifications/unread-count');
+        const res = await axiosInstance.get("/api/notifications/unread-count");
         if (res.data?.unread_count !== undefined) {
           setUnreadCount(res.data.unread_count);
         }
@@ -214,40 +213,34 @@ export default function ResponsiveSidebar() {
 
     fetchUnreadCount();
 
-    // Setup socket.io for real-time notifications
-    const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("token") || localStorage.getItem("token") : null;
     if (token) {
       const sock = getSocket();
-      
-      sock.on('connect', () => {
-        console.log('Socket connected');
-        // Join room với user_id nếu đã có
+
+      sock.on("connect", () => {
         if (me?._id || me?.id) {
           const userId = (me._id || me.id)?.toString();
           if (userId) {
-            sock.emit('join', userId);
+            sock.emit("join", userId);
           }
         }
       });
 
-      sock.on('notification', (data: any) => {
-        // Increase unread count when new notification arrives
-        setUnreadCount(prev => prev + 1);
+      sock.on("notification", () => {
+        setUnreadCount((prev) => prev + 1);
       });
 
-      sock.on('notification-read', (data: any) => {
-        // Update unread count từ server response
+      sock.on("notification-read", (data: any) => {
         if (data?.unread_count !== undefined) {
           setUnreadCount(data.unread_count);
         } else {
-          // Fallback: giảm count nếu không có unread_count
-          setUnreadCount(prev => Math.max(0, prev - 1));
+          setUnreadCount((prev) => Math.max(0, prev - 1));
         }
       });
 
       return () => {
-        sock.off('notification');
-        sock.off('notification-read');
+        sock.off("notification");
+        sock.off("notification-read");
       };
     }
   }, [me?._id, me?.id]);
@@ -311,9 +304,7 @@ export default function ResponsiveSidebar() {
       sessionStorage.removeItem("token");
       localStorage.removeItem("token");
     }
-    // Reset notifications count
     setUnreadCount(0);
-    // Disconnect socket
     if (socket) {
       socket.disconnect();
       socket = null;
@@ -388,7 +379,7 @@ export default function ResponsiveSidebar() {
       >
         <div className="h-full bg-white border-r border-gray-200 shadow-lg">
           {/* Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-lg flex items-center justify-center">
                 <svg
@@ -500,8 +491,6 @@ export default function ResponsiveSidebar() {
               })}
             </div>
 
-            
-
             {/* Logout */}
             <div className="mt-8">
               <button
@@ -598,7 +587,6 @@ export default function ResponsiveSidebar() {
                         )}
                       </div>
                       <span className="truncate">{item.label}</span>
-                      
                     </Link>
                   );
                 })}
