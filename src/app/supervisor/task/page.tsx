@@ -3,10 +3,16 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import axiosInstance from "../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import ClickUpGanttChart from "@/components/ClickUpGanttChart";
 import QuickNav from "@/components/QuickNav";
+import TaskDetailsComments from "@/components/TaskDetails/TaskDetailsComments";
+
+const DHtmlxGanttChart = dynamic(
+  () => import('@/components/DHtmlxGanttChart'),
+  { ssr: false }
+);
 import {
   PieChart,
   Pie,
@@ -91,6 +97,14 @@ export default function TaskDashboardPage() {
   const [milestoneSummary, setMilestoneSummary] = useState<MilestoneSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+
+  const openComments = (taskId: string) => {
+    setActiveTaskId(taskId);
+    setCommentsOpen(true);
+  };
+  const closeComments = () => setCommentsOpen(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -225,10 +239,10 @@ export default function TaskDashboardPage() {
         </div>
 
         {/* Gantt Chart - Full Width */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm mb-6">
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm mb-6 overflow-hidden">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Gantt Chart & Dependencies</h2>
-          <div className="h-[600px] w-full">
-            <ClickUpGanttChart tasks={tasks as any} dependencies={dependenciesMap as any} />
+          <div className="h-[600px] w-full max-w-full overflow-hidden">
+            <DHtmlxGanttChart tasks={tasks as any} dependencies={dependenciesMap as any} onTaskClick={openComments} />
           </div>
         </div>
 
@@ -342,6 +356,28 @@ export default function TaskDashboardPage() {
             </div>
           </div>
         </div>
+        {/* Comments Drawer */}
+        {commentsOpen && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/30" onClick={closeComments} />
+            <div className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Comments</h3>
+                  {activeTaskId && (
+                    <p className="text-xs text-gray-500">Task ID: {activeTaskId}</p>
+                  )}
+                </div>
+                <button onClick={closeComments} className="p-2 rounded hover:bg-gray-100">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <TaskDetailsComments taskId={activeTaskId} />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

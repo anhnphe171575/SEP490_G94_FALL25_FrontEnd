@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
@@ -93,7 +92,7 @@ export default function LoginPage() {
     }
   };
 
-const onSubmit = async (e: React.FormEvent) => {
+ const onSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   try {
     setLoading(true);
@@ -125,7 +124,6 @@ const onSubmit = async (e: React.FormEvent) => {
     setLoading(false);
   }
 };
-
 
 
   return (
