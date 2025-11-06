@@ -75,7 +75,7 @@ export default function TeamJoinSuccessPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-white flex items-center justify-center p-6">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <Typography variant="body1" color="text.secondary">
@@ -87,7 +87,7 @@ export default function TeamJoinSuccessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {error ? (
           <Card className="shadow-lg">
