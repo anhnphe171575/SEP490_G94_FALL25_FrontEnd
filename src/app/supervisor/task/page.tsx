@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import axiosInstance from "../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import ClickUpGanttChart from "@/components/ClickUpGanttChart";
@@ -208,6 +209,21 @@ export default function TaskDashboardPage() {
           <QuickNav selectedProject={selectedProject} />
         </div>
 
+        {/* Local Nav Tabs */}
+        <div className="mt-4 border-b border-gray-200">
+          <nav className="-mb-px flex gap-6" aria-label="Tabs">
+            <span className="whitespace-nowrap border-b-2 border-purple-600 px-1 pb-2 text-sm font-medium text-purple-700">
+              Tổng quan
+            </span>
+            <Link
+              href={`/supervisor/task/all${selectedProject ? `?project_id=${selectedProject}` : ''}`}
+              className="whitespace-nowrap border-b-2 border-transparent px-1 pb-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            >
+              Tất cả công việc
+            </Link>
+          </nav>
+        </div>
+
         {/* Gantt Chart - Full Width */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Gantt Chart & Dependencies</h2>
@@ -318,8 +334,8 @@ export default function TaskDashboardPage() {
                 <div key={t._id} className="p-3 rounded-lg border bg-white flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
-                    <p className="text-xs text-gray-600">Trễ: {t.overdueDays} ngày • Hạn {new Date(t.deadline || "").toLocaleDateString("vi-VN")}</p>
+                    <p className="text-sm font-medium text-red-600 truncate">{t.title} <span className="font-normal">( Quá hạn )</span></p>
+                    <p className="text-xs text-red-600">Trễ: {t.overdueDays} ngày • Hạn {new Date(t.deadline || "").toLocaleDateString("vi-VN")}</p>
                   </div>
                 </div>
               ))}

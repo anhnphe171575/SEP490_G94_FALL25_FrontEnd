@@ -313,8 +313,8 @@ export default function SupervisorFeaturePage() {
                 <div key={f._id} className="p-3 rounded-lg border bg-white flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{f.title}</p>
-                    <p className="text-xs text-gray-600">Hạn: {f.due_date ? new Date(f.due_date).toLocaleDateString("vi-VN") : "N/A"}</p>
+                    <p className="text-sm font-medium text-red-600 truncate">{f.title} <span className="font-normal">( Quá hạn )</span></p>
+                    <p className="text-xs text-red-600">Hạn: {f.due_date ? new Date(f.due_date).toLocaleDateString("vi-VN") : "N/A"}</p>
                   </div>
                 </div>
               ))}
