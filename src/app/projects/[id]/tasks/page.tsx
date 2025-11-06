@@ -17,6 +17,11 @@ const DHtmlxGanttChart = dynamic(
   () => import('@/components/DHtmlxGanttChart'),
   { ssr: false }
 );
+
+const ProjectCICDView = dynamic(
+  () => import('@/components/ProjectCICDView'),
+  { ssr: false }
+);
 import {
   Alert,
   Box,
@@ -66,6 +71,7 @@ import SearchIcon from "@mui/icons-material/Search";
   import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
   import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
   import DashboardIcon from "@mui/icons-material/Dashboard";
+  import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -87,7 +93,7 @@ type Task = {
   milestone_id?: string | { _id: string; title: string };
   status?: string | { _id: string; name: string };
   priority?: string | { _id: string; name: string };
-  assignee?: string | { _id: string; name: string; email?: string };
+  assignee?: string | { _id: string; name: string };
   assignee_id?: string | { _id: string; full_name?: string; name?: string; email?: string };
   assigner_id?: string | { _id: string; full_name?: string; name?: string; email?: string };
   start_date?: string;
@@ -114,7 +120,7 @@ export default function ProjectTasksPage() {
   const featureIdFromUrl = searchParams.get('featureId');
   const functionIdFromUrl = searchParams.get('functionId');
 
-  const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt">("table");
+  const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt" | "cicd">("table");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -990,6 +996,26 @@ export default function ProjectTasksPage() {
                 }}
               >
                 Gantt
+              </Button>
+              <Button
+                onClick={() => setView('cicd')}
+                startIcon={<RocketLaunchIcon fontSize="small" />}
+                sx={{
+                  minWidth: 'auto',
+                  px: 2,
+                  py: 0.75,
+                  color: view === 'cicd' ? '#7b68ee' : '#49516f',
+                  bgcolor: view === 'cicd' ? '#f3f0ff' : 'transparent',
+                  textTransform: 'none',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  borderRadius: 1.5,
+                  '&:hover': {
+                    bgcolor: view === 'cicd' ? '#f3f0ff' : '#f3f4f6',
+                  }
+                }}
+              >
+                CI/CD
               </Button>
             </Stack>
 
@@ -3164,70 +3190,6 @@ export default function ProjectTasksPage() {
                           </Box>
                         );
                         })}
-
-                        {/* Add Subtask Button - shown when task is expanded and is a parent task */}
-                        {expandedTasks.has(t._id) && !t.parent_task_id && (
-                          <Box 
-                            sx={{ 
-                              px: 3, 
-                              py: 1.25,
-                              pl: 7,
-                              borderBottom: '1px solid #f3f4f6',
-                              bgcolor: '#fafbfc',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              '&:hover': {
-                                bgcolor: '#f5f3ff',
-                              },
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Open create dialog with parent task pre-selected
-                              setForm({
-                                ...form,
-                                title: "",
-                                description: "",
-                                status: "",
-                                priority: "",
-                                assignee: "",
-                                feature_id: "",
-                                function_id: "",
-                                milestone_id: "",
-                                start_date: "",
-                                deadline: "",
-                                estimate: 0,
-                              });
-                              setEditing(null);
-                              // Store parent task ID separately or in hidden field
-                              // For now, we'll handle this in saveTask function
-                              setOpenDialog(true);
-                              // TODO: Need to pass parent_task_id when saving
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 4 }}>
-                              <Box sx={{
-                                width: 18,
-                                height: 18,
-                                borderRadius: 1,
-                                bgcolor: '#ede9fe',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}>
-                                <AddIcon sx={{ fontSize: 12, color: '#7b68ee' }} />
-                              </Box>
-                              <Typography 
-                                sx={{ 
-                                  fontSize: '13px',
-                                  fontWeight: 500,
-                                  color: '#7b68ee',
-                                }}
-                              >
-                                Add subtask
-                              </Typography>
-                            </Box>
-                          </Box>
-                        )}
                       </>
                       );
                     })}
@@ -3825,6 +3787,11 @@ export default function ProjectTasksPage() {
                 onTaskClick={openTaskDetailsModal}
               />
             </Box>
+          )}
+
+          {/* CI/CD View */}
+          {view === "cicd" && (
+            <ProjectCICDView projectId={projectId} />
           )}
 
           {/* Dialog - Tạo/Sửa Task */}
