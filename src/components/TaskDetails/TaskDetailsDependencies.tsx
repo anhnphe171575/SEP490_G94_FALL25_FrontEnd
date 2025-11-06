@@ -29,9 +29,10 @@ import axiosInstance from "../../../ultis/axios";
 
 interface TaskDetailsDependenciesProps {
   taskId: string | null;
+  projectId?: string;
 }
 
-export default function TaskDetailsDependencies({ taskId }: TaskDetailsDependenciesProps) {
+export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetailsDependenciesProps) {
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [dependents, setDependents] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
@@ -48,9 +49,11 @@ export default function TaskDetailsDependencies({ taskId }: TaskDetailsDependenc
   useEffect(() => {
     if (taskId) {
       loadDependencies();
-      loadAvailableTasks();
+      if (projectId) {
+        loadAvailableTasks();
+      }
     }
-  }, [taskId]);
+  }, [taskId, projectId]);
 
   const loadDependencies = async () => {
     if (!taskId) return;
@@ -71,12 +74,19 @@ export default function TaskDetailsDependencies({ taskId }: TaskDetailsDependenc
 
   const loadAvailableTasks = async () => {
     // Load all tasks from current project to allow selection
+    if (!projectId) {
+      console.warn('No projectId provided - cannot load available tasks');
+      return;
+    }
+    
     try {
-      // Get project tasks - you may need to adjust this endpoint
-      const response = await axiosInstance.get(`/api/tasks`);
-      setAvailableTasks(response.data.filter((t: any) => t._id !== taskId));
+      // Get project tasks
+      const response = await axiosInstance.get(`/api/projects/${projectId}/tasks`);
+      const tasks = response.data?.tasks || response.data || [];
+      setAvailableTasks(tasks.filter((t: any) => t._id !== taskId));
     } catch (error) {
       console.error("Error loading tasks:", error);
+      setError("Failed to load available tasks");
     }
   };
 

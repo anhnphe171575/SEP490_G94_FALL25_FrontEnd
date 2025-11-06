@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import axiosInstance from "../../ultis/axios";
+import { io, Socket } from "socket.io-client";
 
 const navItems = [
   {
@@ -31,9 +32,20 @@ const navItems = [
       </svg>
     ),
   },
-  {
-    href: "/projects",
-    label: "Dự án",
+
+  { 
+    href: "/supervisor/dashboard", 
+    label: "Giảng viên", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10a2 2 0 002 2h12a2 2 0 002-2V9" />
+      </svg>
+    )
+  },
+  { 
+    href: "/projects", 
+    label: "Dự án", 
     icon: (
       <svg
         className="w-5 h-5"
@@ -50,9 +62,29 @@ const navItems = [
       </svg>
     ),
   },
-  {
-    href: "/calendar",
-    label: "Lịch họp",
+
+  { 
+    href: "/notifications", 
+    label: "Thông báo", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    )
+  },
+  { 
+    href: "/messages", 
+    label: "Tin nhắn nhóm", 
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    )
+  },
+  { 
+    href: "/calendar", 
+    label: "Lịch họp", 
+
     icon: (
       <svg
         className="w-5 h-5"
@@ -109,16 +141,26 @@ const navItems = [
   },
 ];
 
+let socket: Socket | null = null;
+
+export function getSocket() {
+  if (!socket) {
+    socket = io("http://localhost:5000", {
+      transports: ['websocket', 'polling']
+    });
+  }
+  return socket;
+}
+
 export default function ResponsiveSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [me, setMe] = useState<{
-    full_name?: string;
-    email?: string;
-    avatar?: string;
-  } | null>(null);
+
+  const [me, setMe] = useState<{ _id?: string; id?: string; full_name?: string; email?: string; avatar?: string; role?: number } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState<{ team_unread: number; direct_unread: number; total_unread: number }>({ team_unread: 0, direct_unread: 0, total_unread: 0 });
 
   useEffect(() => {
     setOpen(false);
@@ -133,20 +175,151 @@ export default function ResponsiveSidebar() {
             ? sessionStorage.getItem("token") || localStorage.getItem("token")
             : null;
         if (!token) return;
-        const res = await axiosInstance.get("/api/users/me");
-        setMe(res.data || null);
+
+        const res = await axiosInstance.get('/api/users/me');
+        const userData = res.data || null;
+        setMe(userData);
+        if (userData?._id || userData?.id) {
+          const userId = userData._id || userData.id;
+          const sock = getSocket();
+          if (sock.connected) {
+            sock.emit('join', userId.toString());
+          } else {
+            sock.once('connect', () => {
+              sock.emit('join', userId.toString());
+            });
+          }
+        }
+
       } catch {
-        // silently ignore
+        // ignore
       }
     })();
   }, []);
+
+  // Fetch unread notifications count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+        if (!token) return;
+        const res = await axiosInstance.get('/api/notifications/unread-count');
+        if (res.data?.unread_count !== undefined) {
+          setUnreadCount(res.data.unread_count);
+        }
+      } catch {
+        // silently ignore
+      }
+    };
+
+    fetchUnreadCount();
+
+    // Setup socket.io for real-time notifications
+    const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+    if (token) {
+      const sock = getSocket();
+      
+      sock.on('connect', () => {
+        console.log('Socket connected');
+        // Join room với user_id nếu đã có
+        if (me?._id || me?.id) {
+          const userId = (me._id || me.id)?.toString();
+          if (userId) {
+            sock.emit('join', userId);
+          }
+        }
+      });
+
+      sock.on('notification', (data: any) => {
+        // Increase unread count when new notification arrives
+        setUnreadCount(prev => prev + 1);
+      });
+
+      sock.on('notification-read', (data: any) => {
+        // Update unread count từ server response
+        if (data?.unread_count !== undefined) {
+          setUnreadCount(data.unread_count);
+        } else {
+          // Fallback: giảm count nếu không có unread_count
+          setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+      });
+
+      return () => {
+        sock.off('notification');
+        sock.off('notification-read');
+      };
+    }
+  }, [me?._id, me?.id]);
+
+  // Fetch unread messages count (team + direct)
+  useEffect(() => {
+    const fetchUnreadMessages = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+        if (!token) return;
+        const res = await axiosInstance.get('/api/messages/unread-count', {
+          validateStatus: (status) => {
+            // Không throw error cho các status code này, để xử lý trong catch
+            return status < 500;
+          }
+        });
+        if (res.status === 200 && res.data) {
+          setUnreadMessages({
+            team_unread: res.data.team_unread || 0,
+            direct_unread: res.data.direct_unread || 0,
+            total_unread: res.data.total_unread || 0,
+          });
+        }
+      } catch (err: any) {
+        // Chỉ log trong development, không crash app
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to fetch unread messages count:', err?.response?.status || err?.message);
+        }
+        // Giữ nguyên giá trị hiện tại hoặc set về 0 nếu chưa có
+        setUnreadMessages(prev => prev.total_unread === undefined ? { team_unread: 0, direct_unread: 0, total_unread: 0 } : prev);
+      }
+    };
+
+    fetchUnreadMessages();
+    // Poll mỗi 30s
+    const interval = setInterval(fetchUnreadMessages, 30000);
+
+    // Cập nhật realtime theo socket events
+    const sock = getSocket();
+    const refresh = () => fetchUnreadMessages();
+    sock.on('new-team-message', refresh);
+    sock.on('new-direct-message', refresh);
+    sock.on('message-read', refresh);
+    sock.on('joined-team', refresh);
+    sock.on('connect', refresh);
+
+    return () => {
+      clearInterval(interval);
+      sock.off('new-team-message', refresh);
+      sock.off('new-direct-message', refresh);
+      sock.off('message-read', refresh);
+      sock.off('joined-team', refresh);
+      sock.off('connect', refresh);
+    };
+  }, []);
+
+  
 
   const onLogout = () => {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("token");
       localStorage.removeItem("token");
     }
-    router.replace("/login");
+    // Reset notifications count
+    setUnreadCount(0);
+    // Disconnect socket
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+    }
+    router.replace('/login');
+
   };
 
   const handleAvatarClick = () => {
@@ -166,6 +339,15 @@ export default function ResponsiveSidebar() {
   const handleLogoutClick = () => {
     onLogout();
     setShowDropdown(false);
+  };
+
+  // Compute href based on user role
+  // If role = 4 (supervisor), redirect /projects to /supervisor/projects
+  const computeHref = (href: string) => {
+    if (href === "/projects" && me?.role === 4) {
+      return "/supervisor/projects";
+    }
+    return href;
   };
 
   return (
@@ -206,7 +388,7 @@ export default function ResponsiveSidebar() {
       >
         <div className="h-full bg-white border-r border-gray-200 shadow-lg">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-lg flex items-center justify-center">
                 <svg
@@ -231,22 +413,14 @@ export default function ResponsiveSidebar() {
               </div>
             </div>
             <button
-              onClick={() => setOpen(false)}
-              className="p-2 rounded-lg hover:bg-gray-100"
-            >
-              <svg
-                className="w-5 h-5 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+
+                onClick={() => setOpen(false)}
+                className="p-2 rounded-lg hover:bg-gray-100"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+
             </button>
           </div>
 
@@ -291,31 +465,42 @@ export default function ResponsiveSidebar() {
                 Điều hướng
               </h3>
               {navItems.map((item) => {
-                const active = pathname === item.href;
+                const targetHref = computeHref(item.href);
+                const active = pathname === targetHref;
+                const isNotification = item.href === '/notifications';
+                const isMessages = item.href === '/messages';
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={targetHref}
                     className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                       active
                         ? "bg-orange-50 text-orange-700 border-l-4 border-orange-500"
                         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                   >
-                    <div
-                      className={`mr-3 flex-shrink-0 ${
-                        active
-                          ? "text-orange-600"
-                          : "text-gray-400 group-hover:text-gray-600"
-                      }`}
-                    >
+
+                    <div className={`mr-3 flex-shrink-0 relative ${active ? 'text-orange-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
+
                       {item.icon}
+                      {isNotification && unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                      {isMessages && unreadMessages.total_unread > 0 && (
+                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
+                          {unreadMessages.total_unread > 99 ? '99+' : unreadMessages.total_unread}
+                        </span>
+                      )}
                     </div>
                     <span className="truncate">{item.label}</span>
                   </Link>
                 );
               })}
             </div>
+
+            
 
             {/* Logout */}
             <div className="mt-8">
@@ -383,27 +568,37 @@ export default function ResponsiveSidebar() {
               </div>
               <div className="space-y-1">
                 {navItems.map((item) => {
-                  const active = pathname === item.href;
+                  const targetHref = computeHref(item.href);
+                  const active = pathname === targetHref;
+                  const isNotification = item.href === '/notifications';
+                  const isMessages = item.href === '/messages';
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={targetHref}
                       className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                         active
                           ? "bg-orange-50 text-orange-700 border-l-4 border-orange-500"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       }`}
                     >
-                      <div
-                        className={`mr-3 flex-shrink-0 ${
-                          active
-                            ? "text-orange-600"
-                            : "text-gray-400 group-hover:text-gray-600"
-                        }`}
-                      >
+
+                      <div className={`mr-3 flex-shrink-0 relative ${active ? 'text-orange-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
+
                         {item.icon}
+                        {isNotification && unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                        {isMessages && unreadMessages.total_unread > 0 && (
+                          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
+                            {unreadMessages.total_unread > 99 ? '99+' : unreadMessages.total_unread}
+                          </span>
+                        )}
                       </div>
                       <span className="truncate">{item.label}</span>
+                      
                     </Link>
                   );
                 })}
@@ -417,6 +612,7 @@ export default function ResponsiveSidebar() {
                   Tài khoản
                 </h3>
               </div>
+
 
               {/* User Info */}
               {me && (

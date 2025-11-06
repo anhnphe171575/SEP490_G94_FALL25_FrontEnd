@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState, useMemo } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import {
@@ -44,6 +44,18 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import FunctionsIcon from "@mui/icons-material/Functions";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TuneIcon from "@mui/icons-material/Tune";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CancelIcon from "@mui/icons-material/Cancel";
+import PauseCircleIcon from "@mui/icons-material/PauseCircle";
+import BugReportIcon from "@mui/icons-material/BugReport";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import Badge from "@mui/material/Badge";
+import Popover from "@mui/material/Popover";
+import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 
 type Setting = {
   _id: string;
@@ -87,7 +99,9 @@ type FunctionStats = {
 export default function ProjectFunctionsPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string);
+  const featureIdFromUrl = searchParams.get('featureId');
 
   const [functions, setFunctions] = useState<FunctionType[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -103,6 +117,7 @@ export default function ProjectFunctionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterFeature, setFilterFeature] = useState<string>("all");
+  const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   const [functionForm, setFunctionForm] = useState({
     title: "",
@@ -115,6 +130,11 @@ export default function ProjectFunctionsPage() {
     start_date: "",
     deadline: "",
   });
+
+  // Inline editing states
+  const [editingCell, setEditingCell] = useState<{funcId: string, field: string} | null>(null);
+  const [editValue, setEditValue] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedFunction, setSelectedFunction] = useState<FunctionType | null>(null);
@@ -159,6 +179,16 @@ export default function ProjectFunctionsPage() {
     if (!projectId) return;
     loadAllData();
   }, [projectId]);
+
+  // Auto-filter by feature when featureId is in URL
+  useEffect(() => {
+    if (featureIdFromUrl && features.length > 0) {
+      const featureExists = features.some(f => f._id === featureIdFromUrl);
+      if (featureExists) {
+        setFilterFeature(featureIdFromUrl);
+      }
+    }
+  }, [featureIdFromUrl, features]);
 
   const loadAllData = async () => {
     try {
@@ -337,6 +367,58 @@ export default function ProjectFunctionsPage() {
     setSelectedFunction(null);
   };
 
+  // Inline editing handlers
+  const startEdit = (funcId: string, field: string, currentValue: any) => {
+    setEditingCell({ funcId, field });
+    setEditValue(currentValue);
+  };
+
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setEditValue(null);
+  };
+
+  const saveInlineEdit = async (funcId: string, field: string) => {
+    // Prevent double-save
+    if (isSaving) return;
+    
+    try {
+      // Don't save if value is empty or null (except for optional fields like deadline)
+      if (!editValue && field !== 'deadline' && field !== 'description') {
+        cancelEdit();
+        return;
+      }
+
+      setIsSaving(true);
+      const updateData: any = {};
+      updateData[field] = editValue;
+      
+      await axiosInstance.patch(`/api/functions/${funcId}`, updateData);
+      
+      // Reload data to get fresh data with populated fields
+      await loadAllData();
+      
+      cancelEdit();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || `Không thể cập nhật ${field}`);
+      cancelEdit();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Get icon and color for status
+  const getStatusIconAndColor = (statusName: string) => {
+    const name = statusName?.toLowerCase() || '';
+    if (name.includes('planning')) return { icon: <HourglassEmptyIcon fontSize="small" />, color: '#f59e0b', bg: '#fef3c7' };
+    if (name.includes('progress') || name.includes('doing')) return { icon: <PlayArrowIcon fontSize="small" />, color: '#3b82f6', bg: '#dbeafe' };
+    if (name.includes('testing') || name.includes('test')) return { icon: <BugReportIcon fontSize="small" />, color: '#8b5cf6', bg: '#ede9fe' };
+    if (name.includes('completed') || name.includes('done')) return { icon: <CheckCircleIcon fontSize="small" />, color: '#10b981', bg: '#d1fae5' };
+    if (name.includes('cancelled') || name.includes('cancel')) return { icon: <CancelIcon fontSize="small" />, color: '#ef4444', bg: '#fee2e2' };
+    if (name.includes('hold') || name.includes('pause')) return { icon: <PauseCircleIcon fontSize="small" />, color: '#6b7280', bg: '#f3f4f6' };
+    return { icon: <ArrowForwardIcon fontSize="small" />, color: '#6b7280', bg: '#f3f4f6' };
+  };
+
   const filteredFunctions = useMemo(() => {
     return functions.filter((func) => {
       const matchSearch = func.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -411,25 +493,75 @@ export default function ProjectFunctionsPage() {
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
-          {/* Header */}
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <IconButton onClick={() => router.back()}>
-                <ArrowBackIcon />
-              </IconButton>
-              <div>
-                <Typography variant="caption" color="text.secondary">
-                  Quản lý Functions
+          {/* Modern Header */}
+          <Box sx={{ mb: 3 }}>
+            <ProjectBreadcrumb 
+              projectId={projectId} 
+              items={[
+                { label: 'Functions', active: true }
+              ]} 
+            />
+            
+            <Box sx={{ 
+              bgcolor: 'white', 
+              borderRadius: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              border: '1px solid #e8e9eb',
+              mb: 3
+            }}>
+              <Box sx={{ 
+                px: 3, 
+                py: 2.5, 
+                borderBottom: '1px solid #e8e9eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+                flexWrap: 'wrap'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)',
+                  }}>
+                    <FunctionsIcon sx={{ fontSize: 28, color: 'white' }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
+                      Functions
                 </Typography>
-                <Typography variant="h4" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FunctionsIcon /> Functions
+                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                      Quản lý các function trong dự án
                 </Typography>
-              </div>
-            </div>
-            <Stack direction="row" spacing={2}>
+                  </Box>
+                </Box>
+
+                <Stack direction="row" spacing={1.5} alignItems="center">
               <Button
                 variant="outlined"
+                    size="small"
                 onClick={() => router.push(`/projects/${projectId}/features`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      borderColor: '#e2e8f0',
+                      borderWidth: '1.5px',
+                      color: '#49516f',
+                      height: 36,
+                      px: 2,
+                      borderRadius: 2.5,
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f9fafb',
+                      }
+                    }}
               >
                 Features
               </Button>
@@ -437,15 +569,160 @@ export default function ProjectFunctionsPage() {
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={() => handleOpenDialog()}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                      height: 36,
+                      px: 2.5,
+                      borderRadius: 2.5,
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
+                        transform: 'translateY(-1px)',
+                      },
+                      transition: 'all 0.2s ease',
+                    }}
               >
                 Tạo Function
               </Button>
             </Stack>
-          </div>
+              </Box>
+
+              {/* Toolbar with Search and Filters */}
+              <Box sx={{ 
+                px: 3, 
+                py: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+                flexWrap: 'wrap',
+              }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                  <TextField
+                    placeholder="Quick search functions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    size="small"
+                    sx={{ 
+                      width: 250,
+                      '& .MuiOutlinedInput-root': { 
+                        fontSize: '13px',
+                        borderRadius: 2,
+                        bgcolor: '#f8f9fb',
+                        height: 36,
+                        '& fieldset': { borderColor: 'transparent' },
+                        '&:hover': { 
+                          bgcolor: '#f3f4f6',
+                          '& fieldset': { borderColor: '#e8e9eb' }
+                        },
+                        '&.Mui-focused': { 
+                          bgcolor: 'white',
+                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                        }
+                      } 
+                    }}
+                    InputProps={{ 
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                        </InputAdornment>
+                      ) 
+                    }}
+                  />
+
+                  <Badge 
+                    badgeContent={[filterStatus !== 'all', filterFeature !== 'all', searchTerm].filter(Boolean).length || 0}
+                    color="primary"
+                    sx={{
+                      '& .MuiBadge-badge': {
+                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                        color: 'white',
+                        fontWeight: 700,
+                        fontSize: '10px',
+                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                        border: '2px solid white',
+                      }
+                    }}
+                  >
+                    <Button
+                      variant={filterAnchorEl ? "contained" : "outlined"}
+                      size="small"
+                      startIcon={<TuneIcon fontSize="small" />}
+                      onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                        borderWidth: '1.5px',
+                        color: filterAnchorEl ? 'white' : '#49516f',
+                        background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                        height: 36,
+                        px: 2,
+                        borderRadius: 2.5,
+                        boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                        '&:hover': {
+                          borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                          background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      Filters
+                    </Button>
+                  </Badge>
+                </Stack>
+
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                  Showing: {filteredFunctions.length} {filteredFunctions.length !== functions.length && `of ${functions.length}`} functions
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
 
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
               {error}
+            </Alert>
+          )}
+
+          {/* Feature Filter Alert */}
+          {featureIdFromUrl && filterFeature === featureIdFromUrl && (
+            <Alert 
+              severity="info" 
+              sx={{ 
+                mb: 3,
+                background: 'linear-gradient(135deg, #e0f2fe, #e0e7ff)',
+                border: '1px solid #7b68ee',
+                '& .MuiAlert-icon': {
+                  color: '#7b68ee'
+                }
+              }}
+              onClose={() => {
+                setFilterFeature("all");
+                router.push(`/projects/${projectId}/functions`);
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Đang xem Functions của Feature: 
+                </Typography>
+                <Chip 
+                  label={features.find(f => f._id === featureIdFromUrl)?.title || 'Unknown'}
+                  size="small"
+                  sx={{
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    color: 'white',
+                    fontWeight: 600,
+                  }}
+                />
+              </Box>
             </Alert>
           )}
 
@@ -554,29 +831,124 @@ export default function ProjectFunctionsPage() {
             </Alert>
           )}
 
-          {/* Filters */}
-          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                placeholder="Tìm kiếm function..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+          {/* Modern Filter Popover */}
+          <Popover
+            open={Boolean(filterAnchorEl)}
+            anchorEl={filterAnchorEl}
+            onClose={() => setFilterAnchorEl(null)}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+            slotProps={{
+              paper: {
+                sx: {
+                  mt: 1.5,
+                  width: 400,
+                  maxHeight: 500,
+                  borderRadius: 4,
+                  boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
+                  overflow: 'hidden',
+                  background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }
+              }
+            }}
+          >
+            {/* Header */}
+            <Box sx={{ 
+              px: 3.5,
+              pt: 3,
+              pb: 2.5,
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent)',
+                pointerEvents: 'none',
+              }
+            }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ position: 'relative', zIndex: 1 }}>
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 0.5 }}>
+                    <Box sx={{ 
+                      width: 36, 
+                      height: 36, 
+                      borderRadius: 2, 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                    }}>
+                      <TuneIcon sx={{ fontSize: 20, color: 'white' }} />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white', letterSpacing: '-0.02em' }}>
+                      Function Filters
+                    </Typography>
+                  </Stack>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', ml: 6 }}>
+                    Refine your function list
+                  </Typography>
+                </Box>
+                <IconButton 
                 size="small"
-                sx={{ flex: 1 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>Trạng thái</InputLabel>
+                  onClick={() => setFilterAnchorEl(null)}
+                  sx={{ 
+                    color: 'white',
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    '&:hover': { 
+                      bgcolor: 'rgba(255,255,255,0.25)',
+                      transform: 'rotate(90deg)',
+                      transition: 'all 0.3s ease'
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '18px', fontWeight: 300 }}>×</span>
+                </IconButton>
+              </Stack>
+            </Box>
+
+            {/* Filter Content */}
+            <Box sx={{ 
+              px: 3.5,
+              py: 3,
+              flex: 1,
+              overflowY: 'auto',
+            }}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Status
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Trạng thái</InputLabel>
                 <Select
                   value={filterStatus}
                   label="Trạng thái"
                   onChange={(e) => setFilterStatus(e.target.value)}
+                      sx={{
+                        borderRadius: 2.5,
+                        bgcolor: 'white',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#8b5cf6', borderWidth: '2px' },
+                      }}
                 >
                   <MenuItem value="all">Tất cả</MenuItem>
                   {statusTypes.map((status) => (
@@ -586,12 +958,27 @@ export default function ProjectFunctionsPage() {
                   ))}
                 </Select>
               </FormControl>
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>Feature</InputLabel>
+                </Box>
+
+                <Divider />
+
+                <Box>
+                  <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Feature
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Feature</InputLabel>
                 <Select
                   value={filterFeature}
                   label="Feature"
                   onChange={(e) => setFilterFeature(e.target.value)}
+                      sx={{
+                        borderRadius: 2.5,
+                        bgcolor: 'white',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#8b5cf6', borderWidth: '2px' },
+                      }}
                 >
                   <MenuItem value="all">Tất cả</MenuItem>
                   {features.map((feature) => (
@@ -601,8 +988,62 @@ export default function ProjectFunctionsPage() {
                   ))}
                 </Select>
               </FormControl>
+                </Box>
             </Stack>
-          </Paper>
+            </Box>
+
+            {/* Footer */}
+            {(filterStatus !== 'all' || filterFeature !== 'all') && (
+              <Box sx={{ 
+                px: 3.5,
+                py: 2.5,
+                borderTop: '1px solid #e2e8f0',
+                background: 'linear-gradient(to bottom, #fafbff, #f8f9fb)',
+                flexShrink: 0,
+              }}>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={() => {
+                    setFilterStatus('all');
+                    setFilterFeature('all');
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    color: 'white',
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    borderRadius: 2.5,
+                    py: 1.2,
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      boxShadow: '0 6px 16px rgba(239, 68, 68, 0.4)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                  startIcon={
+                    <Box sx={{ 
+                      width: 20, 
+                      height: 20, 
+                      borderRadius: '50%', 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px'
+                    }}>
+                      ✕
+                    </Box>
+                  }
+                >
+                  Clear All Filters
+                </Button>
+              </Box>
+            )}
+          </Popover>
 
           {/* Functions Table */}
           <Paper variant="outlined">
@@ -630,14 +1071,77 @@ export default function ProjectFunctionsPage() {
                     const complexityName = resolveComplexityName(func);
                     const statusName = resolveStatusName(func);
                     
+                    const isEditingTitle = editingCell?.funcId === func._id && editingCell?.field === 'title';
+                    const isEditingDescription = editingCell?.funcId === func._id && editingCell?.field === 'description';
+                    const isEditingComplexity = editingCell?.funcId === func._id && editingCell?.field === 'complexity_id';
+                    const isEditingStatus = editingCell?.funcId === func._id && editingCell?.field === 'status';
+                    const isEditingEffort = editingCell?.funcId === func._id && editingCell?.field === 'estimated_effort';
+                    const isEditingDeadline = editingCell?.funcId === func._id && editingCell?.field === 'deadline';
+                    
                     return (
-                      <TableRow key={func._id} hover>
-                        <TableCell>
+                      <TableRow 
+                        key={func._id} 
+                        hover
+                        sx={{ 
+                          '&:hover': {
+                            bgcolor: '#fafbfc',
+                          },
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {/* Title - Inline Editable */}
+                        <TableCell 
+                          onClick={() => !isEditingTitle && startEdit(func._id, 'title', func.title)}
+                          sx={{ 
+                            cursor: isEditingTitle ? 'text' : 'pointer',
+                            '&:hover': !isEditingTitle ? { bgcolor: '#f9fafb' } : {},
+                          }}
+                        >
+                          {isEditingTitle ? (
+                            <TextField
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => saveInlineEdit(func._id, 'title')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(func._id, 'title');
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              size="small"
+                              fullWidth
+                              autoFocus
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  fontSize: '14px',
+                                  bgcolor: 'white',
+                                  '& fieldset': { borderColor: '#7b68ee' },
+                                }
+                              }}
+                            />
+                          ) : (
+                            <>
                           <Typography fontWeight="medium">{func.title}</Typography>
                           {func.description && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <Typography 
+                                  variant="caption" 
+                                  color="text.secondary" 
+                                  sx={{ 
+                                    display: 'block', 
+                                    maxWidth: 300, 
+                                    overflow: 'hidden', 
+                                    textOverflow: 'ellipsis', 
+                                    whiteSpace: 'nowrap',
+                                    cursor: 'pointer',
+                                    '&:hover': { color: '#7b68ee' }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEdit(func._id, 'description', func.description);
+                                  }}
+                                >
                               {func.description}
                             </Typography>
+                              )}
+                            </>
                           )}
                         </TableCell>
                         <TableCell>
@@ -647,10 +1151,120 @@ export default function ProjectFunctionsPage() {
                             <Typography variant="body2" color="text.secondary">—</Typography>
                           )}
                         </TableCell>
-                        <TableCell>
+                        {/* Complexity - Inline Editable */}
+                        <TableCell 
+                          onClick={() => {
+                            if (!isEditingComplexity) {
+                              const currentComplexityId = typeof func.complexity_id === 'object' 
+                                ? func.complexity_id?._id 
+                                : func.complexity_id;
+                              startEdit(func._id, 'complexity_id', currentComplexityId);
+                            }
+                          }}
+                          sx={{ 
+                            cursor: isEditingComplexity ? 'default' : 'pointer',
+                            '&:hover': !isEditingComplexity ? { bgcolor: '#f9fafb' } : {},
+                          }}
+                        >
+                          {isEditingComplexity ? (
+                            <Select
+                              value={editValue || ""}
+                              onChange={(e) => {
+                                setEditValue(e.target.value);
+                                // Auto-save on change
+                                setTimeout(() => saveInlineEdit(func._id, 'complexity_id'), 100);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation();
+                                  cancelEdit();
+                                }
+                              }}
+                              size="small"
+                              autoFocus
+                              open
+                              sx={{
+                                fontSize: '13px',
+                                minWidth: 120,
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#7b68ee',
+                                },
+                              }}
+                            >
+                              {complexityTypes.map((complexity) => (
+                                <MenuItem key={complexity._id} value={complexity._id}>
+                                  {complexity.name}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          ) : (
                           <Chip label={complexityName} size="small" color="primary" />
+                          )}
                         </TableCell>
-                        <TableCell>
+
+                        {/* Status - Inline Editable */}
+                        <TableCell 
+                          onClick={() => {
+                            if (!isEditingStatus) {
+                              const currentStatusId = typeof func.status === 'object' 
+                                ? func.status?._id 
+                                : func.status;
+                              startEdit(func._id, 'status', currentStatusId);
+                            }
+                          }}
+                          sx={{ 
+                            cursor: isEditingStatus ? 'default' : 'pointer',
+                            '&:hover': !isEditingStatus ? { bgcolor: '#f9fafb' } : {},
+                          }}
+                        >
+                          {isEditingStatus ? (
+                            <Select
+                              value={editValue || ""}
+                              onChange={(e) => {
+                                setEditValue(e.target.value);
+                                // Auto-save on change
+                                setTimeout(() => saveInlineEdit(func._id, 'status'), 100);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation();
+                                  cancelEdit();
+                                }
+                              }}
+                              size="small"
+                              autoFocus
+                              open
+                              sx={{
+                                fontSize: '13px',
+                                minWidth: 140,
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#7b68ee',
+                                },
+                              }}
+                            >
+                              {statusTypes.map((status) => {
+                                const { icon, color, bg } = getStatusIconAndColor(status.name);
+                                return (
+                                  <MenuItem key={status._id} value={status._id}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Box sx={{ 
+                                        width: 24, 
+                                        height: 24, 
+                                        borderRadius: 1,
+                                        bgcolor: bg,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}>
+                                        {React.cloneElement(icon, { sx: { color, fontSize: 16 } })}
+                                      </Box>
+                                      {status.name}
+                                    </Box>
+                                  </MenuItem>
+                                );
+                              })}
+                            </Select>
+                          ) : (
                           <Chip
                             label={statusName}
                             size="small"
@@ -660,11 +1274,42 @@ export default function ProjectFunctionsPage() {
                               fontWeight: 600,
                             }}
                           />
+                          )}
                         </TableCell>
-                        <TableCell>
+                        {/* Estimated Effort - Inline Editable */}
+                        <TableCell 
+                          onClick={() => !isEditingEffort && startEdit(func._id, 'estimated_effort', func.estimated_effort)}
+                          sx={{ 
+                            cursor: isEditingEffort ? 'text' : 'pointer',
+                            '&:hover': !isEditingEffort ? { bgcolor: '#f9fafb' } : {},
+                          }}
+                        >
+                          {isEditingEffort ? (
+                            <TextField
+                              type="number"
+                              value={editValue}
+                              onChange={(e) => setEditValue(Number(e.target.value))}
+                              onBlur={() => saveInlineEdit(func._id, 'estimated_effort')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(func._id, 'estimated_effort');
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              size="small"
+                              autoFocus
+                              sx={{
+                                width: 80,
+                                '& .MuiOutlinedInput-root': {
+                                  fontSize: '14px',
+                                  bgcolor: 'white',
+                                  '& fieldset': { borderColor: '#7b68ee' },
+                                }
+                              }}
+                            />
+                          ) : (
                           <Typography variant="body2" fontWeight={600}>
                             {func.estimated_effort}h
                           </Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" fontWeight={600} color={func.actual_effort > func.estimated_effort ? "error.main" : "text.primary"}>
@@ -678,22 +1323,72 @@ export default function ProjectFunctionsPage() {
                             </Box>
                           </Box>
                         </TableCell>
-                        <TableCell>
+                        {/* Deadline - Inline Editable */}
+                        <TableCell 
+                          onClick={() => !isEditingDeadline && startEdit(func._id, 'deadline', func.deadline || '')}
+                          sx={{ 
+                            cursor: isEditingDeadline ? 'text' : 'pointer',
+                            '&:hover': !isEditingDeadline ? { bgcolor: '#f9fafb' } : {},
+                          }}
+                        >
+                          {isEditingDeadline ? (
+                            <TextField
+                              type="date"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => saveInlineEdit(func._id, 'deadline')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(func._id, 'deadline');
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              size="small"
+                              autoFocus
+                              InputLabelProps={{ shrink: true }}
+                              sx={{
+                                width: 150,
+                                '& .MuiOutlinedInput-root': {
+                                  fontSize: '14px',
+                                  bgcolor: 'white',
+                                  '& fieldset': { borderColor: '#7b68ee' },
+                                }
+                              }}
+                            />
+                          ) : (
+                            <>
                           {func.deadline ? (
                             <Typography variant="body2">
                               {new Date(func.deadline).toLocaleDateString('vi-VN')}
                             </Typography>
                           ) : (
                             <Typography variant="body2" color="text.secondary">—</Typography>
+                              )}
+                            </>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Stack direction="row" spacing={0.5}>
+                            <Tooltip title="Xem Tasks của Function này">
                           <IconButton
                             size="small"
-                            onClick={(e) => handleMenuClick(e, func)}
+                                color="success"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/projects/${projectId}/tasks?functionId=${func._id}`);
+                                }}
+                              >
+                                <AssignmentIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMenuClick(e, func);
+                              }}
                           >
                             <MoreVertIcon />
                           </IconButton>
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     );
@@ -712,43 +1407,169 @@ export default function ProjectFunctionsPage() {
             </Box>
           </Paper>
 
-          {/* Action Menu */}
+          {/* Action Menu - Modern Style */}
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
             onClose={handleMenuClose}
+            slotProps={{
+              paper: {
+                sx: {
+                  borderRadius: 3,
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+                  minWidth: 240,
+                  mt: 1,
+                  overflow: 'visible',
+                  '&:before': {
+                    content: '""',
+                    display: 'block',
+                    position: 'absolute',
+                    top: 0,
+                    right: 20,
+                    width: 10,
+                    height: 10,
+                    bgcolor: 'background.paper',
+                    transform: 'translateY(-50%) rotate(45deg)',
+                    zIndex: 0,
+                  },
+                }
+              }
+            }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            <MenuItem onClick={() => {
-              if (selectedFunction) handleOpenDialog(selectedFunction);
-            }}>
-              <EditIcon fontSize="small" sx={{ mr: 1 }} /> Chỉnh sửa
-            </MenuItem>
-            <Divider />
-            {statusTypes.map((status) => (
+            {/* Edit Action */}
               <MenuItem 
-                key={status._id}
                 onClick={() => {
-                  if (selectedFunction) handleUpdateStatus(selectedFunction._id, status._id);
-                }}
-              >
-                Chuyển sang {status.name}
+              if (selectedFunction) handleOpenDialog(selectedFunction);
+              }}
+              sx={{
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                borderRadius: 2,
+                mx: 1,
+                my: 0.5,
+                '&:hover': {
+                  bgcolor: '#f3f4f6',
+                  '& .MuiSvgIcon-root': {
+                    transform: 'scale(1.1)',
+                  }
+                },
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Box sx={{ 
+                width: 32, 
+                height: 32, 
+                borderRadius: 2,
+                bgcolor: '#e0e7ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+              }}>
+                <EditIcon fontSize="small" sx={{ color: '#6366f1' }} />
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
+                Chỉnh sửa
+              </Typography>
               </MenuItem>
-            ))}
-            <Divider />
+
+            <Divider sx={{ my: 1 }} />
+
+            {/* Delete Action */}
             <MenuItem 
               onClick={() => {
                 if (selectedFunction) handleDeleteFunction(selectedFunction._id);
               }}
-              sx={{ color: 'error.main' }}
+              sx={{
+                py: 1.5,
+                px: 2,
+                gap: 1.5,
+                borderRadius: 2,
+                mx: 1,
+                my: 0.5,
+                '&:hover': {
+                  bgcolor: '#fee2e2',
+                  '& .MuiSvgIcon-root': {
+                    transform: 'scale(1.1) rotate(-5deg)',
+                  }
+                },
+                transition: 'all 0.2s ease',
+              }}
             >
-              <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Xóa
+              <Box sx={{ 
+                width: 32, 
+                height: 32, 
+                borderRadius: 2,
+                bgcolor: '#fee2e2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+              }}>
+                <DeleteIcon fontSize="small" sx={{ color: '#ef4444' }} />
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, color: '#ef4444' }}>
+                Xóa
+              </Typography>
             </MenuItem>
           </Menu>
 
-          {/* Function Dialog */}
-          <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-            <DialogTitle sx={{ fontWeight: 'bold' }}>
+          {/* Function Dialog - Modern Style */}
+          <Dialog 
+            open={openDialog} 
+            onClose={handleCloseDialog} 
+            maxWidth="md" 
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 3,
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              }
+            }}
+          >
+            <DialogTitle sx={{ 
+              fontWeight: 700,
+              fontSize: '1.5rem',
+              pb: 2,
+              borderBottom: '1px solid #e8e9eb',
+              background: 'linear-gradient(135deg, #fafbff 0%, #f8f9fb 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}>
+              <Box sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                background: editingFunction 
+                  ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' 
+                  : 'linear-gradient(135deg, #10b981, #059669)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: editingFunction 
+                  ? '0 4px 12px rgba(99, 102, 241, 0.3)' 
+                  : '0 4px 12px rgba(16, 185, 129, 0.3)',
+              }}>
+                {editingFunction ? (
+                  <EditIcon sx={{ color: 'white', fontSize: 22 }} />
+                ) : (
+                  <AddIcon sx={{ color: 'white', fontSize: 22 }} />
+                )}
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
               {editingFunction ? "Chỉnh sửa Function" : "Tạo Function mới"}
+                </Typography>
+                {editingFunction && (
+                  <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                    Cập nhật thông tin function
+                  </Typography>
+                )}
+              </Box>
             </DialogTitle>
             <DialogContent>
               <Stack spacing={3} sx={{ mt: 2 }}>
@@ -859,14 +1680,65 @@ export default function ProjectFunctionsPage() {
                 </Stack>
               </Stack>
             </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog}>Hủy</Button>
+            <DialogActions sx={{ 
+              px: 3, 
+              py: 2.5, 
+              borderTop: '1px solid #e8e9eb',
+              background: '#fafbff',
+              gap: 1.5,
+            }}>
+              <Button 
+                onClick={handleCloseDialog}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  color: '#6b7280',
+                  px: 3,
+                  py: 1,
+                  borderRadius: 2,
+                  '&:hover': {
+                    bgcolor: '#f3f4f6',
+                  }
+                }}
+              >
+                Hủy
+              </Button>
               <Button 
                 variant="contained" 
                 onClick={handleSaveFunction}
                 disabled={!functionForm.title || !functionForm.complexity_id || !functionForm.status}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  background: editingFunction 
+                    ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' 
+                    : 'linear-gradient(135deg, #10b981, #059669)',
+                  px: 3,
+                  py: 1,
+                  borderRadius: 2,
+                  boxShadow: editingFunction 
+                    ? '0 4px 12px rgba(99, 102, 241, 0.3)' 
+                    : '0 4px 12px rgba(16, 185, 129, 0.3)',
+                  '&:hover': {
+                    background: editingFunction 
+                      ? 'linear-gradient(135deg, #4f46e5, #7c3aed)' 
+                      : 'linear-gradient(135deg, #059669, #047857)',
+                    boxShadow: editingFunction 
+                      ? '0 6px 16px rgba(99, 102, 241, 0.4)' 
+                      : '0 6px 16px rgba(16, 185, 129, 0.4)',
+                    transform: 'translateY(-1px)',
+                  },
+                  '&:disabled': {
+                    background: '#e5e7eb',
+                    color: '#9ca3af',
+                    boxShadow: 'none',
+                  },
+                  transition: 'all 0.2s ease',
+                }}
               >
-                {editingFunction ? "Cập nhật" : "Tạo"}
+                {editingFunction ? "💾 Cập nhật" : "✨ Tạo Function"}
               </Button>
             </DialogActions>
           </Dialog>

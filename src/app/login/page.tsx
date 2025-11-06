@@ -1,4 +1,4 @@
-// ...existing code...
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -80,6 +80,7 @@ export default function LoginPage() {
 
       const res = await axiosInstance.post("/api/auth/google", { idToken });
       const token = res.data?.token;
+
       const user = res.data?.user ?? res.data;
 
       if (!token) throw new Error("Không nhận được token từ server");
@@ -90,6 +91,19 @@ export default function LoginPage() {
       localStorage.setItem("isAdmin", String(Boolean(user?.isAdmin)));
 
       navigateAfterAuth(user);
+
+      const userRole = res.data?.user?.role;
+      if (token) {
+        sessionStorage.setItem("token", token);
+        localStorage.setItem("token", token); // keep both for existing interceptor behavior
+      }
+      
+      // Redirect based on role
+      if (userRole === 4) {
+        router.replace("/dashboard-supervisor");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       setError(err?.response?.data?.message || err?.message || "Đăng nhập Google thất bại");
@@ -105,6 +119,7 @@ export default function LoginPage() {
       setError(null);
       const res = await axiosInstance.post("/api/auth/login", { email, password });
       const token = res.data?.token;
+
       const user = res.data?.user ?? res.data;
 
       if (!token) throw new Error("Không nhận được token từ server");
@@ -115,6 +130,19 @@ export default function LoginPage() {
       localStorage.setItem("isAdmin", String(Boolean(user?.isAdmin)));
 
       navigateAfterAuth(user);
+      const userRole = res.data?.user?.role;
+      if (token) {
+        sessionStorage.setItem("token", token);
+        localStorage.setItem("token", token);
+      }
+      
+      // Redirect based on role
+      if (userRole === 4) {
+        router.replace("/supervisor/dashboard");
+      } else {
+        router.replace("/dashboard");
+      }
+
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       setError(err?.response?.data?.message || err?.message || "Đăng nhập thất bại");

@@ -56,12 +56,26 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        // Chỉ redirect nếu không phải trang messages
+        if (!window.location.pathname.includes('/messages')) {
+          window.location.href = '/login';
+        }
       }
     }
     if (error.response?.status === 403) {
       if (typeof window !== 'undefined') {
-        window.location.href = '/not-found';
+        // Không redirect cho các API liên quan đến team/messages khi đang ở trang messages
+        const isMessagesPage = window.location.pathname.includes('/messages');
+        const isTeamApi = error.config?.url?.includes('/api/team/');
+        const isMessagesApi = error.config?.url?.includes('/api/messages/');
+        
+        // Chỉ skip redirect nếu đang ở messages page VÀ là team/messages API
+        const shouldSkipRedirect = isMessagesPage && (isTeamApi || isMessagesApi);
+        
+        if (!shouldSkipRedirect) {
+          window.location.href = '/not-found';
+        }
+        // Nếu skip redirect, chỉ reject error để component xử lý
       }
     }
     

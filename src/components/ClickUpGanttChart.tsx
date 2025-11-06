@@ -33,6 +33,8 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
+  const [hoveredDependency, setHoveredDependency] = useState<{ taskId: string; depId: string } | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   
   // Auto-expand all
@@ -152,6 +154,173 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
     return wks;
   }, [timeline]);
 
+  // Calculate dependency line paths for hover detection
+  const dependencyPaths = useMemo(() => {
+    const paths: Array<{
+      taskId: string;
+      depId: string;
+      dependencyType: string;
+      path: { x: number; y: number }[];
+      bounds: { minX: number; maxX: number; minY: number; maxY: number };
+    }> = [];
+
+    const yPos: Record<string, number> = {};
+    let y = 0;
+
+    Object.entries(groupedTasks).forEach(([groupName, groupTasks]) => {
+      y += GROUP_HEIGHT;
+      if (!expandedGroups.has(groupName)) return;
+
+      groupTasks.forEach(task => {
+        yPos[task._id] = y + ROW_HEIGHT / 2;
+        y += ROW_HEIGHT;
+        getSubtasks(task._id).forEach(sub => {
+          yPos[sub._id] = y + ROW_HEIGHT / 2;
+          y += ROW_HEIGHT;
+        });
+      });
+    });
+
+    tasks.forEach(task => {
+      const deps = dependencies[task._id];
+      if (!deps?.dependencies) return;
+
+      deps.dependencies.forEach(dep => {
+        const toId = dep.depends_on_task_id?._id;
+        if (!toId) return;
+
+        const to = tasks.find(t => t._id === toId);
+        if (!to) return;
+
+        const fromBar = getBar(task);
+        const toBar = getBar(to);
+        if (!fromBar || !toBar) return;
+
+        const y1 = yPos[task._id];
+        const y2 = yPos[toId];
+        if (y1 === undefined || y2 === undefined) return;
+
+        const anchors: Record<'FS'|'SS'|'FF'|'SF', { from: 'start'|'finish'; to: 'start'|'finish' }> = {
+          FS: { from: 'finish', to: 'start' },
+          SS: { from: 'start',  to: 'start' },
+          FF: { from: 'finish', to: 'finish' },
+          SF: { from: 'start',  to: 'finish' }
+        };
+        const sides = anchors[dep.dependency_type];
+        const fromEdge = sides.from === 'start' ? fromBar.left : fromBar.left + fromBar.width;
+        const toEdge = sides.to === 'start' ? toBar.left : toBar.left + toBar.width;
+
+        const x1 = LEFT_WIDTH + fromEdge;
+        const x2 = LEFT_WIDTH + toEdge;
+        const dir = x2 >= x1 ? 1 : -1;
+        const hOffset = 15 * dir;
+
+        const path = [
+          { x: x1, y: y1 },
+          { x: x1 + hOffset, y: y1 },
+          { x: x1 + hOffset, y: y2 },
+          { x: x2, y: y2 }
+        ];
+
+        const minX = Math.min(x1, x1 + hOffset, x2);
+        const maxX = Math.max(x1, x1 + hOffset, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+
+        paths.push({
+          taskId: task._id,
+          depId: dep._id,
+          dependencyType: dep.dependency_type,
+          path,
+          bounds: { minX, maxX, minY, maxY }
+        });
+      });
+    });
+
+    return paths;
+  }, [tasks, dependencies, expandedGroups, groupedTasks, dateRange, dayWidth]);
+
+  // Check if mouse is near a dependency line
+  const isNearLine = (mouseX: number, mouseY: number, path: { x: number; y: number }[], bounds: { minX: number; maxX: number; minY: number; maxY: number }, scrollLeft: number) => {
+    const adjustedMouseX = mouseX + scrollLeft;
+    
+    // Quick bounds check
+    if (adjustedMouseX < bounds.minX - 20 || adjustedMouseX > bounds.maxX + 20 ||
+        mouseY < bounds.minY - 20 || mouseY > bounds.maxY + 20) {
+      return false;
+    }
+
+    const threshold = 8; // pixels
+
+    // Check distance to each segment
+    for (let i = 0; i < path.length - 1; i++) {
+      const p1 = path[i];
+      const p2 = path[i + 1];
+      
+      // Check if point is near line segment
+      const A = adjustedMouseX - p1.x;
+      const B = mouseY - p1.y;
+      const C = p2.x - p1.x;
+      const D = p2.y - p1.y;
+
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+      let param = -1;
+      if (lenSq !== 0) param = dot / lenSq;
+
+      let xx, yy;
+
+      if (param < 0) {
+        xx = p1.x;
+        yy = p1.y;
+      } else if (param > 1) {
+        xx = p2.x;
+        yy = p2.y;
+      } else {
+        xx = p1.x + param * C;
+        yy = p1.y + param * D;
+      }
+
+      const dx = adjustedMouseX - xx;
+      const dy = mouseY - yy;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < threshold) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Handle mouse move on canvas
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const scrollLeft = container.scrollLeft;
+
+    setMousePos({ x: mouseX, y: mouseY });
+
+    // Check if mouse is near any dependency line
+    let found = false;
+    for (const depPath of dependencyPaths) {
+      if (isNearLine(mouseX, mouseY, depPath.path, depPath.bounds, scrollLeft)) {
+        setHoveredDependency({ taskId: depPath.taskId, depId: depPath.depId });
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      setHoveredDependency(null);
+    }
+  };
+
   // Draw dependencies
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -186,11 +355,6 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
       const deps = dependencies[task._id];
       if (!deps?.dependencies) return;
       
-      // Debug: log dependencies
-      if (deps.dependencies.length > 0) {
-        console.log(`Task "${task.title}" has ${deps.dependencies.length} dependencies:`, deps.dependencies);
-      }
-      
       deps.dependencies.forEach(dep => {
         const toId = dep.depends_on_task_id?._id;
         if (!toId) return;
@@ -222,11 +386,16 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         
         if (x1 < -100 || x2 > canvas.width + 100) return;
         
-        const highlight = hoveredTask === task._id || hoveredTask === toId;
-        const color = highlight ? '#7b68ee' : '#9ca3af';
+        // Check if this dependency is hovered
+        const isHovered = hoveredDependency?.taskId === task._id && hoveredDependency?.depId === dep._id;
+        const isTaskHovered = hoveredTask === task._id || hoveredTask === toId;
+        const highlight = isHovered || isTaskHovered;
+        
+        const color = isHovered ? '#7b68ee' : highlight ? '#a78bfa' : '#9ca3af';
+        const lineWidth = isHovered ? 3.5 : highlight ? 2.5 : 1.5;
         
         ctx.strokeStyle = color;
-        ctx.lineWidth = highlight ? 2.5 : 1.5;
+        ctx.lineWidth = lineWidth;
         // Dashed when not highlighted to match reference style
         if (!highlight) ctx.setLineDash([5, 4]); else ctx.setLineDash([]);
         ctx.beginPath();
@@ -242,13 +411,13 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         ctx.setLineDash([]);
 
         // Small circles at connection points (like the reference)
-        const r = 3.5;
+        const r = isHovered ? 4.5 : 3.5;
         ctx.beginPath();
         ctx.fillStyle = '#ffffff';
         ctx.arc(x1, y1, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = isHovered ? 2 : 1.5;
         ctx.stroke();
 
         // Target circle (hollow) so arrow touches exactly the start/finish point
@@ -257,7 +426,7 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         ctx.arc(x2, y2, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = isHovered ? 2 : 1.5;
         ctx.stroke();
 
         ctx.fillStyle = color;
@@ -275,34 +444,47 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         }
         ctx.fill();
 
-        // Draw dependency type label (FS/SS/FF/SF)
+        // Draw dependency type label (FS/SS/FF/SF) - enhanced when hovered
         const midX = (x1 + hOffset + x2) / 2;
         const midY = y1 === y2 ? y1 - 8 : (y1 + y2) / 2 - 8;
         
-        ctx.font = 'bold 10px Inter, system-ui, sans-serif';
         const label = dep.dependency_type;
-        const metrics = ctx.measureText(label);
-        const padding = 4;
-        const bgWidth = metrics.width + padding * 2;
-        const bgHeight = 14;
+        const labelText = isHovered ? `${label} (${getDependencyTypeName(dep.dependency_type)})` : label;
         
-        // Background for label
-        ctx.fillStyle = highlight ? '#7b68ee' : '#ffffff';
+        ctx.font = isHovered ? 'bold 11px Inter, system-ui, sans-serif' : 'bold 10px Inter, system-ui, sans-serif';
+        const metrics = ctx.measureText(labelText);
+        const padding = isHovered ? 6 : 4;
+        const bgWidth = metrics.width + padding * 2;
+        const bgHeight = isHovered ? 18 : 14;
+        
+        // Background for label - enhanced when hovered
+        ctx.fillStyle = isHovered ? '#7b68ee' : highlight ? '#a78bfa' : '#ffffff';
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = isHovered ? 2 : 1.5;
         ctx.beginPath();
-        ctx.roundRect(midX - bgWidth / 2, midY - bgHeight / 2, bgWidth, bgHeight, 3);
+        ctx.roundRect(midX - bgWidth / 2, midY - bgHeight / 2, bgWidth, bgHeight, 4);
         ctx.fill();
         ctx.stroke();
         
         // Text
-        ctx.fillStyle = highlight ? '#ffffff' : color;
+        ctx.fillStyle = isHovered ? '#ffffff' : highlight ? '#ffffff' : color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, midX, midY);
+        ctx.fillText(labelText, midX, midY);
       });
     });
-  }, [tasks, dependencies, hoveredTask, expandedGroups, groupedTasks, dateRange, dayWidth]);
+  }, [tasks, dependencies, hoveredTask, hoveredDependency, expandedGroups, groupedTasks, dateRange, dayWidth]);
+
+  // Get dependency type name
+  const getDependencyTypeName = (type: string) => {
+    const names: Record<string, string> = {
+      'FS': 'Finish-to-Start',
+      'SS': 'Start-to-Start',
+      'FF': 'Finish-to-Finish',
+      'SF': 'Start-to-Finish'
+    };
+    return names[type] || type;
+  };
 
   return (
     <Paper sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'none', border: '1px solid #e5e7eb' }}>
@@ -321,7 +503,15 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
 
       {/* Main */}
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'auto', position: 'relative', bgcolor: 'white' }}>
-        <canvas ref={canvasRef} style={{ position: 'absolute', top: HEADER_HEIGHT, left: 0, pointerEvents: 'none', zIndex: 4 }} />
+        <canvas 
+          ref={canvasRef} 
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => {
+            setHoveredDependency(null);
+            setMousePos(null);
+          }}
+          style={{ position: 'absolute', top: HEADER_HEIGHT, left: 0, pointerEvents: 'auto', zIndex: 4, cursor: hoveredDependency ? 'pointer' : 'default' }} 
+        />
 
         {/* Left Panel */}
         <Box sx={{ width: LEFT_WIDTH, flexShrink: 0, borderRight: '1px solid #e5e7eb', bgcolor: '#fafbfc', position: 'sticky', left: 0, zIndex: 3 }}>

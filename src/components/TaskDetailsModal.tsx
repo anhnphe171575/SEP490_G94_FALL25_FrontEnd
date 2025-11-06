@@ -41,6 +41,8 @@ import axiosInstance from "../../ultis/axios";
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
 import TaskDetailsSubtasks from "./TaskDetails/TaskDetailsSubtasks";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
+import TaskDetailsDevelopment from "./TaskDetails/TaskDetailsDevelopment";
+import TaskDetailsCICD from "./TaskDetails/TaskDetailsCICD";
 import TaskDetailsTimeLogs from "./TaskDetails/TaskDetailsTimeLogs";
 import TaskDetailsComments from "./TaskDetails/TaskDetailsComments";
 import TaskDetailsAttachments from "./TaskDetails/TaskDetailsAttachments";
@@ -55,6 +57,7 @@ type Task = {
   assignee_id?: any;
   assigner_id?: any;
   feature_id?: any;
+  function_id?: any;
   milestone_id?: any;
   start_date?: string;
   deadline?: string;
@@ -74,20 +77,94 @@ type Task = {
 interface TaskDetailsModalProps {
   open: boolean;
   taskId: string | null;
+  projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
+  onTaskChange?: (newTaskId: string) => void; // Callback to switch to another task
 }
 
-export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: TaskDetailsModalProps) {
+export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate, onTaskChange }: TaskDetailsModalProps) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
+  const [allStatuses, setAllStatuses] = useState<any[]>([]);
+  const [allPriorities, setAllPriorities] = useState<any[]>([]);
+  const [allFeatures, setAllFeatures] = useState<any[]>([]);
+  const [allFunctions, setAllFunctions] = useState<any[]>([]);
+  
+  // Check if this is a subtask
+  const isSubtask = !!task?.parent_task_id;
+
+  // Handle subtask click - switch to view that subtask
+  const handleSubtaskClick = (subtaskId: string) => {
+    if (onTaskChange) {
+      onTaskChange(subtaskId);
+    }
+  };
+
+  // Get tab name from index (handles dynamic tabs for subtask)
+  const getTabContent = (index: number) => {
+    if (isSubtask) {
+      // For subtasks: Overview, Time, Comments, Files, Activity
+      const tabMap = ['overview', 'time', 'comments', 'files', 'activity'];
+      return tabMap[index];
+    } else {
+      // For tasks: Overview, Subtasks, Dependencies, Development, CI/CD, Time, Comments, Files, Activity
+      const tabMap = ['overview', 'subtasks', 'dependencies', 'development', 'cicd', 'time', 'comments', 'files', 'activity'];
+      return tabMap[index];
+    }
+  };
 
   useEffect(() => {
     if (open && taskId) {
+      setCurrentTab(0); // Reset to Overview tab when task changes
       loadTaskDetails();
+      loadSettings();
+      if (projectId) {
+        loadFeatures();
+      }
     }
-  }, [open, taskId]);
+  }, [open, taskId, projectId]);
+  
+  const loadSettings = async () => {
+    try {
+      const response = await axiosInstance.get('/api/settings');
+      const settings = response.data || [];
+      setAllStatuses(settings.filter((s: any) => s.type_id === 2));
+      setAllPriorities(settings.filter((s: any) => s.type_id === 3));
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadFeatures = async () => {
+    if (!projectId) return;
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/features`);
+      setAllFeatures(response.data || []);
+    } catch (error) {
+      console.error('Error loading features:', error);
+    }
+  };
+
+  const loadFunctions = async (featureId: string) => {
+    if (!featureId) {
+      setAllFunctions([]);
+      return;
+    }
+    if (!projectId) {
+      console.error('Error loading functions: projectId is required');
+      setAllFunctions([]);
+      return;
+    }
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
+      setAllFunctions(response.data || []);
+    } catch (error) {
+      console.error('Error loading functions:', error);
+      setAllFunctions([]);
+    }
+  };
 
   const loadTaskDetails = async () => {
     if (!taskId) return;
@@ -96,6 +173,12 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
       setLoading(true);
       const response = await axiosInstance.get(`/api/tasks/${taskId}`);
       setTask(response.data);
+      
+      // Load functions if task has feature_id
+      const featureId = response.data?.feature_id?._id || response.data?.feature_id;
+      if (featureId) {
+        await loadFunctions(featureId);
+      }
     } catch (error: any) {
       console.error("Error loading task:", error);
     } finally {
@@ -172,8 +255,18 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
             >
               {task?.feature_id?.title || 'Feature'}
             </Link>
-            <Typography fontSize="13px" color="text.primary" fontWeight={600}>
-              Task Details
+            <Typography 
+              fontSize="13px" 
+              color="text.primary" 
+              fontWeight={600}
+              sx={{
+                maxWidth: '400px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {task?.title || 'Task Details'}
             </Typography>
           </Breadcrumbs>
 
@@ -241,15 +334,15 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
                 {/* Status */}
                 {task?.status && (
                   <Chip 
-                    label={task.status} 
+                    label={typeof task.status === 'object' ? (task.status as any)?.name : task.status} 
                     size="small"
                     sx={{ 
                       height: 24,
                       fontSize: '12px',
                       fontWeight: 600,
-                      bgcolor: `${getStatusColor(task.status)}15`,
-                      color: getStatusColor(task.status),
-                      border: `1px solid ${getStatusColor(task.status)}40`,
+                      bgcolor: `${getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status)}15`,
+                      color: getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status),
+                      border: `1px solid ${getStatusColor(typeof task.status === 'object' ? (task.status as any)?.name : task.status)}40`,
                     }}
                   />
                 )}
@@ -258,15 +351,15 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
                 {task?.priority && (
                   <Chip 
                     icon={<FlagIcon sx={{ fontSize: 14 }} />}
-                    label={task.priority} 
+                    label={typeof task.priority === 'object' ? (task.priority as any)?.name : task.priority} 
                     size="small"
                     sx={{ 
                       height: 24,
                       fontSize: '12px',
                       fontWeight: 600,
-                      bgcolor: `${getPriorityColor(task.priority)}15`,
-                      color: getPriorityColor(task.priority),
-                      border: `1px solid ${getPriorityColor(task.priority)}40`,
+                      bgcolor: `${getPriorityColor(typeof task.priority === 'object' ? (task.priority as any)?.name : task.priority)}15`,
+                      color: getPriorityColor(typeof task.priority === 'object' ? (task.priority as any)?.name : task.priority),
+                      border: `1px solid ${getPriorityColor(typeof task.priority === 'object' ? (task.priority as any)?.name : task.priority)}40`,
                     }}
                   />
                 )}
@@ -356,8 +449,10 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
             }}
           >
             <Tab label="Overview" />
-            <Tab label="Subtasks" />
-            <Tab label="Dependencies" />
+            {!isSubtask && <Tab label="Subtasks" />}
+            {!isSubtask && <Tab label="Dependencies" />}
+            {!isSubtask && <Tab label="Development" />}
+            {!isSubtask && <Tab label="CI/CD" />}
             <Tab label="Time" />
             <Tab label="Comments" />
             <Tab label="Files" />
@@ -385,13 +480,15 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
             </Box>
           ) : (
             <>
-              {currentTab === 0 && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
-              {currentTab === 1 && <TaskDetailsSubtasks taskId={taskId} />}
-              {currentTab === 2 && <TaskDetailsDependencies taskId={taskId} />}
-              {currentTab === 3 && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
-              {currentTab === 4 && <TaskDetailsComments taskId={taskId} />}
-              {currentTab === 5 && <TaskDetailsAttachments taskId={taskId} />}
-              {currentTab === 6 && <TaskDetailsActivity taskId={taskId} />}
+              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
+              {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
+              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'development' && <TaskDetailsDevelopment taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'cicd' && <TaskDetailsCICD taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'time' && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
+              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments taskId={taskId} />}
+              {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments taskId={taskId} />}
+              {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity taskId={taskId} />}
             </>
           )}
         </Box>
@@ -420,13 +517,18 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  value={typeof task?.status === 'object' ? (task.status as any)?.name : task?.status || ''}
+                  value={typeof task?.status === 'object' ? (task.status as any)?._id : task?.status || ''}
                   onChange={async (e) => {
                     try {
                       await handleTaskUpdate({ status: e.target.value });
                     } catch (error) {
                       console.error('Error updating status:', error);
                     }
+                  }}
+                  displayEmpty
+                  renderValue={(value) => {
+                    const statusObj = allStatuses.find(s => s._id === value);
+                    return statusObj?.name || 'Select status';
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -439,12 +541,9 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
                     }
                   }}
                 >
-                  <MenuItem value="To Do">To Do</MenuItem>
-                  <MenuItem value="In Progress">In Progress</MenuItem>
-                  <MenuItem value="Review">Review</MenuItem>
-                  <MenuItem value="Testing">Testing</MenuItem>
-                  <MenuItem value="Done">Done</MenuItem>
-                  <MenuItem value="Blocked">Blocked</MenuItem>
+                  {allStatuses.map((s) => (
+                    <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Box>
@@ -456,13 +555,24 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  value={typeof task?.priority === 'object' ? (task.priority as any)?.name : task?.priority || ''}
+                  value={typeof task?.priority === 'object' ? (task.priority as any)?._id : task?.priority || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ priority: e.target.value });
+                      await handleTaskUpdate({ priority: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
                     }
+                  }}
+                  displayEmpty
+                  renderValue={(value) => {
+                    if (!value) return 'No priority';
+                    const priorityObj = allPriorities.find(p => p._id === value);
+                    const name = priorityObj?.name || '';
+                    const emoji = name.toLowerCase().includes('critical') ? '🔥'
+                      : name.toLowerCase().includes('high') ? '🔴'
+                      : name.toLowerCase().includes('medium') ? '🟡'
+                      : '🟢';
+                    return `${emoji} ${name}`;
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -475,17 +585,217 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
                     }
                   }}
                 >
-                  <MenuItem value="Low">🟢 Low</MenuItem>
-                  <MenuItem value="Medium">🟡 Medium</MenuItem>
-                  <MenuItem value="High">🔴 High</MenuItem>
-                  <MenuItem value="Critical">🔥 Critical</MenuItem>
+                  <MenuItem value="">No Priority</MenuItem>
+                  {allPriorities.map((p) => {
+                    const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
+                      : p.name.toLowerCase().includes('high') ? '🔴'
+                      : p.name.toLowerCase().includes('medium') ? '🟡'
+                      : '🟢';
+                    return (
+                      <MenuItem key={p._id} value={p._id}>
+                        {emoji} {p.name}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
             </Box>
 
+            {/* Feature & Function - Hide for Subtasks */}
+            {!isSubtask && (
+              <>
             <Divider />
 
-            {/* Dates */}
+                {/* Feature */}
+                <Box>
+              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                Feature
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={typeof task?.feature_id === 'object' ? task.feature_id?._id || '' : task?.feature_id || ''}
+                  onChange={async (e) => {
+                    const newFeatureId = e.target.value;
+                    try {
+                      await handleTaskUpdate({ 
+                        feature_id: newFeatureId || null,
+                        function_id: null // Reset function when feature changes
+                      });
+                      // Load functions for new feature
+                      if (newFeatureId) {
+                        await loadFunctions(newFeatureId);
+                      } else {
+                        setAllFunctions([]);
+                      }
+                    } catch (error) {
+                      console.error('Error updating feature:', error);
+                      alert('Không thể cập nhật feature. Vui lòng thử lại.');
+                    }
+                  }}
+                  displayEmpty
+                  renderValue={(value) => {
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn feature</em>;
+                    const selected = allFeatures.find((f: any) => f._id === value);
+                    const title = selected?.title || 'Unknown';
+                    return (
+                      <Tooltip title={title} arrow placement="top">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6', flexShrink: 0 }} />
+                          <Typography 
+                            fontSize="13px" 
+                            fontWeight={500}
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {title}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    );
+                  }}
+                  sx={{ 
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    bgcolor: '#f0f9ff',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#bae6fd',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#3b82f6',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#3b82f6',
+                    }
+                  }}
+                >
+                  <MenuItem value=""><em>Không chọn</em></MenuItem>
+                  {allFeatures.map((f: any) => (
+                    <MenuItem key={f._id} value={f._id}>
+                      <Tooltip title={f.title} arrow placement="right">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden', width: '100%' }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6', flexShrink: 0 }} />
+                          <Typography 
+                            fontSize="13px" 
+                            fontWeight={500}
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {f.title}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            {/* Function */}
+            <Box>
+              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                Function
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={typeof task?.function_id === 'object' ? task.function_id?._id || '' : task?.function_id || ''}
+                  onChange={async (e) => {
+                    try {
+                      await handleTaskUpdate({ function_id: e.target.value || null });
+                    } catch (error) {
+                      console.error('Error updating function:', error);
+                      alert('Không thể cập nhật function. Vui lòng thử lại.');
+                    }
+                  }}
+                  disabled={!task?.feature_id}
+                  displayEmpty
+                  renderValue={(value) => {
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn function</em>;
+                    const selected = allFunctions.find((f: any) => f._id === value);
+                    const title = selected?.title || 'Unknown';
+                    return (
+                      <Tooltip title={title} arrow placement="top">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#8b5cf6', flexShrink: 0 }} />
+                          <Typography 
+                            fontSize="13px" 
+                            fontWeight={500}
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {title}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    );
+                  }}
+                  sx={{ 
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    bgcolor: task?.feature_id ? '#faf5ff' : '#f9fafb',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: task?.feature_id ? '#e9d5ff' : '#e5e7eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: task?.feature_id ? '#8b5cf6' : '#d1d5db',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#8b5cf6',
+                    }
+                  }}
+                >
+                  <MenuItem value=""><em>Không chọn</em></MenuItem>
+                  {allFunctions.map((fn: any) => (
+                    <MenuItem key={fn._id} value={fn._id}>
+                      <Tooltip title={fn.title} arrow placement="right">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden', width: '100%' }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#8b5cf6', flexShrink: 0 }} />
+                          <Typography 
+                            fontSize="13px" 
+                            fontWeight={500}
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {fn.title}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    </MenuItem>
+                  ))}
+                </Select>
+                {!task?.feature_id && (
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      mt: 0.5,
+                      ml: 1,
+                      color: '#9ca3af',
+                      fontSize: '11px'
+                    }}
+                  >
+                    ⓘ Vui lòng chọn Feature trước
+                  </Typography>
+                )}
+              </FormControl>
+                </Box>
+
+                <Divider />
+              </>
+            )}
+
+            {/* Dates - Hide Start Date for Subtasks */}
+            {!isSubtask && (
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Start Date
@@ -515,6 +825,7 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
                 }}
               />
             </Box>
+            )}
 
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
@@ -548,7 +859,7 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
 
             <Divider />
 
-            {/* Estimate vs Actual */}
+            {/* Estimate only for Subtasks, both for Tasks */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Estimated Time (hours)
@@ -580,6 +891,9 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
               />
             </Box>
 
+            {/* Time Spent & Progress - Hide for Subtasks */}
+            {!isSubtask && (
+              <>
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Time Spent
@@ -631,6 +945,8 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
                 }}
               />
             </Box>
+              </>
+            )}
 
             <Divider />
 
@@ -666,11 +982,8 @@ export default function TaskDetailsModal({ open, taskId, onClose, onUpdate }: Ta
               <Typography fontSize="12px" fontWeight={600} color="text.primary">
                 {task?.assigner_id?.full_name || task?.assigner_id?.email || 'Unknown'}
               </Typography>
-              <Typography fontSize="10px" color="text.secondary" sx={{ mt: 1 }}>
-                Task ID: #{task?._id?.slice(-8).toUpperCase()}
-              </Typography>
               {task?.createdAt && (
-                <Typography fontSize="10px" color="text.secondary">
+                <Typography fontSize="10px" color="text.secondary" sx={{ mt: 1 }}>
                   Created: {new Date(task.createdAt).toLocaleDateString()}
                 </Typography>
               )}
