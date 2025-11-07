@@ -85,7 +85,7 @@ export default function AutoJoinTeamPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <Card className="shadow-lg">
           <CardHeader className="text-center">
