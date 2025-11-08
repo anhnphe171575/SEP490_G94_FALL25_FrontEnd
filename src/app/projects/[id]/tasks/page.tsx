@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import dynamic from 'next/dynamic';
+import './tasks.module.css';
 
 const ClickUpGanttChart = dynamic(
   () => import('@/components/ClickUpGanttChart'),
@@ -568,14 +569,47 @@ export default function ProjectTasksPage() {
 
   const addDependency = async (taskId: string, dependsOnTaskId: string, type: string = 'FS', lagDays: number = 0) => {
     try {
-      await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+      const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
         depends_on_task_id: dependsOnTaskId,
         dependency_type: type,
         lag_days: lagDays
       });
+      
+      // Check for warning (non-blocking)
+      if (response.data.warning) {
+        const warning = response.data.warning;
+        console.warn('Dependency created with warning:', warning.message);
+      }
+      
       await loadTaskDependencies(taskId);
     } catch (error: any) {
-      setError(error?.response?.data?.message || 'Không thể tạo dependency');
+      const errorData = error?.response?.data;
+      if (error?.response?.status === 400 && errorData?.violation) {
+        // Date violation - show detailed error
+        const violation = errorData.violation;
+        const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
+        setError(errorMessage);
+        
+        // If auto-fix available, offer it
+        if (errorData.can_auto_fix && violation.required_start_date) {
+          const autoFix = window.confirm(
+            `${errorMessage}\n\nBạn có muốn tự động điều chỉnh ngày tháng không?`
+          );
+          if (autoFix) {
+            try {
+              await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
+                preserve_duration: true
+              });
+              // Retry adding dependency
+              await addDependency(taskId, dependsOnTaskId, type, lagDays);
+            } catch (fixError: any) {
+              setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+            }
+          }
+        }
+      } else {
+        setError(errorData?.message || 'Không thể tạo dependency');
+      }
     }
   };
 
@@ -676,7 +710,7 @@ export default function ProjectTasksPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6">
           <Box sx={{ 
             display: "flex", 
             flexDirection: 'column',
@@ -704,7 +738,7 @@ export default function ProjectTasksPage() {
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
       <ResponsiveSidebar />
-      <main className="md:ml-64">
+      <main>
         <div className="w-full">
           {/* Breadcrumb Navigation */}
           <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
@@ -918,6 +952,27 @@ export default function ProjectTasksPage() {
           >
             <Stack direction="row" spacing={0.5}>
               <Button
+                onClick={() => router.push(`/projects/${projectId}/tasks/dashboard`)}
+                startIcon={<DashboardIcon fontSize="small" />}
+                sx={{
+                  minWidth: 'auto',
+                  px: 2,
+                  py: 0.75,
+                  color: '#49516f',
+                  bgcolor: 'transparent',
+                  textTransform: 'none',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  borderRadius: 1.5,
+                  '&:hover': {
+                    bgcolor: '#f3f4f6',
+                  }
+                }}
+              >
+                Dashboard
+              </Button>
+              <Box sx={{ width: '1px', height: 24, bgcolor: '#e8e9eb', mx: 0.5 }} />
+              <Button
                 onClick={() => setView('table')}
                 startIcon={<ListIcon fontSize="small" />}
                 sx={{
@@ -979,7 +1034,11 @@ export default function ProjectTasksPage() {
               </Button>
               <Button
                 onClick={() => setView('gantt')}
-                startIcon={<DashboardIcon fontSize="small" />}
+                startIcon={
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                }
                 sx={{
                   minWidth: 'auto',
                   px: 2,
@@ -2104,8 +2163,11 @@ export default function ProjectTasksPage() {
               <Box sx={{ 
                 px: 3, 
                 py: 1.5, 
-                display: 'grid', 
-                gridTemplateColumns: { xs: '40px 1fr 120px 110px', md: '40px 1fr 140px 140px 120px 100px 100px 80px 60px' }, 
+                display: 'grid !important', 
+                gridTemplateColumns: { 
+                  xs: '40px minmax(200px, 1fr) 120px 110px', 
+                  md: '40px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                }, 
                 columnGap: 2, 
                 color: '#6b7280', 
                 fontSize: '11px', 
@@ -2114,6 +2176,7 @@ export default function ProjectTasksPage() {
                 letterSpacing: '0.5px',
                 bgcolor: '#fafbfc',
                 borderBottom: '1px solid #e8e9eb',
+                alignItems: 'center',
               }}>
                 <Box></Box>
                 <Box>Task name</Box>
@@ -2192,14 +2255,16 @@ export default function ProjectTasksPage() {
                       });
                       
                       return (
-                        <>
+                        <Fragment key={t._id}>
                         <Box 
-                          key={t._id} 
                           sx={{ 
                             px: 3, 
                             py: 1.25, 
-                            display: 'grid', 
-                            gridTemplateColumns: { xs: '40px 1fr 120px 110px', md: '40px 1fr 140px 140px 120px 100px 100px 80px 60px' }, 
+                            display: 'grid !important', 
+                            gridTemplateColumns: { 
+                              xs: '40px minmax(200px, 1fr) 120px 110px', 
+                              md: '40px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                            }, 
                             columnGap: 2, 
                             alignItems: 'center', 
                             borderBottom: '1px solid #f3f4f6',
@@ -2897,8 +2962,11 @@ export default function ProjectTasksPage() {
                               px: 3, 
                               py: 1.5,
                               pl: 7, // Extra left padding for indentation
-                              display: 'grid', 
-                              gridTemplateColumns: { xs: '40px 1fr 120px 110px', md: '40px 1fr 140px 140px 120px 100px 100px 80px 60px' }, 
+                              display: 'grid !important', 
+                              gridTemplateColumns: { 
+                                xs: '40px minmax(200px, 1fr) 120px 110px', 
+                                md: '40px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                              }, 
                               columnGap: 2, 
                               alignItems: 'center', 
                               bgcolor: '#fafbfc',
@@ -3190,7 +3258,7 @@ export default function ProjectTasksPage() {
                           </Box>
                         );
                         })}
-                      </>
+                      </Fragment>
                       );
                     })}
 

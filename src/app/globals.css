@@ -153,12 +153,25 @@ a.link:hover {
 .animation-delay-2000 {
   animation-delay: 2s;
 }
-
 .animation-delay-4000 {
   animation-delay: 4s;
 }
 
-/* Smooth transitions cho các elements */
-* {
+/* Selective smooth transitions - avoid affecting layout */
+button, a, .card, [class*="btn-"], input, select, textarea {
   transition: all 0.2s ease-in-out;
+}
+
+/* Sidebar margin auto-adjustment */
+@media (min-width: 768px) {
+  main {
+    margin-left: 256px; /* Default sidebar width */
+    transition: margin-left 0.3s ease;
+  }
+}
+
+@media (max-width: 767px) {
+  main {
+    margin-left: 0; /* No margin on mobile */
+  }
 }

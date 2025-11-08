@@ -94,17 +94,59 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
     if (!taskId || !newDependency.depends_on_task_id) return;
     
     try {
-      await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+      const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
         depends_on_task_id: newDependency.depends_on_task_id,
         dependency_type: newDependency.dependency_type,
         lag_days: newDependency.lag_days
       });
       
+      // Check for warning (non-blocking)
+      if (response.data.warning) {
+        const warning = response.data.warning;
+        const confirmMessage = `${warning.message}\n\n${warning.suggestion}\n\nBạn có muốn tiếp tục không?`;
+        if (!window.confirm(confirmMessage)) {
+          return;
+        }
+      }
+      
       setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
       setShowAddForm(false);
       await loadDependencies();
     } catch (error: any) {
-      setError(error?.response?.data?.message || 'Failed to add dependency');
+      const errorData = error?.response?.data;
+      if (error?.response?.status === 400 && errorData?.violation) {
+        // Date violation - show detailed error
+        const violation = errorData.violation;
+        const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
+        setError(errorMessage);
+        
+        // If auto-fix available, offer it
+        if (errorData.can_auto_fix && violation.required_start_date) {
+          const autoFix = window.confirm(
+            `${errorMessage}\n\nBạn có muốn tự động điều chỉnh ngày tháng không?`
+          );
+          if (autoFix) {
+            try {
+              await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
+                preserve_duration: true
+              });
+              // Retry adding dependency with same params
+              const retryResponse = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+                depends_on_task_id: newDependency.depends_on_task_id,
+                dependency_type: newDependency.dependency_type,
+                lag_days: newDependency.lag_days
+              });
+              setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
+              setShowAddForm(false);
+              await loadDependencies();
+            } catch (fixError: any) {
+              setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+            }
+          }
+        }
+      } else {
+        setError(errorData?.message || 'Failed to add dependency');
+      }
     }
   };
 
