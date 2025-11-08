@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
@@ -73,11 +72,18 @@ export default function LoginPage() {
       
       const res = await axiosInstance.post("/api/auth/google", { idToken });
       const token = res.data?.token;
+      const userRole = res.data?.user?.role;
       if (token) {
         sessionStorage.setItem("token", token);
         localStorage.setItem("token", token); // keep both for existing interceptor behavior
       }
-      router.replace("/dashboard");
+      
+      // Redirect based on role
+      if (userRole === 4) {
+        router.replace("/dashboard-supervisor");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: unknown) {
       const error = e as { response?: { data?: { message?: string } }; message?: string };
       setError(error?.response?.data?.message || error?.message || "Đăng nhập Google thất bại");
@@ -86,25 +92,39 @@ export default function LoginPage() {
     }
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await axiosInstance.post("/api/auth/login", { email, password });
-      const token = res.data?.token;
-      if (token) {
-        sessionStorage.setItem("token", token);
-        localStorage.setItem("token", token);
-      }
-      router.replace("/dashboard");
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { message?: string } } };
-      setError(error?.response?.data?.message || "Đăng nhập thất bại");
-    } finally {
-      setLoading(false);
+ const onSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    setLoading(true);
+    setError(null);
+
+    const res = await axiosInstance.post("/api/auth/login", { email, password });
+    const token = res.data?.token;
+    const user = res.data?.user;
+
+    if (token) {
+      sessionStorage.setItem("token", token);
+      localStorage.setItem("token", token);
     }
-  };
+
+    // ✅ Ưu tiên redirectUrl từ backend nếu có
+    if (user?.redirectUrl) {
+      router.replace(user.redirectUrl);
+    } 
+    // ✅ Hoặc fallback theo role
+    else if (user?.role === 4) {
+      router.replace("/supervisor/dashboard");
+    } else {
+      router.replace("/dashboard");
+    }
+
+  } catch (e: any) {
+    setError(e?.response?.data?.message || "Đăng nhập thất bại");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col">
@@ -255,5 +275,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-

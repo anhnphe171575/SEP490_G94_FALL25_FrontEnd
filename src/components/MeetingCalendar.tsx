@@ -67,6 +67,11 @@ type Meeting = {
   google_meet_link?: string;
   meeting_notes?: string;
   reject_reason?: string;
+  project_id?: {
+    _id: string;
+    topic: string;
+    code: string;
+  };
   mentor_id: {
     _id: string;
     full_name: string;
@@ -165,12 +170,23 @@ export default function MeetingCalendar({
     a.getDate() === b.getDate();
 
   const parseMeetingDate = (m: Meeting) => {
-    // meeting_date like 'YYYY-MM-DD', times like 'HH:MM'
-    const [y, mo, da] = m.meeting_date.split('-').map((n) => parseInt(n, 10));
+    const md: any = (m as any).meeting_date;
+    let base: Date;
+    if (md instanceof Date) {
+      base = md;
+    } else if (typeof md === 'string' && md.includes('T')) {
+      const iso = new Date(md);
+      base = new Date(iso.getFullYear(), iso.getMonth(), iso.getDate());
+    } else if (typeof md === 'string') {
+      const [y, mo, da] = md.split('-').map((n) => parseInt(n, 10));
+      base = new Date(y, (mo || 1) - 1, da || 1);
+    } else {
+      base = new Date();
+    }
     const [sh, sm] = m.start_time.split(':').map((n) => parseInt(n, 10));
     const [eh, em] = m.end_time.split(':').map((n) => parseInt(n, 10));
-    const start = new Date(y, (mo || 1) - 1, da || 1, sh || 0, sm || 0, 0, 0);
-    const end = new Date(y, (mo || 1) - 1, da || 1, eh || 0, em || 0, 0, 0);
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), sh || 0, sm || 0, 0, 0);
+    const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), eh || 0, em || 0, 0, 0);
     return { start, end };
   };
 
@@ -395,14 +411,14 @@ export default function MeetingCalendar({
                   {" – "}
                   {new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6)
                     .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                </Typography>
+              </Typography>
               </div>
               <div className="flex gap-2">
                 <Button variant="outlined" onClick={loadMeetings} disabled={loading}>Refresh</Button>
                 {canCreateMeeting && (
                   <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenCreateDialog(true)}>
                     Tạo lịch họp
-                  </Button>
+                </Button>
                 )}
               </div>
             </div>
@@ -419,10 +435,10 @@ export default function MeetingCalendar({
                       <div className="flex flex-col items-center">
                         <span className="text-xs text-gray-500">{dayNames[d.getDay()]}</span>
                         <span className={`text-sm font-semibold ${isSameDay(d, new Date()) ? 'text-blue-600' : 'text-gray-900'}`}>{d.getDate()}</span>
-                      </div>
-                    </div>
+                            </div>
+                          </div>
                   ))}
-                </div>
+                        </div>
 
                 {/* Grid */}
                 <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
@@ -431,9 +447,9 @@ export default function MeetingCalendar({
                     {HOURS.map((h) => (
                       <div key={h} className="border-b text-right pr-2 text-xs text-gray-500" style={{ height: SLOT_HEIGHT }}>
                         {h === 0 ? '' : `${h}:00`}
-                      </div>
+                            </div>
                     ))}
-                  </div>
+                        </div>
 
                   {/* Day columns */}
                   {weekDays.map((day, idx) => (
@@ -460,11 +476,12 @@ export default function MeetingCalendar({
                             >
                               <div className="text-xs font-semibold truncate">{m.topic}</div>
                               <div className="text-[10px] opacity-90 truncate">{formatTime(m.start_time)} - {formatTime(m.end_time)}</div>
-                            </div>
+                              <div className="text-[10px] opacity-90 truncate">{m.project_id?.topic || ''}</div>
+                          </div>
                           );
                         })}
                     </div>
-                  ))}
+                ))}
                 </div>
               </div>
             )}

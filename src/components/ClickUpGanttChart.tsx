@@ -33,6 +33,8 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
+  const [hoveredDependency, setHoveredDependency] = useState<{ taskId: string; depId: string } | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   
   // Auto-expand all
@@ -45,10 +47,10 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
     return groups;
   });
 
-  const ROW_HEIGHT = 40;
-  const GROUP_HEIGHT = 44;
-  const HEADER_HEIGHT = 66;
-  const LEFT_WIDTH = 250;
+  const ROW_HEIGHT = 44;
+  const GROUP_HEIGHT = 48;
+  const HEADER_HEIGHT = 80;
+  const LEFT_WIDTH = 280;
 
   // Group tasks
   const groupedTasks = useMemo(() => {
@@ -81,7 +83,7 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
   }, [tasks]);
 
   const totalDays = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / 86400000);
-  const dayWidth = 42 * zoom;
+  const dayWidth = Math.max(32, 48 * zoom);
 
   const getBar = (task: Task) => {
     // Always render a bar. If dates are missing, place a small placeholder around today.
@@ -110,10 +112,17 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
   const getColor = (status?: string | { _id: string; name: string }) => {
     const s = (typeof status === 'object' ? status?.name : status || '').toLowerCase();
     if (s.includes('done') || s.includes('completed')) return '#00c875';
-    if (s.includes('progress')) return '#00d4ff';
+    if (s.includes('progress')) return '#579bfc';
     if (s.includes('review')) return '#a25ddc';
     if (s.includes('blocked')) return '#e44258';
-    return '#579bfc';
+    return '#7b68ee';
+  };
+
+  const getGradient = (color: string, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
+    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, color + 'dd');
+    return gradient;
   };
 
   // Timeline columns
@@ -152,6 +161,173 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
     return wks;
   }, [timeline]);
 
+  // Calculate dependency line paths for hover detection
+  const dependencyPaths = useMemo(() => {
+    const paths: Array<{
+      taskId: string;
+      depId: string;
+      dependencyType: string;
+      path: { x: number; y: number }[];
+      bounds: { minX: number; maxX: number; minY: number; maxY: number };
+    }> = [];
+
+    const yPos: Record<string, number> = {};
+    let y = 0;
+
+    Object.entries(groupedTasks).forEach(([groupName, groupTasks]) => {
+      y += GROUP_HEIGHT;
+      if (!expandedGroups.has(groupName)) return;
+
+      groupTasks.forEach(task => {
+        yPos[task._id] = y + ROW_HEIGHT / 2;
+        y += ROW_HEIGHT;
+        getSubtasks(task._id).forEach(sub => {
+          yPos[sub._id] = y + ROW_HEIGHT / 2;
+          y += ROW_HEIGHT;
+        });
+      });
+    });
+
+    tasks.forEach(task => {
+      const deps = dependencies[task._id];
+      if (!deps?.dependencies) return;
+
+      deps.dependencies.forEach(dep => {
+        const toId = dep.depends_on_task_id?._id;
+        if (!toId) return;
+
+        const to = tasks.find(t => t._id === toId);
+        if (!to) return;
+
+        const fromBar = getBar(task);
+        const toBar = getBar(to);
+        if (!fromBar || !toBar) return;
+
+        const y1 = yPos[task._id];
+        const y2 = yPos[toId];
+        if (y1 === undefined || y2 === undefined) return;
+
+        const anchors: Record<'FS'|'SS'|'FF'|'SF', { from: 'start'|'finish'; to: 'start'|'finish' }> = {
+          FS: { from: 'finish', to: 'start' },
+          SS: { from: 'start',  to: 'start' },
+          FF: { from: 'finish', to: 'finish' },
+          SF: { from: 'start',  to: 'finish' }
+        };
+        const sides = anchors[dep.dependency_type];
+        const fromEdge = sides.from === 'start' ? fromBar.left : fromBar.left + fromBar.width;
+        const toEdge = sides.to === 'start' ? toBar.left : toBar.left + toBar.width;
+
+        const x1 = LEFT_WIDTH + fromEdge;
+        const x2 = LEFT_WIDTH + toEdge;
+        const dir = x2 >= x1 ? 1 : -1;
+        const hOffset = 15 * dir;
+
+        const path = [
+          { x: x1, y: y1 },
+          { x: x1 + hOffset, y: y1 },
+          { x: x1 + hOffset, y: y2 },
+          { x: x2, y: y2 }
+        ];
+
+        const minX = Math.min(x1, x1 + hOffset, x2);
+        const maxX = Math.max(x1, x1 + hOffset, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+
+        paths.push({
+          taskId: task._id,
+          depId: dep._id,
+          dependencyType: dep.dependency_type,
+          path,
+          bounds: { minX, maxX, minY, maxY }
+        });
+      });
+    });
+
+    return paths;
+  }, [tasks, dependencies, expandedGroups, groupedTasks, dateRange, dayWidth]);
+
+  // Check if mouse is near a dependency line
+  const isNearLine = (mouseX: number, mouseY: number, path: { x: number; y: number }[], bounds: { minX: number; maxX: number; minY: number; maxY: number }, scrollLeft: number) => {
+    const adjustedMouseX = mouseX + scrollLeft;
+    
+    // Quick bounds check
+    if (adjustedMouseX < bounds.minX - 20 || adjustedMouseX > bounds.maxX + 20 ||
+        mouseY < bounds.minY - 20 || mouseY > bounds.maxY + 20) {
+      return false;
+    }
+
+    const threshold = 8; // pixels
+
+    // Check distance to each segment
+    for (let i = 0; i < path.length - 1; i++) {
+      const p1 = path[i];
+      const p2 = path[i + 1];
+      
+      // Check if point is near line segment
+      const A = adjustedMouseX - p1.x;
+      const B = mouseY - p1.y;
+      const C = p2.x - p1.x;
+      const D = p2.y - p1.y;
+
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+      let param = -1;
+      if (lenSq !== 0) param = dot / lenSq;
+
+      let xx, yy;
+
+      if (param < 0) {
+        xx = p1.x;
+        yy = p1.y;
+      } else if (param > 1) {
+        xx = p2.x;
+        yy = p2.y;
+      } else {
+        xx = p1.x + param * C;
+        yy = p1.y + param * D;
+      }
+
+      const dx = adjustedMouseX - xx;
+      const dy = mouseY - yy;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < threshold) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Handle mouse move on canvas
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const scrollLeft = container.scrollLeft;
+
+    setMousePos({ x: mouseX, y: mouseY });
+
+    // Check if mouse is near any dependency line
+    let found = false;
+    for (const depPath of dependencyPaths) {
+      if (isNearLine(mouseX, mouseY, depPath.path, depPath.bounds, scrollLeft)) {
+        setHoveredDependency({ taskId: depPath.taskId, depId: depPath.depId });
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      setHoveredDependency(null);
+    }
+  };
+
   // Draw dependencies
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -186,11 +362,6 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
       const deps = dependencies[task._id];
       if (!deps?.dependencies) return;
       
-      // Debug: log dependencies
-      if (deps.dependencies.length > 0) {
-        console.log(`Task "${task.title}" has ${deps.dependencies.length} dependencies:`, deps.dependencies);
-      }
-      
       deps.dependencies.forEach(dep => {
         const toId = dep.depends_on_task_id?._id;
         if (!toId) return;
@@ -222,11 +393,16 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         
         if (x1 < -100 || x2 > canvas.width + 100) return;
         
-        const highlight = hoveredTask === task._id || hoveredTask === toId;
-        const color = highlight ? '#7b68ee' : '#9ca3af';
+        // Check if this dependency is hovered
+        const isHovered = hoveredDependency?.taskId === task._id && hoveredDependency?.depId === dep._id;
+        const isTaskHovered = hoveredTask === task._id || hoveredTask === toId;
+        const highlight = isHovered || isTaskHovered;
+        
+        const color = isHovered ? '#7b68ee' : highlight ? '#a78bfa' : '#9ca3af';
+        const lineWidth = isHovered ? 3.5 : highlight ? 2.5 : 1.5;
         
         ctx.strokeStyle = color;
-        ctx.lineWidth = highlight ? 2.5 : 1.5;
+        ctx.lineWidth = lineWidth;
         // Dashed when not highlighted to match reference style
         if (!highlight) ctx.setLineDash([5, 4]); else ctx.setLineDash([]);
         ctx.beginPath();
@@ -242,13 +418,13 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         ctx.setLineDash([]);
 
         // Small circles at connection points (like the reference)
-        const r = 3.5;
+        const r = isHovered ? 4.5 : 3.5;
         ctx.beginPath();
         ctx.fillStyle = '#ffffff';
         ctx.arc(x1, y1, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = isHovered ? 2 : 1.5;
         ctx.stroke();
 
         // Target circle (hollow) so arrow touches exactly the start/finish point
@@ -257,7 +433,7 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         ctx.arc(x2, y2, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = isHovered ? 2 : 1.5;
         ctx.stroke();
 
         ctx.fillStyle = color;
@@ -275,60 +451,150 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
         }
         ctx.fill();
 
-        // Draw dependency type label (FS/SS/FF/SF)
+        // Draw dependency type label (FS/SS/FF/SF) - enhanced when hovered
         const midX = (x1 + hOffset + x2) / 2;
         const midY = y1 === y2 ? y1 - 8 : (y1 + y2) / 2 - 8;
         
-        ctx.font = 'bold 10px Inter, system-ui, sans-serif';
         const label = dep.dependency_type;
-        const metrics = ctx.measureText(label);
-        const padding = 4;
-        const bgWidth = metrics.width + padding * 2;
-        const bgHeight = 14;
+        const labelText = isHovered ? `${label} (${getDependencyTypeName(dep.dependency_type)})` : label;
         
-        // Background for label
-        ctx.fillStyle = highlight ? '#7b68ee' : '#ffffff';
+        ctx.font = isHovered ? 'bold 11px Inter, system-ui, sans-serif' : 'bold 10px Inter, system-ui, sans-serif';
+        const metrics = ctx.measureText(labelText);
+        const padding = isHovered ? 6 : 4;
+        const bgWidth = metrics.width + padding * 2;
+        const bgHeight = isHovered ? 18 : 14;
+        
+        // Background for label - enhanced when hovered
+        ctx.fillStyle = isHovered ? '#7b68ee' : highlight ? '#a78bfa' : '#ffffff';
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = isHovered ? 2 : 1.5;
         ctx.beginPath();
-        ctx.roundRect(midX - bgWidth / 2, midY - bgHeight / 2, bgWidth, bgHeight, 3);
+        ctx.roundRect(midX - bgWidth / 2, midY - bgHeight / 2, bgWidth, bgHeight, 4);
         ctx.fill();
         ctx.stroke();
         
         // Text
-        ctx.fillStyle = highlight ? '#ffffff' : color;
+        ctx.fillStyle = isHovered ? '#ffffff' : highlight ? '#ffffff' : color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, midX, midY);
+        ctx.fillText(labelText, midX, midY);
       });
     });
-  }, [tasks, dependencies, hoveredTask, expandedGroups, groupedTasks, dateRange, dayWidth]);
+  }, [tasks, dependencies, hoveredTask, hoveredDependency, expandedGroups, groupedTasks, dateRange, dayWidth]);
+
+  // Get dependency type name
+  const getDependencyTypeName = (type: string) => {
+    const names: Record<string, string> = {
+      'FS': 'Finish-to-Start',
+      'SS': 'Start-to-Start',
+      'FF': 'Finish-to-Finish',
+      'SF': 'Start-to-Finish'
+    };
+    return names[type] || type;
+  };
 
   return (
     <Paper sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: 'none', border: '1px solid #e5e7eb' }}>
-      {/* Toolbar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderBottom: '1px solid #e5e7eb', bgcolor: 'white' }}>
-        <IconButton size="small" onClick={() => setZoom(Math.max(0.5, zoom - 0.2))} sx={{ width: 28, height: 28 }}>
-          <ZoomOut sx={{ fontSize: 14 }} />
-        </IconButton>
-        <IconButton size="small" onClick={() => setZoom(Math.min(2, zoom + 0.2))} sx={{ width: 28, height: 28 }}>
-          <ZoomIn sx={{ fontSize: 14 }} />
-        </IconButton>
-        <IconButton size="small" sx={{ width: 28, height: 28, bgcolor: '#7b68ee', color: 'white', '&:hover': { bgcolor: '#6952d6' } }}>
-          <Today sx={{ fontSize: 14 }} />
-        </IconButton>
+      {/* Toolbar - ClickUp Style */}
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        gap: 1, 
+        px: 2, 
+        py: 1.5, 
+        borderBottom: '1px solid #e5e7eb', 
+        bgcolor: '#fafbfc',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <IconButton 
+            size="small" 
+            onClick={() => setZoom(Math.max(0.5, zoom - 0.2))} 
+            sx={{ 
+              width: 32, 
+              height: 32,
+              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              bgcolor: 'white',
+              '&:hover': { bgcolor: '#f9fafb', borderColor: '#d1d5db' }
+            }}
+          >
+            <ZoomOut sx={{ fontSize: 16, color: '#6b7280' }} />
+          </IconButton>
+          <IconButton 
+            size="small" 
+            onClick={() => setZoom(Math.min(2, zoom + 0.2))} 
+            sx={{ 
+              width: 32, 
+              height: 32,
+              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              bgcolor: 'white',
+              '&:hover': { bgcolor: '#f9fafb', borderColor: '#d1d5db' }
+            }}
+          >
+            <ZoomIn sx={{ fontSize: 16, color: '#6b7280' }} />
+          </IconButton>
+          <IconButton 
+            size="small" 
+            onClick={() => {
+              const todayIdx = timeline.findIndex(c => c.isToday);
+              if (todayIdx >= 0 && containerRef.current) {
+                containerRef.current.scrollLeft = todayIdx * dayWidth - LEFT_WIDTH;
+              }
+            }}
+            sx={{ 
+              width: 32, 
+              height: 32,
+              border: '1px solid #7b68ee',
+              borderRadius: '6px',
+              bgcolor: '#7b68ee', 
+              color: 'white', 
+              '&:hover': { bgcolor: '#6952d6', borderColor: '#6952d6' },
+              ml: 1
+            }}
+          >
+            <Today sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Box>
+        <Typography sx={{ fontSize: '12px', color: '#6b7280', fontWeight: 500 }}>
+          {tasks.length} tasks
+        </Typography>
       </Box>
 
       {/* Main */}
       <Box ref={containerRef} sx={{ flex: 1, display: 'flex', overflow: 'auto', position: 'relative', bgcolor: 'white' }}>
-        <canvas ref={canvasRef} style={{ position: 'absolute', top: HEADER_HEIGHT, left: 0, pointerEvents: 'none', zIndex: 4 }} />
+        <canvas 
+          ref={canvasRef} 
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => {
+            setHoveredDependency(null);
+            setMousePos(null);
+          }}
+          style={{ position: 'absolute', top: HEADER_HEIGHT, left: 0, pointerEvents: 'auto', zIndex: 4, cursor: hoveredDependency ? 'pointer' : 'default' }} 
+        />
 
         {/* Left Panel */}
         <Box sx={{ width: LEFT_WIDTH, flexShrink: 0, borderRight: '1px solid #e5e7eb', bgcolor: '#fafbfc', position: 'sticky', left: 0, zIndex: 3 }}>
-          {/* Header */}
-          <Box sx={{ height: HEADER_HEIGHT, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', px: 1.5, bgcolor: '#f5f6f8' }}>
-            <Typography sx={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Name
+          {/* Header - ClickUp Style */}
+          <Box sx={{ 
+            height: HEADER_HEIGHT, 
+            borderBottom: '2px solid #e5e7eb', 
+            display: 'flex', 
+            alignItems: 'center', 
+            px: 2, 
+            bgcolor: '#fafbfc',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+          }}>
+            <Typography sx={{ 
+              fontSize: '11px', 
+              fontWeight: 700, 
+              color: '#374151', 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.8px' 
+            }}>
+              Task Name
             </Typography>
           </Box>
 
@@ -339,17 +605,18 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
               
               return (
                 <Box key={groupName}>
-                  {/* Group */}
+                  {/* Group - ClickUp Style */}
                   <Box sx={{
                     height: GROUP_HEIGHT,
-                    px: 1,
+                    px: 2,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 0.75,
+                    gap: 1,
                     borderBottom: '1px solid #e5e7eb',
-                    bgcolor: 'white',
+                    bgcolor: '#f9fafb',
                     cursor: 'pointer',
-                    '&:hover': { bgcolor: '#f9fafb' }
+                    transition: 'all 0.2s',
+                    '&:hover': { bgcolor: '#f3f4f6' }
                   }}
                   onClick={() => {
                     const newExp = new Set(expandedGroups);
@@ -357,14 +624,40 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                     setExpandedGroups(newExp);
                   }}
                   >
-                    <IconButton size="small" sx={{ p: 0, width: 18, height: 18 }}>
-                      {isExpanded ? <ExpandMore sx={{ fontSize: 14 }} /> : <ChevronRight sx={{ fontSize: 14 }} />}
+                    <IconButton size="small" sx={{ p: 0, width: 20, height: 20, color: '#6b7280' }}>
+                      {isExpanded ? <ExpandMore sx={{ fontSize: 16 }} /> : <ChevronRight sx={{ fontSize: 16 }} />}
                     </IconButton>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box component="span" sx={{ fontSize: '12px', color: '#9ca3af' }}>≡</Box>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: '4px',
+                      bgcolor: '#e5e7eb',
+                      color: '#6b7280'
+                    }}>
+                      <Box component="span" sx={{ fontSize: '10px', fontWeight: 600 }}>≡</Box>
                     </Box>
-                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#1f2937' }}>
+                    <Typography sx={{ 
+                      fontSize: '13px', 
+                      fontWeight: 600, 
+                      color: '#111827',
+                      letterSpacing: '-0.01em'
+                    }}>
                       {groupName}
+                    </Typography>
+                    <Typography sx={{ 
+                      ml: 'auto',
+                      fontSize: '11px', 
+                      fontWeight: 500, 
+                      color: '#6b7280',
+                      bgcolor: '#e5e7eb',
+                      px: 1,
+                      py: 0.25,
+                      borderRadius: '4px'
+                    }}>
+                      {groupTasks.length}
                     </Typography>
                   </Box>
 
@@ -375,27 +668,44 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                     
                     return (
                       <Box key={task._id}>
-                        {/* Parent */}
+                        {/* Parent - ClickUp Style */}
                         <Box sx={{
                           height: ROW_HEIGHT,
-                          px: 1,
+                          px: 2,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 0.75,
+                          gap: 1,
                           borderBottom: '1px solid #f3f4f6',
                           bgcolor: hoveredTask === task._id ? '#f9fafb' : 'white',
                           cursor: 'pointer',
+                          transition: 'all 0.15s',
                           '&:hover': { bgcolor: '#f9fafb' }
                         }}
                         onMouseEnter={() => setHoveredTask(task._id)}
                         onMouseLeave={() => setHoveredTask(null)}
                         onClick={() => onTaskClick?.(task._id)}
                         >
-                          <Box sx={{ width: 18 }}>
-                            {subs.length > 0 && <ExpandMore sx={{ fontSize: 12, color: '#9ca3af' }} />}
+                          <Box sx={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {subs.length > 0 && <ExpandMore sx={{ fontSize: 14, color: '#9ca3af' }} />}
                           </Box>
-                          <FiberManualRecord sx={{ fontSize: 8, color }} />
-                          <Typography sx={{ flex: 1, fontSize: '13px', color: '#292d34', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Box sx={{ 
+                            width: 10, 
+                            height: 10, 
+                            borderRadius: '50%', 
+                            bgcolor: color,
+                            boxShadow: `0 0 0 2px ${color}33`,
+                            flexShrink: 0
+                          }} />
+                          <Typography sx={{ 
+                            flex: 1, 
+                            fontSize: '13px', 
+                            fontWeight: 500,
+                            color: '#111827', 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis', 
+                            whiteSpace: 'nowrap',
+                            letterSpacing: '-0.01em'
+                          }}>
                             {task.title}
                           </Typography>
                         </Box>
@@ -408,26 +718,58 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                           return (
                             <Box key={sub._id} sx={{
                               height: ROW_HEIGHT,
-                              px: 1,
-                              pl: 3,
+                              px: 2,
+                              pl: 4,
                               display: 'flex',
                               alignItems: 'center',
-                              gap: 0.75,
+                              gap: 1,
                               borderBottom: '1px solid #f3f4f6',
                               bgcolor: '#fafbfc',
                               cursor: 'pointer',
                               position: 'relative',
+                              transition: 'all 0.15s',
                               '&:hover': { bgcolor: '#f5f3ff' },
-                              '&::before': { content: '""', position: 'absolute', left: '15px', top: 0, bottom: isLast ? '50%' : 0, width: '1px', bgcolor: '#d1d5db' },
-                              '&::after': { content: '""', position: 'absolute', left: '15px', top: '50%', width: '8px', height: '1px', bgcolor: '#d1d5db' }
+                              '&::before': { 
+                                content: '""', 
+                                position: 'absolute', 
+                                left: '24px', 
+                                top: 0, 
+                                bottom: isLast ? '50%' : 0, 
+                                width: '2px', 
+                                bgcolor: '#d1d5db' 
+                              },
+                              '&::after': { 
+                                content: '""', 
+                                position: 'absolute', 
+                                left: '24px', 
+                                top: '50%', 
+                                width: '10px', 
+                                height: '2px', 
+                                bgcolor: '#d1d5db' 
+                              }
                             }}
                             onMouseEnter={() => setHoveredTask(sub._id)}
                             onMouseLeave={() => setHoveredTask(null)}
                             onClick={() => onTaskClick?.(sub._id)}
                             >
-                              <Box sx={{ width: 18 }} />
-                              <FiberManualRecord sx={{ fontSize: 8, color: subColor }} />
-                              <Typography sx={{ flex: 1, fontSize: '12px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <Box sx={{ width: 20 }} />
+                              <Box sx={{ 
+                                width: 8, 
+                                height: 8, 
+                                borderRadius: '50%', 
+                                bgcolor: subColor,
+                                boxShadow: `0 0 0 2px ${subColor}33`,
+                                flexShrink: 0
+                              }} />
+                              <Typography sx={{ 
+                                flex: 1, 
+                                fontSize: '12px', 
+                                fontWeight: 400,
+                                color: '#6b7280', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap' 
+                              }}>
                                 {sub.title}
                               </Typography>
                             </Box>
@@ -444,24 +786,54 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
 
         {/* Timeline */}
         <Box sx={{ flex: 1, position: 'relative', bgcolor: 'white' }}>
-          {/* Header */}
-          <Box sx={{ height: HEADER_HEIGHT, borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, bgcolor: 'white', zIndex: 2 }}>
+          {/* Header - ClickUp Style */}
+          <Box sx={{ 
+            height: HEADER_HEIGHT, 
+            borderBottom: '2px solid #e5e7eb', 
+            position: 'sticky', 
+            top: 0, 
+            bgcolor: '#fafbfc', 
+            zIndex: 2,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
+          }}>
             {/* Weeks */}
-            <Box sx={{ height: 33, display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+            <Box sx={{ 
+              height: 40, 
+              display: 'flex', 
+              borderBottom: '1px solid #e5e7eb',
+              bgcolor: '#f9fafb'
+            }}>
               {weeks.map((w, i) => (
-                <Box key={i} sx={{ width: w.span * dayWidth, px: 1, display: 'flex', alignItems: 'center', borderRight: '1px solid #e5e7eb', bgcolor: '#fafbfc' }}>
-                  <Typography sx={{ fontSize: '10px', fontWeight: 600, color: '#6b7280' }}>
-                    W{w.num}
+                <Box key={i} sx={{ 
+                  width: w.span * dayWidth, 
+                  px: 1.5, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1,
+                  borderRight: '1px solid #e5e7eb', 
+                  bgcolor: '#fafbfc' 
+                }}>
+                  <Typography sx={{ 
+                    fontSize: '11px', 
+                    fontWeight: 700, 
+                    color: '#374151',
+                    letterSpacing: '-0.01em'
+                  }}>
+                    Week {w.num}
                   </Typography>
-                  <Typography sx={{ fontSize: '9px', color: '#9ca3af', ml: 0.5 }}>
-                    {timeline[w.startIdx].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {timeline[w.startIdx + w.span - 1].date.getDate()}
+                  <Typography sx={{ 
+                    fontSize: '10px', 
+                    color: '#6b7280', 
+                    fontWeight: 500
+                  }}>
+                    {timeline[w.startIdx].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {timeline[w.startIdx + w.span - 1].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Typography>
                 </Box>
               ))}
             </Box>
 
             {/* Days */}
-            <Box sx={{ height: 33, display: 'flex' }}>
+            <Box sx={{ height: 40, display: 'flex' }}>
               {timeline.map((col, i) => (
                 <Box key={i} sx={{
                   width: dayWidth,
@@ -470,21 +842,45 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRight: '1px solid #e5e7eb',
-                  bgcolor: col.isToday ? '#e0f2fe' : col.isWeekend ? '#fafbfc' : 'white',
-                  gap: 0.25
+                  bgcolor: col.isToday ? '#dbeafe' : col.isWeekend ? '#f9fafb' : 'white',
+                  gap: 0.5,
+                  position: 'relative'
                 }}>
-                  <Typography sx={{ fontSize: '8px', fontWeight: 600, color: col.isToday ? '#0369a1' : '#9ca3af', textTransform: 'uppercase' }}>
-                    {col.date.toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 1)}
+                  <Typography sx={{ 
+                    fontSize: '9px', 
+                    fontWeight: 600, 
+                    color: col.isToday ? '#1e40af' : '#6b7280', 
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    {col.date.toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 3)}
                   </Typography>
                   
                   {col.isToday ? (
-                    <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Typography sx={{ fontSize: '11px', fontWeight: 700, color: 'white' }}>
+                    <Box sx={{ 
+                      width: 24, 
+                      height: 24, 
+                      borderRadius: '6px', 
+                      bgcolor: '#3b82f6', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)'
+                    }}>
+                      <Typography sx={{ 
+                        fontSize: '12px', 
+                        fontWeight: 700, 
+                        color: 'white' 
+                      }}>
                         {col.date.getDate()}
                       </Typography>
                     </Box>
                   ) : (
-                    <Typography sx={{ fontSize: '12px', fontWeight: 500, color: col.isWeekend ? '#9ca3af' : '#374151' }}>
+                    <Typography sx={{ 
+                      fontSize: '13px', 
+                      fontWeight: 600, 
+                      color: col.isWeekend ? '#9ca3af' : '#374151' 
+                    }}>
                       {col.date.getDate()}
                     </Typography>
                   )}
@@ -495,9 +891,19 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
 
           {/* Grid */}
           <Box sx={{ position: 'relative', minWidth: totalDays * dayWidth, minHeight: 400 }}>
-            {/* Today column */}
+            {/* Today column - ClickUp Style */}
             {timeline.findIndex(c => c.isToday) >= 0 && (
-              <Box sx={{ position: 'absolute', left: timeline.findIndex(c => c.isToday) * dayWidth, top: 0, bottom: 0, width: dayWidth, bgcolor: '#e0f2fe', zIndex: 0 }} />
+              <Box sx={{ 
+                position: 'absolute', 
+                left: timeline.findIndex(c => c.isToday) * dayWidth, 
+                top: 0, 
+                bottom: 0, 
+                width: dayWidth, 
+                bgcolor: '#dbeafe', 
+                zIndex: 0,
+                borderLeft: '2px solid #3b82f6',
+                borderRight: '2px solid #3b82f6'
+              }} />
             )}
 
             {/* Weekend stripes */}
@@ -510,8 +916,22 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
               {timeline.map((col, i) => col.isWeekend && <rect key={i} x={i * dayWidth} width={dayWidth} height="100%" fill="url(#stripes)" />)}
             </svg>
 
-            {/* Grid lines */}
-            {timeline.map((_, i) => <Box key={i} sx={{ position: 'absolute', left: i * dayWidth, top: 0, bottom: 0, width: 1, bgcolor: '#f0f1f3', zIndex: 0 }} />)}
+            {/* Grid lines - ClickUp Style */}
+            {timeline.map((col, i) => (
+              <Box 
+                key={i} 
+                sx={{ 
+                  position: 'absolute', 
+                  left: i * dayWidth, 
+                  top: 0, 
+                  bottom: 0, 
+                  width: col.isToday ? 2 : 1, 
+                  bgcolor: col.isToday ? '#3b82f6' : '#f0f1f3', 
+                  zIndex: 0,
+                  opacity: col.isWeekend ? 0.5 : 1
+                }} 
+              />
+            ))}
 
             {/* Bars */}
             {Object.entries(groupedTasks).map(([groupName, groupTasks]) => {
@@ -528,30 +948,50 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                     
                     return (
                       <Box key={task._id}>
-                        {/* Parent Bar */}
+                        {/* Parent Bar - ClickUp Style */}
                         <Box sx={{ height: ROW_HEIGHT, position: 'relative' }}>
                           <Tooltip title={task.title} arrow>
                             <Box sx={{
                               position: 'absolute',
                               left: bar.left,
-                              width: bar.width,
-                              height: 26,
-                              top: 7,
-                              bgcolor: color,
-                              borderRadius: 1,
+                              width: Math.max(bar.width, 40),
+                              height: 28,
+                              top: 8,
+                              background: `linear-gradient(135deg, ${color} 0%, ${color}dd 100%)`,
+                              borderRadius: '6px',
                               cursor: 'pointer',
-                              boxShadow: hoveredTask === task._id ? `0 4px 10px ${color}60` : '0 1px 3px rgba(0,0,0,0.12)',
-                              transform: hoveredTask === task._id ? 'scale(1.02)' : 'none',
-                              transition: 'all 0.2s',
+                              boxShadow: hoveredTask === task._id 
+                                ? `0 4px 12px ${color}66, 0 2px 4px rgba(0,0,0,0.1)` 
+                                : '0 2px 6px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)',
+                              transform: hoveredTask === task._id ? 'translateY(-1px) scale(1.01)' : 'none',
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                               zIndex: hoveredTask === task._id ? 10 : 1,
                               overflow: 'hidden',
-                              opacity: (!task.start_date || !task.deadline) ? 0.4 : 1,
-                              border: (!task.start_date || !task.deadline) ? '2px dashed rgba(0,0,0,0.3)' : 'none'
+                              opacity: (!task.start_date || !task.deadline) ? 0.5 : 1,
+                              border: (!task.start_date || !task.deadline) ? '2px dashed rgba(255,255,255,0.5)' : 'none',
+                              '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '30%',
+                                background: 'linear-gradient(to bottom, rgba(255,255,255,0.2), transparent)',
+                                pointerEvents: 'none'
+                              }
                             }}
                             onClick={() => onTaskClick?.(task._id)}
                             >
                                 {task.progress && task.progress > 0 && (
-                                  <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${task.progress}%`, bgcolor: 'rgba(255,255,255,0.2)' }} />
+                                  <Box sx={{ 
+                                    position: 'absolute', 
+                                    left: 0, 
+                                    top: 0, 
+                                    bottom: 0, 
+                                    width: `${task.progress}%`, 
+                                    bgcolor: 'rgba(255,255,255,0.25)',
+                                    borderRadius: '6px 0 0 6px'
+                                  }} />
                                 )}
                                 
                                 <Typography sx={{
@@ -559,28 +999,52 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                                   inset: 0,
                                   display: 'flex',
                                   alignItems: 'center',
-                                  px: 1,
-                                  fontSize: '11px',
+                                  px: 1.5,
+                                  fontSize: '12px',
                                   fontWeight: 600,
                                   color: 'white',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap',
+                                  textShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                  letterSpacing: '-0.01em'
                                 }}>
                                   {task.title}
                                 </Typography>
 
                                 {(dependencies[task._id]?.dependencies?.length > 0 || dependencies[task._id]?.dependents?.length > 0) && (
                                   <>
-                                    <Box sx={{ position: 'absolute', left: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 8, bgcolor: 'white', border: `2px solid ${color}`, borderRadius: '50%' }} />
-                                    <Box sx={{ position: 'absolute', right: -5, top: '50%', transform: 'translateY(-50%) rotate(45deg)', width: 8, height: 8, bgcolor: '#fbbf24', border: '2px solid white', borderRadius: 0.5 }} />
+                                    <Box sx={{ 
+                                      position: 'absolute', 
+                                      left: -5, 
+                                      top: '50%', 
+                                      transform: 'translateY(-50%)', 
+                                      width: 10, 
+                                      height: 10, 
+                                      bgcolor: 'white', 
+                                      border: `2px solid ${color}`, 
+                                      borderRadius: '50%',
+                                      boxShadow: `0 0 0 2px rgba(255,255,255,0.8)`
+                                    }} />
+                                    <Box sx={{ 
+                                      position: 'absolute', 
+                                      right: -6, 
+                                      top: '50%', 
+                                      transform: 'translateY(-50%) rotate(45deg)', 
+                                      width: 10, 
+                                      height: 10, 
+                                      bgcolor: '#f59e0b', 
+                                      border: '2px solid white', 
+                                      borderRadius: '2px',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }} />
                                   </>
                                 )}
                               </Box>
                             </Tooltip>
                         </Box>
 
-                        {/* Subtasks */}
+                        {/* Subtasks - ClickUp Style */}
                         {subs.map((sub) => {
                           const subBar = getBar(sub);
                           const subColor = getColor(sub.status);
@@ -591,21 +1055,45 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                                 <Box sx={{
                                   position: 'absolute',
                                   left: subBar.left,
-                                  width: subBar.width,
+                                  width: Math.max(subBar.width, 32),
                                   height: 22,
-                                  top: 9,
-                                  bgcolor: subColor,
-                                  borderRadius: 0.75,
+                                  top: 11,
+                                  background: `linear-gradient(135deg, ${subColor} 0%, ${subColor}dd 100%)`,
+                                  borderRadius: '4px',
                                   cursor: 'pointer',
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                                  opacity: (!sub.start_date || !sub.deadline) ? 0.3 : 0.85,
+                                  boxShadow: hoveredTask === sub._id
+                                    ? `0 3px 8px ${subColor}55, 0 1px 3px rgba(0,0,0,0.1)`
+                                    : '0 1px 4px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)',
+                                  transform: hoveredTask === sub._id ? 'translateY(-1px)' : 'none',
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  opacity: (!sub.start_date || !sub.deadline) ? 0.4 : 0.9,
                                   overflow: 'hidden',
-                                  border: (!sub.start_date || !sub.deadline) ? '2px dashed rgba(0,0,0,0.3)' : `1px solid ${subColor}cc`
+                                  border: (!sub.start_date || !sub.deadline) ? '2px dashed rgba(255,255,255,0.4)' : 'none',
+                                  '&::before': {
+                                    content: '""',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: '30%',
+                                    background: 'linear-gradient(to bottom, rgba(255,255,255,0.15), transparent)',
+                                    pointerEvents: 'none'
+                                  }
                                 }}
                                 onClick={() => onTaskClick?.(sub._id)}
+                                onMouseEnter={() => setHoveredTask(sub._id)}
+                                onMouseLeave={() => setHoveredTask(null)}
                                 >
                                   {sub.progress && sub.progress > 0 && (
-                                    <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${sub.progress}%`, bgcolor: 'rgba(255,255,255,0.2)' }} />
+                                    <Box sx={{ 
+                                      position: 'absolute', 
+                                      left: 0, 
+                                      top: 0, 
+                                      bottom: 0, 
+                                      width: `${sub.progress}%`, 
+                                      bgcolor: 'rgba(255,255,255,0.2)',
+                                      borderRadius: '4px 0 0 4px'
+                                    }} />
                                   )}
                                   
                                   <Typography sx={{
@@ -613,15 +1101,16 @@ export default function ClickUpGanttChart({ tasks, dependencies, onTaskClick }: 
                                     inset: 0,
                                     display: 'flex',
                                     alignItems: 'center',
-                                    px: 0.75,
-                                    fontSize: '10px',
-                                    fontWeight: 600,
+                                    px: 1,
+                                    fontSize: '11px',
+                                    fontWeight: 500,
                                     color: 'white',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
+                                    whiteSpace: 'nowrap',
+                                    textShadow: '0 1px 1px rgba(0,0,0,0.1)'
                                   }}>
-                                    {subBar.width > 60 ? sub.title : ''}
+                                    {subBar.width > 50 ? sub.title : ''}
                                   </Typography>
                                 </Box>
                               </Tooltip>

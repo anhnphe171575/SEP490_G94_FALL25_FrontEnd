@@ -253,7 +253,7 @@ export default function MilestoneFeaturesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -266,7 +266,7 @@ export default function MilestoneFeaturesPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <Box className="rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 p-4">
@@ -279,7 +279,7 @@ export default function MilestoneFeaturesPage() {
 
   if (!milestone) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <Box className="rounded-xl border border-gray-500/40 bg-gray-50 dark:bg-gray-900/20 text-gray-700 dark:text-gray-200 p-4">
@@ -293,7 +293,7 @@ export default function MilestoneFeaturesPage() {
   const features = milestone.progress?.by_feature || [];
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
