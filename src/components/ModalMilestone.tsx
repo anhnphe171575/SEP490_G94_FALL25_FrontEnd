@@ -22,22 +22,11 @@ import {
   CircularProgress,
 } from "@mui/material";
 import MilestoneProgressDetail from "./MilestoneProgressDetail";
-import { DateRangePicker } from "@mui/x-date-pickers-pro/DateRangePicker";
-import { SingleInputDateRangeField } from "@mui/x-date-pickers-pro/SingleInputDateRangeField";
-import { DateRange } from "@mui/x-date-pickers-pro/models";
 import { toast } from "sonner";
 
 type Update = { _id: string; content: string; createdAt: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
 type ActivityLog = { _id: string; action: string; createdAt: string; metadata?: any; created_by?: { full_name?: string; email?: string; avatar?: string } };
 type FileDoc = { _id: string; title: string; file_url: string; createdAt: string };
-type SuccessCriterion = {
-  _id?: string;
-  title: string;
-  description: string;
-  status: "pending" | "in-review" | "verified" | "rejected";
-  verified_by?: string;
-  verified_at?: string;
-};
 type MilestoneProgress = {
   overall: number;
   by_feature: Array<{
@@ -61,12 +50,6 @@ type MilestoneProgress = {
   };
 };
 
-type StatusOption = {
-  _id: string;
-  value: string;
-  name: string;
-  priority: string;
-};
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -88,20 +71,10 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [title, setTitle] = useState("");
-  const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [notes, setNotes] = useState("");
-  const [statusId, setStatusId] = useState("");
-  const [statuses, setStatuses] = useState<StatusOption[]>([]);
   const [startDate, setStartDate] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [estimatedEffort, setEstimatedEffort] = useState<number>(0);
-  const [actualEffort, setActualEffort] = useState<number>(0);
   const [tags, setTags] = useState<string>("");
   const [actualDate, setActualDate] = useState("");
-  const [duration, setDuration] = useState<number>(0);
-  const [successCriteria, setSuccessCriteria] = useState<SuccessCriterion[]>([]);
-  const [delayDays, setDelayDays] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
@@ -120,66 +93,25 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     return `${year}-${month}-${day}`;
   };
 
-  const isOverdue = () => {
-    if (!deadline) return false;
-    const end = new Date(deadline);
-    const today = new Date();
-    end.setHours(23, 59, 59, 999);
-    return end.getTime() < today.getTime();
-  };
-
-  const addSuccessCriterion = () => {
-    setSuccessCriteria([...successCriteria, { title: "", description: "", status: "pending" }]);
-  };
-
-  const removeSuccessCriterion = (index: number) => {
-    setSuccessCriteria(successCriteria.filter((_, i) => i !== index));
-  };
-
-  const updateSuccessCriterion = (index: number, field: keyof SuccessCriterion, value: string) => {
-    const updated = [...successCriteria];
-    updated[index] = { ...updated[index], [field]: value };
-    setSuccessCriteria(updated);
-  };
 
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
-        const [m, u, f, a, p, statusList] = await Promise.all([
+        const [m, u, f, a, p] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/comments`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/files`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`),
-          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } })),
-          axiosInstance.get('/api/projects/milestones/statuses').catch(() => ({ data: { data: [] } }))
+          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } }))
         ]);
         const md = m.data || {};
         setTitle(md.title || "");
-        setCode(md.code || "");
         setDescription(md.description || "");
-        setNotes(md.notes || "");
-        
-        // Debug: Check status data
-        console.log('Milestone data:', md);
-        console.log('Status ID:', md.status_id);
-        console.log('Statuses list:', statusList.data?.data);
-        
-        // status_id có thể là object (populated) hoặc string (_id)
-        const extractedStatusId = typeof md.status_id === 'object' ? md.status_id?._id : md.status_id;
-        console.log('Extracted status_id:', extractedStatusId);
-        setStatusId(extractedStatusId || "");
-        setStatuses(statusList.data?.data || []);
         setStartDate(md.start_date ? md.start_date.substring(0,10) : "");
-        setDeadline(md.deadline ? md.deadline.substring(0,10) : "");
-        setEstimatedEffort(md.estimated_effort || 0);
-        setActualEffort(md.actual_effort || 0);
         setTags(Array.isArray(md.tags) ? md.tags.join(', ') : "");
         setActualDate(md.actual_date ? md.actual_date.substring(0,10) : "");
-        setDuration(md.duration || 0);
-        setSuccessCriteria(Array.isArray(md.success_criteria) ? md.success_criteria : []);
-        setDelayDays(md.delay_days || 0);
         setUpdates(Array.isArray(u.data) ? u.data : []);
         setFiles(Array.isArray(f.data) ? f.data : []);
         setActivity(Array.isArray(a.data) ? a.data : []);
@@ -264,35 +196,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               error={!title.trim()}
               helperText={!title.trim() ? "Title là bắt buộc" : ""}
             />
-            <TextField 
-              label="Code" 
-              value={code} 
-              onChange={(e)=>setCode(e.target.value)} 
-              fullWidth 
-              size="small" 
-              placeholder="MS-001"
-            />
-            <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
-              <Select 
-                label="Status" 
-                value={statusId || ""} 
-                onChange={(e)=>setStatusId(e.target.value as string)}
-                displayEmpty
-              >
-                {statuses.length === 0 && (
-                  <MenuItem value="" disabled>
-                    Loading statuses...
-                  </MenuItem>
-                )}
-                {statuses.map((s) => (
-                  <MenuItem key={s._id} value={s._id}>
-                   {s.value}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
             <Divider sx={{ my: 1 }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
               Thời gian
@@ -307,147 +210,15 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               InputLabelProps={{ shrink: true }}
             />
             <TextField 
-              label="Deadline" 
-              type="date" 
-              value={deadline} 
-              onChange={(e)=>setDeadline(e.target.value)} 
-              fullWidth 
-              size="small" 
-              InputLabelProps={{ shrink: true }}
-              required
-              error={!deadline}
-              helperText={!deadline ? "Deadline là bắt buộc" : ""}
-            />
-            <TextField 
-              label="Actual Completion Date" 
+              label="Actual Date" 
               type="date" 
               value={actualDate} 
               onChange={(e)=>setActualDate(e.target.value)} 
               fullWidth 
               size="small" 
               InputLabelProps={{ shrink: true }}
-              helperText="Ngày hoàn thành thực tế (nếu đã xong)"
+              helperText="Ngày thực tế (nếu có)"
             />
-            <TextField 
-              label="Duration (days)" 
-              type="number" 
-              value={duration} 
-              onChange={(e)=>setDuration(Number(e.target.value))} 
-              fullWidth 
-              size="small"
-              helperText="Thời lượng dự kiến (ngày)"
-            />
-            
-            <Divider sx={{ my: 1 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-              Effort
-            </Typography>
-            <TextField 
-              label="Estimated Effort (hours)" 
-              type="number" 
-              value={estimatedEffort} 
-              onChange={(e)=>setEstimatedEffort(Number(e.target.value))} 
-              fullWidth 
-              size="small"
-              InputProps={{ inputProps: { min: 0, step: 0.5 } }}
-            />
-            <TextField 
-              label="Actual Effort (hours)" 
-              type="number" 
-              value={actualEffort} 
-              onChange={(e)=>setActualEffort(Number(e.target.value))} 
-              fullWidth 
-              size="small"
-              InputProps={{ inputProps: { min: 0, step: 0.5 } }}
-            />
-            <TextField 
-              label="Delay Days" 
-              type="number" 
-              value={delayDays} 
-              fullWidth 
-              size="small"
-              disabled
-              helperText="Tự động tính từ deadline và actual_date"
-              InputProps={{ readOnly: true }}
-            />
-            
-            <Divider sx={{ my: 1 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-              Tiêu chí thành công
-            </Typography>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-              <Typography variant="caption" color="text.secondary">
-                {successCriteria.length} tiêu chí
-              </Typography>
-              <Button size="small" variant="outlined" onClick={addSuccessCriterion}>
-                + Thêm tiêu chí
-              </Button>
-            </Box>
-            {successCriteria.length === 0 ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2, opacity: 0.6 }}>
-                Chưa có tiêu chí nào
-              </Typography>
-            ) : (
-              <Box display="flex" flexDirection="column" gap={1}>
-                {successCriteria.map((sc, idx) => (
-                  <Box 
-                    key={idx} 
-                    sx={{ 
-                      p: 1.5, 
-                      border: '1px solid', 
-                      borderColor: 'divider', 
-                      borderRadius: 1.5,
-                      bgcolor: 'background.paper',
-                      '&:hover': {
-                        borderColor: 'primary.main',
-                        boxShadow: 1
-                      }
-                    }}
-                  >
-                    <Box display="flex" alignItems="start" gap={1} mb={1}>
-                      <TextField
-                        value={sc.title}
-                        onChange={(e) => updateSuccessCriterion(idx, "title", e.target.value)}
-                        size="small"
-                        fullWidth
-                        placeholder="Tiêu đề tiêu chí"
-                        sx={{ flex: 1 }}
-                        autoComplete="off"
-                      />
-                      <FormControl size="small" sx={{ minWidth: 100 }}>
-                        <Select
-                          value={sc.status}
-                          onChange={(e) => updateSuccessCriterion(idx, "status", e.target.value)}
-                        >
-                          <MenuItem value="pending">Pending</MenuItem>
-                          <MenuItem value="in-review">In Review</MenuItem>
-                          <MenuItem value="verified">Verified</MenuItem>
-                          <MenuItem value="rejected">Rejected</MenuItem>
-                        </Select>
-                      </FormControl>
-                      <Button
-                        size="small"
-                        color="error"
-                        onClick={() => removeSuccessCriterion(idx)}
-                        sx={{ minWidth: 'auto', px: 1 }}
-                      >
-                        ✕
-                      </Button>
-                    </Box>
-                    <TextField
-                      value={sc.description}
-                      onChange={(e) => updateSuccessCriterion(idx, "description", e.target.value)}
-                      size="small"
-                      fullWidth
-                      multiline
-                      minRows={2}
-                      placeholder="Mô tả chi tiết..."
-                      autoComplete="off"
-                    />
-                  </Box>
-                ))}
-              </Box>
-            )}
             
             <Divider sx={{ my: 1 }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
@@ -462,16 +233,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               fullWidth 
               size="small"
               placeholder="Mô tả chi tiết về milestone này..."
-            />
-            <TextField 
-              label="Notes" 
-              value={notes} 
-              onChange={(e)=>setNotes(e.target.value)} 
-              multiline 
-              minRows={2} 
-              fullWidth 
-              size="small"
-              placeholder="Ghi chú nội bộ..."
             />
             <TextField 
               label="Tags (comma separated)" 
@@ -489,52 +250,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               </Box>
             </Box>
             <Box>
-              <Typography variant="caption" sx={{ opacity: 0.7 }}>Timeline</Typography>
-              <Box mt={1}>
-                <DateRangePicker
-                  slots={{ field: SingleInputDateRangeField }}
-                  localeText={{ start: "Start", end: "End" }}
-                  calendars={2}
-                  value={[
-                    startDate ? new Date(startDate) : null,
-                    deadline ? new Date(deadline) : null,
-                  ] as DateRange<Date>}
-                  onChange={(range: DateRange<Date>) => {
-                    const [start, end] = range;
-                    setStartDate(start ? toInputDate(start) : "");
-                    setDeadline(end ? toInputDate(end) : "");
-                  }}
-                  slotProps={{
-                    field: {
-                      sx: {
-                        width: 'fit-content',
-                        '& .MuiInputBase-root': {
-                          borderRadius: 999,
-                          bgcolor: isOverdue() ? 'error.main' : 'primary.main',
-                          color: '#fff',
-                          px: 0.75,
-                          py: 0,
-                          minHeight: 24,
-                          lineHeight: 1.2,
-                        },
-                        '& input': {
-                          textAlign: 'center',
-                          fontWeight: 600,
-                          fontSize: 12,
-                        },
-                        '& .MuiInputBase-input': {
-                          paddingTop: 0,
-                          paddingBottom: 0,
-                          paddingLeft: 4,
-                          paddingRight: 4,
-                        },
-                      },
-                    },
-                  }}
-                />
-              </Box>
-            </Box>
-            <Box>
               <Typography variant="caption" sx={{ opacity: 0.7 }}>Last updated</Typography>
               <Typography variant="body2" color="text.secondary">{activity[0]?.createdAt ? new Date(activity[0].createdAt).toLocaleString() : '—'}</Typography>
             </Box>
@@ -547,44 +262,26 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                   try { 
                     await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { 
                       title, 
-                      code: code || undefined,
                       description, 
-                      notes: notes || undefined,
-                      status_id: statusId, 
                       start_date: startDate ? new Date(startDate).toISOString() : undefined, 
-                      deadline: deadline ? new Date(deadline).toISOString() : undefined,
                       actual_date: actualDate ? new Date(actualDate).toISOString() : undefined,
-                      duration: duration || 0,
-                      estimated_effort: estimatedEffort || 0,
-                      actual_effort: actualEffort || 0,
-                      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-                      success_criteria: successCriteria.filter(sc => sc.title.trim())
+                      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
                     });
                     // Refresh activity logs to show the update
                     const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
                     setActivity(Array.isArray(a.data) ? a.data : []);
-                    const statusName = statuses.find(s => s._id === statusId)?.name || statusId;
                     toast.success('Milestone đã được cập nhật thành công!', {
-                      description: `${title} - ${statusName}`,
+                      description: title,
                       duration: 3000,
                     });
                     // Notify parent to refresh data/charts
                     if (onUpdate) onUpdate();
                   } catch (error: any) {
                     const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi không xác định';
-                    const errorDetails = error?.response?.data?.errors;
-                    
-                    if (Array.isArray(errorDetails) && errorDetails.length > 0) {
-                      toast.error('Business Rules Violation', {
-                        description: errorDetails.slice(0, 3).join('\n'),
-                        duration: 5000,
-                      });
-                    } else {
-                      toast.error('Không thể cập nhật milestone', {
-                        description: errorMessage,
-                        duration: 4000,
-                      });
-                    }
+                    toast.error('Không thể cập nhật milestone', {
+                      description: errorMessage,
+                      duration: 4000,
+                    });
                   } finally { 
                     setSaving(false); 
                   } 

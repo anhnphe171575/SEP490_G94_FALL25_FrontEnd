@@ -83,6 +83,8 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingBug, setEditingBug] = useState<Bug | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -91,6 +93,7 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
     status: 'Open' as const,
     solution: '',
     deadline: '',
+    assignee_id: '',
   });
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
@@ -136,6 +139,7 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
         status: bug.status,
         solution: bug.solution || '',
         deadline: bug.deadline ? bug.deadline.split('T')[0] : '',
+        assignee_id: bug.assignee_id?._id || '',
       });
     } else {
       setEditingBug(null);
@@ -147,6 +151,7 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
         status: 'Open',
         solution: '',
         deadline: '',
+        assignee_id: '',
       });
     }
     setOpenDialog(true);
@@ -155,22 +160,39 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingBug(null);
+    setError('');
   };
 
   const handleSubmit = async () => {
     try {
+      setSubmitting(true);
+      setError('');
+
+      // Clean up form data - remove empty strings
+      const submitData = {
+        ...formData,
+        assignee_id: formData.assignee_id || undefined,
+        solution: formData.solution || undefined,
+        deadline: formData.deadline || undefined,
+        description: formData.description || undefined,
+      };
+
       if (editingBug) {
-        await axiosInstance.patch(`/api/defects/${editingBug._id}`, formData);
+        await axiosInstance.patch(`/api/defects/${editingBug._id}`, submitData);
       } else {
         await axiosInstance.post(`/api/defects`, {
-          ...formData,
+          ...submitData,
           project_id: projectId,
         });
       }
       handleCloseDialog();
       fetchBugs();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving bug:', error);
+      const errorMessage = error?.response?.data?.message || 'Failed to save bug. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -207,16 +229,62 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
     );
   }
 
+  const bugStats = {
+    total: bugs.length,
+    open: bugs.filter(b => b.status === 'Open').length,
+    inProgress: bugs.filter(b => b.status === 'In Progress').length,
+    resolved: bugs.filter(b => b.status === 'Resolved').length,
+    critical: bugs.filter(b => b.severity === 'Critical').length,
+    high: bugs.filter(b => b.severity === 'High').length,
+  };
+
   return (
     <Box sx={{ p: 3 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '16px' }}>
-            Bugs & Defects
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
+        <Box sx={{ flex: 1 }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '16px' }}>
+              Bugs & Defects
+            </Typography>
+            {bugs.length > 0 && (
+              <Chip 
+                label={bugStats.total} 
+                size="small" 
+                sx={{ 
+                  height: 20, 
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  bgcolor: '#f0f0f0'
+                }} 
+              />
+            )}
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
             Track and manage bugs related to this task
           </Typography>
+          {bugs.length > 0 && (
+            <Stack direction="row" spacing={1.5} flexWrap="wrap">
+              <Typography variant="caption" fontSize="11px" color="text.secondary">
+                Open: <strong>{bugStats.open}</strong>
+              </Typography>
+              <Typography variant="caption" fontSize="11px" color="text.secondary">
+                • In Progress: <strong>{bugStats.inProgress}</strong>
+              </Typography>
+              <Typography variant="caption" fontSize="11px" color="text.secondary">
+                • Resolved: <strong>{bugStats.resolved}</strong>
+              </Typography>
+              {bugStats.critical > 0 && (
+                <Typography variant="caption" fontSize="11px" sx={{ color: SEVERITY_COLORS.Critical, fontWeight: 600 }}>
+                  • Critical: {bugStats.critical}
+                </Typography>
+              )}
+              {bugStats.high > 0 && (
+                <Typography variant="caption" fontSize="11px" sx={{ color: SEVERITY_COLORS.High, fontWeight: 600 }}>
+                  • High: {bugStats.high}
+                </Typography>
+              )}
+            </Stack>
+          )}
         </Box>
         <Button
           startIcon={<AddIcon />}
@@ -327,41 +395,66 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
                 </Stack>
 
                 {/* Footer */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                  <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" gap={1}>
                     {bug.assignee_id && (
-                      <Tooltip title={bug.assignee_id.full_name || bug.assignee_id.email}>
-                        <Avatar
-                          src={bug.assignee_id.avatar}
-                          sx={{ width: 24, height: 24, fontSize: '12px' }}
-                        >
-                          {(bug.assignee_id.full_name || bug.assignee_id.email)?.charAt(0).toUpperCase()}
-                        </Avatar>
-                      </Tooltip>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Tooltip title={bug.assignee_id.full_name || bug.assignee_id.email}>
+                          <Avatar
+                            src={bug.assignee_id.avatar}
+                            sx={{ width: 24, height: 24, fontSize: '12px' }}
+                          >
+                            {(bug.assignee_id.full_name || bug.assignee_id.email)?.charAt(0).toUpperCase()}
+                          </Avatar>
+                        </Tooltip>
+                        <Typography variant="caption" color="text.secondary" fontSize="11px">
+                          Assigned to {bug.assignee_id.full_name || bug.assignee_id.email}
+                        </Typography>
+                      </Stack>
                     )}
-                    {bug.assignee_id && (
+                    {bug.assigner_id && (
                       <Typography variant="caption" color="text.secondary" fontSize="11px">
-                        Assigned to {bug.assignee_id.full_name || bug.assignee_id.email}
+                        • Reported by {bug.assigner_id.full_name || bug.assigner_id.email}
                       </Typography>
                     )}
                   </Stack>
-                  {bug.deadline && (
-                    <Typography variant="caption" color="text.secondary" fontSize="11px">
-                      Due: {new Date(bug.deadline).toLocaleDateString()}
-                    </Typography>
-                  )}
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {bug.deadline && (
+                      <Typography variant="caption" color="text.secondary" fontSize="11px">
+                        Due: {new Date(bug.deadline).toLocaleDateString()}
+                      </Typography>
+                    )}
+                    {bug.createAt && (
+                      <Typography variant="caption" color="text.secondary" fontSize="11px">
+                        • Created: {new Date(bug.createAt).toLocaleDateString()}
+                      </Typography>
+                    )}
+                  </Stack>
                 </Stack>
 
-                {bug.solution && bug.status === 'Resolved' && (
+                {bug.solution && (bug.status === 'Resolved' || bug.status === 'Closed') && (
                   <>
                     <Divider />
-                    <Box>
-                      <Typography variant="caption" fontWeight={600} color="success.main" fontSize="11px">
-                        Solution:
-                      </Typography>
-                      <Typography variant="body2" fontSize="12px" sx={{ mt: 0.5 }}>
+                    <Box sx={{ 
+                      bgcolor: '#f0f9ff', 
+                      p: 1.5, 
+                      borderRadius: 1,
+                      border: '1px solid #bfdbfe'
+                    }}>
+                      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 0.5 }}>
+                        <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                        <Typography variant="caption" fontWeight={600} color="success.main" fontSize="11px">
+                          Solution:
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body2" fontSize="12px" sx={{ color: 'text.primary' }}>
                         {bug.solution}
                       </Typography>
+                      {bug.updateAt && (
+                        <Typography variant="caption" color="text.secondary" fontSize="10px" sx={{ mt: 0.5, display: 'block' }}>
+                          Last updated: {new Date(bug.updateAt).toLocaleString()}
+                        </Typography>
+                      )}
                     </Box>
                   </>
                 )}
@@ -382,6 +475,11 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
           </Stack>
         </DialogTitle>
         <DialogContent>
+          {error && (
+            <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
               label="Bug Title"
@@ -397,6 +495,8 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
               rows={3}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              helperText="Provide detailed information about the bug"
+              placeholder="Describe what went wrong, steps to reproduce, expected vs actual behavior..."
             />
             <Stack direction="row" spacing={2}>
               <FormControl fullWidth>
@@ -440,6 +540,33 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
                 <MenuItem value="Reopened">Reopened</MenuItem>
               </Select>
             </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Assign To</InputLabel>
+              <Select
+                value={formData.assignee_id}
+                label="Assign To"
+                onChange={(e) => setFormData({ ...formData, assignee_id: e.target.value })}
+              >
+                <MenuItem value="">
+                  <em>Unassigned</em>
+                </MenuItem>
+                {teamMembers.map((member) => (
+                  <MenuItem key={member._id} value={member._id}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Avatar
+                        src={member.avatar}
+                        sx={{ width: 24, height: 24, fontSize: '11px' }}
+                      >
+                        {(member.full_name || member.email)?.charAt(0).toUpperCase()}
+                      </Avatar>
+                      <Typography fontSize="14px">
+                        {member.full_name || member.email}
+                      </Typography>
+                    </Stack>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             {formData.status === 'Resolved' && (
               <TextField
                 label="Solution"
@@ -448,6 +575,7 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
                 rows={2}
                 value={formData.solution}
                 onChange={(e) => setFormData({ ...formData, solution: e.target.value })}
+                helperText="Describe how this bug was resolved"
               />
             )}
             <TextField
@@ -457,18 +585,21 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
               InputLabelProps={{ shrink: true }}
               value={formData.deadline}
               onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+              helperText="Set a deadline for resolving this bug"
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button onClick={handleCloseDialog} disabled={submitting}>
+            Cancel
+          </Button>
           <Button 
             onClick={handleSubmit} 
             variant="contained"
-            disabled={!formData.title}
+            disabled={!formData.title || submitting}
             sx={{ bgcolor: '#FF3D71', '&:hover': { bgcolor: '#D31027' } }}
           >
-            {editingBug ? 'Update' : 'Create'}
+            {submitting ? 'Saving...' : editingBug ? 'Update' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>
