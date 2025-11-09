@@ -143,7 +143,7 @@ export default function TeamManagementPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="mx-auto w-full max-w-7xl">
@@ -160,7 +160,7 @@ export default function TeamManagementPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="mx-auto w-full max-w-7xl">
@@ -174,7 +174,7 @@ export default function TeamManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">

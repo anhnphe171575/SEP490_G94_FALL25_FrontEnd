@@ -4,39 +4,41 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import FeatureDetailsOverview from "@/components/FeatureDetails/FeatureDetailsOverview";
+import FeatureDetailsFunctions from "@/components/FeatureDetails/FeatureDetailsFunctions";
+import FeatureDetailsComments from "@/components/FeatureDetails/FeatureDetailsComments";
+import FeatureDetailsActivity from "@/components/FeatureDetails/FeatureDetailsActivity";
+import FeatureDetailsDevelopment from "@/components/FeatureDetails/FeatureDetailsDevelopment";
 import {
   Box,
-  Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
-  InputLabel,
   MenuItem,
   Select,
   Stack,
-  TextField,
   Typography,
-  Paper,
-  Divider,
   IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  LinearProgress,
-  Card,
-  CardContent,
+  Tabs,
+  Tab,
+  Avatar,
+  Tooltip,
+  Breadcrumbs,
+  Link,
+  Divider,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CalculateIcon from "@mui/icons-material/Calculate";
+import CloseIcon from "@mui/icons-material/Close";
+import FlagIcon from "@mui/icons-material/Flag";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import ShareIcon from "@mui/icons-material/Share";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import InfoIcon from "@mui/icons-material/Info";
+import FunctionsIcon from "@mui/icons-material/Functions";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import HistoryIcon from "@mui/icons-material/History";
+import CodeIcon from "@mui/icons-material/Code";
 
 type Feature = {
   _id: string;
@@ -45,11 +47,13 @@ type Feature = {
   project_id: string;
   status_id?: Setting | string;
   priority_id?: Setting | string;
-  complexity_id?: Setting | string;
-  estimated_hours?: number;
-  actual_effort?: number;
+  created_by?: any;
+  last_updated_by?: any;
   start_date?: string;
   due_date?: string;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type Setting = {
@@ -61,28 +65,13 @@ type Setting = {
 type FunctionType = {
   _id: string;
   title: string;
-  feature_id: string;
-  complexity_id?: Setting | string;
-  estimated_effort: number;
-  actual_effort: number;
-  status: Setting | string;
+  feature_id?: Feature | string;
+  priority_id?: Setting | string;
+  status?: Setting | string;
   description?: string;
-  start_date?: string;
-  deadline?: string;
 };
 
-type Task = {
-  _id: string;
-  title: string;
-  feature_id: string;
-  assignee_id?: any;
-  assigner_id?: any;
-  status: Setting | string;
-  description?: string;
-  deadline?: string;
-};
-
-export default function FeatureBreakdownPage() {
+export default function FeatureDetailPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string);
@@ -90,142 +79,144 @@ export default function FeatureBreakdownPage() {
 
   const [feature, setFeature] = useState<Feature | null>(null);
   const [functions, setFunctions] = useState<FunctionType[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [statusTypes, setStatusTypes] = useState<Setting[]>([]);
+  const [priorityTypes, setPriorityTypes] = useState<Setting[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [openFunctionDialog, setOpenFunctionDialog] = useState(false);
-  const [openTaskDialog, setOpenTaskDialog] = useState(false);
-  const [openFunctionDetailDialog, setOpenFunctionDetailDialog] = useState(false);
-  const [selectedFunction, setSelectedFunction] = useState<FunctionType | null>(null);
-
-  const [functionForm, setFunctionForm] = useState({
-    title: "",
-    description: "",
-    estimated_effort: 0,
-    type_id: "",
-  });
-
-  const [taskForm, setTaskForm] = useState({
-    title: "",
-    description: "",
-    deadline: "",
-    assignee_id: "",
-    assigner_id: "",
-    type_id: "",
-  });
+  const [currentTab, setCurrentTab] = useState(0);
 
   useEffect(() => {
     if (!featureId) return;
-    loadFeatureBreakdown();
+    loadFeatureData();
   }, [featureId]);
 
-  const loadFeatureBreakdown = async () => {
+  // Refresh data when switching tabs
+  useEffect(() => {
+    if (currentTab === 1 && functions.length === 0) {
+      // Refresh functions when opening functions tab
+      axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`)
+        .then(res => setFunctions(Array.isArray(res.data) ? res.data : []))
+        .catch(() => {});
+    }
+    if (currentTab === 3) {
+      // Refresh comments when opening comments tab
+      axiosInstance.get(`/api/features/${featureId}/comments`)
+        .then(res => setComments(Array.isArray(res.data) ? res.data : []))
+        .catch(() => {});
+    }
+    if (currentTab === 4) {
+      // Refresh activity logs when opening activity tab
+      axiosInstance.get(`/api/features/${featureId}/activity-logs`)
+        .then(res => setActivityLogs(Array.isArray(res.data) ? res.data : []))
+        .catch(() => {});
+    }
+  }, [currentTab, featureId, projectId]);
+
+  const loadFeatureData = async () => {
     try {
       setLoading(true);
-      const res = await axiosInstance.get(`/api/features/${featureId}/breakdown`);
-      setFeature(res.data.feature);
-      setFunctions(res.data.functions || []);
-      setTasks(res.data.tasks || []);
-      setStats(res.data.stats);
+      
+      const [featureRes, functionsRes, commentsRes, activityLogsRes, settingsRes, meRes] = await Promise.all([
+        axiosInstance.get(`/api/features/${featureId}`).catch(() => ({ data: null })),
+        axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/features/${featureId}/comments`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/features/${featureId}/activity-logs`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
+        axiosInstance.get(`/api/users/me`).catch(() => ({ data: null })),
+      ]);
+
+      if (featureRes.data) {
+        setFeature(featureRes.data);
+      }
+
+      setFunctions(Array.isArray(functionsRes.data) ? functionsRes.data : []);
+      setComments(Array.isArray(commentsRes.data) ? commentsRes.data : []);
+      setActivityLogs(Array.isArray(activityLogsRes.data) ? activityLogsRes.data : []);
+
+      const allSettings = settingsRes.data || [];
+      setPriorityTypes(allSettings.filter((s: any) => s.type_id === 1));
+      setStatusTypes(allSettings.filter((s: any) => s.type_id === 2));
+      
+      if (meRes.data) {
+        setCurrentUser(meRes.data);
+      }
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tải dữ liệu");
+      console.error('Error loading feature data:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateFunction = async () => {
+  const handleFeatureUpdate = async (updates: any) => {
     try {
-      await axiosInstance.post(`/api/projects/${projectId}/functions`, {
-        ...functionForm,
-        feature_id: featureId,
-        project_id: projectId,
-      });
-      setOpenFunctionDialog(false);
-      setFunctionForm({ title: "", description: "", estimated_effort: 0, type_id: "" });
-      loadFeatureBreakdown();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tạo function");
+      await axiosInstance.patch(`/api/features/${featureId}`, updates);
+      // Reload feature and activity logs to reflect changes
+      const [featureRes, activityLogsRes] = await Promise.all([
+        axiosInstance.get(`/api/features/${featureId}`).catch(() => ({ data: null })),
+        axiosInstance.get(`/api/features/${featureId}/activity-logs`).catch(() => ({ data: [] })),
+      ]);
+      if (featureRes.data) {
+        setFeature(featureRes.data);
+      }
+      setActivityLogs(Array.isArray(activityLogsRes.data) ? activityLogsRes.data : []);
+    } catch (error: any) {
+      console.error("Error updating feature:", error);
+      throw error;
     }
   };
 
-  const handleCreateTask = async () => {
-    try {
-      await axiosInstance.post(`/api/projects/${projectId}/tasks`, {
-        ...taskForm,
-        feature_id: featureId,
-      });
-      setOpenTaskDialog(false);
-      setTaskForm({ title: "", description: "", deadline: "", assignee_id: "", assigner_id: "", type_id: "" });
-      loadFeatureBreakdown();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tạo task");
-    }
+  const resolveStatusName = (status: Setting | string | undefined) => {
+    if (!status) return "-";
+    if (typeof status === "object") return status?.name || "-";
+    const match = statusTypes.find(s => String(s._id) === String(status));
+    return match?.name || "-";
   };
 
-  const handleDeleteFunction = async (id: string) => {
-    if (!confirm("Xóa function này?")) return;
-    try {
-      await axiosInstance.delete(`/api/functions/${id}`);
-      loadFeatureBreakdown();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể xóa function");
-    }
+  const resolvePriorityName = (priority: Setting | string | undefined) => {
+    if (!priority) return "-";
+    if (typeof priority === "object") return priority?.name || "-";
+    const match = priorityTypes.find(p => String(p._id) === String(priority));
+    return match?.name || "-";
   };
 
-  const handleDeleteTask = async (id: string) => {
-    if (!confirm("Xóa task này?")) return;
-    try {
-      await axiosInstance.delete(`/api/tasks/${id}`);
-      loadFeatureBreakdown();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể xóa task");
-    }
+  const getStatusColor = (statusName: string) => {
+    const statusLower = statusName.toLowerCase();
+    if (statusLower.includes('completed') || statusLower.includes('done')) return '#16a34a';
+    if (statusLower.includes('progress') || statusLower.includes('doing')) return '#f59e0b';
+    if (statusLower.includes('overdue') || statusLower.includes('blocked')) return '#ef4444';
+    return '#9ca3af';
   };
 
-  const handleRecalculateEffort = async () => {
-    try {
-      await axiosInstance.post(`/api/features/${featureId}/calculate-effort`);
-      loadFeatureBreakdown();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tính toán effort");
-    }
-  };
-
-  const handleOpenFunctionDetail = async (functionId: string) => {
-    try {
-      const res = await axiosInstance.get(`/api/functions/${functionId}`);
-      setSelectedFunction(res.data);
-      setOpenFunctionDetailDialog(true);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tải chi tiết function");
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors: any = {
-      'Pending': '#9ca3af',
-      'In Progress': '#f59e0b',
-      'Completed': '#22c55e',
-      'Overdue': '#ef4444',
-      'planning': '#3b82f6',
-      'in-progress': '#f59e0b',
-      'testing': '#8b5cf6',
-      'completed': '#22c55e',
-      'cancelled': '#6b7280',
-    };
-    return colors[status] || '#3b82f6';
+  const getPriorityColor = (priorityName: string) => {
+    const priorityLower = priorityName.toLowerCase();
+    if (priorityLower.includes('critical') || priorityLower.includes('high')) return '#ef4444';
+    if (priorityLower.includes('medium')) return '#f59e0b';
+    return '#3b82f6';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen" style={{ backgroundColor: '#fafbfc' }}>
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
-          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-            <CircularProgress size={28} />
+        <main className="md:ml-64" style={{ minHeight: '100vh' }}>
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+            <CircularProgress />
+          </Box>
+        </main>
+      </div>
+    );
+  }
+
+  if (!feature) {
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: '#fafbfc' }}>
+        <ResponsiveSidebar />
+        <main className="md:ml-64" style={{ minHeight: '100vh' }}>
+          <Box sx={{ p: 4 }}>
+            <Typography>Feature not found</Typography>
+            <IconButton onClick={() => router.back()}>Back</IconButton>
           </Box>
         </main>
       </div>
@@ -233,503 +224,458 @@ export default function FeatureBreakdownPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen" style={{ backgroundColor: '#fafbfc' }}>
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
-        <div className="mx-auto w-full max-w-7xl">
-          {/* Header */}
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <IconButton onClick={() => router.back()}>
-                <ArrowBackIcon />
-              </IconButton>
-              <div>
-                <Typography variant="caption" color="text.secondary">
-                  Feature Breakdown
-                </Typography>
-                <Typography variant="h4" fontWeight="bold">
-                  {feature?.title}
-                </Typography>
-                {feature?.description && (
-                  <Typography variant="body2" color="text.secondary">
-                    {feature.description}
-                  </Typography>
-                )}
-              </div>
-            </div>
-            <Stack direction="row" spacing={2}>
-              <Button
-                variant="outlined"
-                startIcon={<CalculateIcon />}
-                onClick={handleRecalculateEffort}
+      <main className="md:ml-64" style={{ minHeight: '100vh' }}>
+        {/* Header - Clean ClickUp style */}
+        <Box sx={{ 
+          bgcolor: 'white',
+          borderBottom: '1px solid #e8e9eb',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+        }}>
+          {/* Top Bar with Breadcrumb */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            px: 3,
+            py: 1.5,
+            borderBottom: '1px solid #f3f4f6'
+          }}>
+            {/* Breadcrumb */}
+            <Breadcrumbs separator={<ChevronRightIcon sx={{ fontSize: 16, color: '#9ca3af' }} />}>
+              <Link 
+                component="button"
+                onClick={() => router.push(`/projects/${projectId}/features`)}
+                underline="hover" 
+                color="text.secondary"
+                fontSize="13px"
+                sx={{ '&:hover': { color: '#7b68ee' }, border: 'none', background: 'none', cursor: 'pointer' }}
               >
-                Tính toán Effort
-              </Button>
-            </Stack>
-          </div>
+                Features
+              </Link>
+              <Typography 
+                fontSize="13px" 
+                color="text.primary" 
+                fontWeight={600}
+                sx={{
+                  maxWidth: '400px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {feature?.title || 'Feature Details'}
+                </Typography>
+            </Breadcrumbs>
 
-          {error && (
-            <Paper sx={{ p: 2, mb: 3, bgcolor: "error.light", color: "error.contrastText" }}>
-              {error}
-            </Paper>
-          )}
-
-          {/* Statistics Cards */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 3, mb: 4 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="caption" color="text.secondary">
-                  Tiến độ
-                </Typography>
-                <Typography variant="h4" fontWeight="bold">
-                  {stats?.progress_percentage || 0}%
-                </Typography>
-                <LinearProgress
-                  variant="determinate"
-                  value={stats?.progress_percentage || 0}
-                  sx={{ mt: 1 }}
-                />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent>
-                <Typography variant="caption" color="text.secondary">
-                  Estimated Hours
-                </Typography>
-                <Typography variant="h4" fontWeight="bold" color="primary">
-                  {stats?.feature_estimated_hours || 0}h
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Feature estimate
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent>
-                <Typography variant="caption" color="text.secondary">
-                  Actual Effort
-                </Typography>
-                <Typography variant="h4" fontWeight="bold" color="warning.main">
-                  {stats?.feature_actual_effort || 0}h
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Feature actual
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent>
-                <Typography variant="caption" color="text.secondary">
-                  Functions
-                </Typography>
-                <Typography variant="h4" fontWeight="bold">
-                  {stats?.completed_functions || 0}/{stats?.total_functions || 0}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Hoàn thành
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent>
-                <Typography variant="caption" color="text.secondary">
-                  Tasks
-                </Typography>
-                <Typography variant="h4" fontWeight="bold">
-                  {stats?.completed_tasks || 0}/{stats?.total_tasks || 0}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Hoàn thành
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-
-          {/* Functions Section */}
-          <Paper variant="outlined" sx={{ mb: 3 }}>
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" fontWeight="bold">
-                  Functions ({functions.length})
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setOpenFunctionDialog(true)}
-                >
-                  Thêm Function
-                </Button>
+            {/* Action Buttons */}
+            <Stack direction="row" spacing={1}>
+              <Tooltip title="Share">
+                <IconButton size="small" sx={{ color: '#6b7280' }}>
+                  <ShareIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Watch">
+                <IconButton size="small" sx={{ color: '#6b7280' }}>
+                  <NotificationsIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="More actions">
+                <IconButton size="small" sx={{ color: '#6b7280' }}>
+                  <MoreVertIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <IconButton size="small" onClick={() => router.back()} sx={{ color: '#6b7280' }}>
+                <CloseIcon sx={{ fontSize: 20 }} />
+              </IconButton>
               </Stack>
             </Box>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Tên</TableCell>
-                  <TableCell>Trạng thái</TableCell>
-                  <TableCell>Effort (giờ)</TableCell>
-                  <TableCell>Actual (giờ)</TableCell>
-                  <TableCell>Deadline</TableCell>
-                  <TableCell>Hành động</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {functions.map((fn) => (
-                  <TableRow key={fn._id} hover>
-                    <TableCell 
-                      sx={{ 
-                        cursor: 'pointer',
-                        '&:hover': { 
-                          bgcolor: 'action.hover' 
-                        }
-                      }}
-                      onClick={() => handleOpenFunctionDetail(fn._id)}
-                    >
+
+          {/* Feature Title & Quick Actions */}
+          <Box sx={{ px: 3, py: 2.5 }}>
+            <Box sx={{ flex: 1 }}>
                       <Typography 
-                        fontWeight="medium" 
+                variant="h5" 
+                fontWeight={700}
                         sx={{ 
-                          color: 'primary.main',
-                          '&:hover': { textDecoration: 'underline' }
+                  mb: 1.5,
+                  color: '#1f2937',
+                  lineHeight: 1.3,
                         }}
                       >
-                        {fn.title}
+                {feature?.title || 'Loading...'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {fn.description}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const statusName = typeof fn.status === 'object' ? fn.status?.name : fn.status;
-                        return (
+
+              {/* Meta Info Row */}
+              <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+                {/* Status */}
+                {feature?.status_id && (
                           <Chip
-                            label={statusName || '-'}
+                    label={resolveStatusName(feature.status_id)} 
                             size="small"
                             sx={{
-                              bgcolor: getStatusColor(statusName || ''),
-                              color: "#fff",
+                      height: 24,
+                      fontSize: '12px',
                               fontWeight: 600,
-                            }}
-                          />
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>{fn.estimated_effort}</TableCell>
-                    <TableCell>{fn.actual_effort}</TableCell>
-                    <TableCell>
-                      {fn.deadline ? new Date(fn.deadline).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton size="small" onClick={() => handleDeleteFunction(fn._id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {functions.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      <Typography variant="body2" color="text.secondary">
-                        Chưa có function. Bấm "Thêm Function" để tạo.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
+                      bgcolor: `${getStatusColor(resolveStatusName(feature.status_id))}15`,
+                      color: getStatusColor(resolveStatusName(feature.status_id)),
+                      border: `1px solid ${getStatusColor(resolveStatusName(feature.status_id))}40`,
+                    }}
+                  />
                 )}
-              </TableBody>
-            </Table>
-          </Paper>
 
-          {/* Tasks Section */}
-          <Paper variant="outlined">
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" fontWeight="bold">
-                  Tasks ({tasks.length})
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setOpenTaskDialog(true)}
-                >
-                  Thêm Task
-                </Button>
+                {/* Priority */}
+                {feature?.priority_id && (
+                          <Chip
+                    icon={<FlagIcon sx={{ fontSize: 14 }} />}
+                    label={resolvePriorityName(feature.priority_id)} 
+                            size="small"
+                            sx={{
+                      height: 24,
+                      fontSize: '12px',
+                              fontWeight: 600,
+                      bgcolor: `${getPriorityColor(resolvePriorityName(feature.priority_id))}15`,
+                      color: getPriorityColor(resolvePriorityName(feature.priority_id)),
+                      border: `1px solid ${getPriorityColor(resolvePriorityName(feature.priority_id))}40`,
+                    }}
+                  />
+                )}
+
+                {/* Created By */}
+                {feature?.created_by && (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Avatar 
+                      sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        fontSize: '11px',
+                        bgcolor: '#7b68ee',
+                        fontWeight: 600
+                      }}
+                    >
+                      {(typeof feature.created_by === 'object' ? feature.created_by?.full_name : 'U')[0]?.toUpperCase() || 'U'}
+                    </Avatar>
+                    <Typography fontSize="13px" color="text.secondary">
+                      {typeof feature.created_by === 'object' ? feature.created_by?.full_name : 'Unknown'}
+                      </Typography>
+                  </Stack>
+                )}
+
+                {/* Due Date */}
+                {feature?.due_date && (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <CalendarMonthIcon sx={{ fontSize: 16, color: '#6b7280' }} />
+                    <Typography fontSize="13px" color="text.secondary">
+                      {new Date(feature.due_date).toLocaleDateString()}
+                    </Typography>
+              </Stack>
+                )}
               </Stack>
             </Box>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Tên</TableCell>
-                  <TableCell>Trạng thái</TableCell>
-                  <TableCell>Người thực hiện</TableCell>
-                  <TableCell>Deadline</TableCell>
-                  <TableCell>Hành động</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {tasks.map((task) => (
-                  <TableRow key={task._id}>
-                    <TableCell>
-                      <Typography fontWeight="medium">{task.title}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {task.description}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
-                        return (
-                          <Chip
-                            label={statusName || '-'}
-                            size="small"
-                            sx={{
-                              bgcolor: getStatusColor(statusName || ''),
-                              color: "#fff",
-                              fontWeight: 600,
-                            }}
-                          />
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {task.assignee_id?.full_name || "-"}
-                    </TableCell>
-                    <TableCell>
-                      {task.deadline ? new Date(task.deadline).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton size="small" onClick={() => handleDeleteTask(task._id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {tasks.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography variant="body2" color="text.secondary">
-                        Chưa có task. Bấm "Thêm Task" để tạo.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Paper>
-
-          {/* Function Dialog */}
-          <Dialog open={openFunctionDialog} onClose={() => setOpenFunctionDialog(false)} maxWidth="sm" fullWidth>
-            <DialogTitle>Thêm Function</DialogTitle>
-            <DialogContent>
-              <Stack spacing={2} sx={{ mt: 1 }}>
-                <TextField
-                  label="Tên Function"
-                  value={functionForm.title}
-                  onChange={(e) => setFunctionForm({ ...functionForm, title: e.target.value })}
-                  fullWidth
-                />
-                <TextField
-                  label="Mô tả"
-                  value={functionForm.description}
-                  onChange={(e) => setFunctionForm({ ...functionForm, description: e.target.value })}
-                  fullWidth
-                  multiline
-                  rows={3}
-                />
-                <TextField
-                  label="Estimated Effort (giờ)"
-                  type="number"
-                  value={functionForm.estimated_effort}
-                  onChange={(e) => setFunctionForm({ ...functionForm, estimated_effort: Number(e.target.value) })}
-                  fullWidth
-                />
-              </Stack>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenFunctionDialog(false)}>Hủy</Button>
-              <Button variant="contained" onClick={handleCreateFunction}>
-                Tạo
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Task Dialog */}
-          <Dialog open={openTaskDialog} onClose={() => setOpenTaskDialog(false)} maxWidth="sm" fullWidth>
-            <DialogTitle>Thêm Task</DialogTitle>
-            <DialogContent>
-              <Stack spacing={2} sx={{ mt: 1 }}>
-                <TextField
-                  label="Tên Task"
-                  value={taskForm.title}
-                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
-                  fullWidth
-                />
-                <TextField
-                  label="Mô tả"
-                  value={taskForm.description}
-                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
-                  fullWidth
-                  multiline
-                  rows={3}
-                />
-                <TextField
-                  label="Deadline"
-                  type="date"
-                  value={taskForm.deadline}
-                  onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Stack>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenTaskDialog(false)}>Hủy</Button>
-              <Button variant="contained" onClick={handleCreateTask}>
-                Tạo
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Function Detail Dialog */}
-          <Dialog 
-            open={openFunctionDetailDialog} 
-            onClose={() => {
-              setOpenFunctionDetailDialog(false);
-              setSelectedFunction(null);
-            }} 
-            maxWidth="md" 
-            fullWidth
-          >
-            <DialogTitle sx={{ fontWeight: 'bold' }}>
-              Chi tiết Function
-            </DialogTitle>
-            <DialogContent>
-              {selectedFunction && (
-                <Stack spacing={3} sx={{ mt: 1 }}>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Tên Function
-                    </Typography>
-                    <Typography variant="h6" fontWeight={600}>
-                      {selectedFunction.title}
-                    </Typography>
                   </Box>
 
-                  {selectedFunction.description && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Mô tả
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedFunction.description}
-                      </Typography>
-                    </Box>
-                  )}
+          {/* Tabs Navigation */}
+          <Box sx={{ px: 2 }}>
+            <Tabs 
+              value={currentTab} 
+              onChange={(_, v) => setCurrentTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{
+                minHeight: 44,
+                '& .MuiTabs-indicator': {
+                  height: 3,
+                  borderRadius: '3px 3px 0 0',
+                  bgcolor: '#7b68ee',
+                },
+                '& .MuiTab-root': {
+                  minHeight: 44,
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  color: '#6b7280',
+                  px: 2,
+                  '&.Mui-selected': {
+                    color: '#7b68ee',
+                  }
+                }
+              }}
+            >
+              <Tab icon={<InfoIcon />} iconPosition="start" label="Overview" />
+              <Tab icon={<FunctionsIcon />} iconPosition="start" label={`Functions (${functions.length})`} />
+              <Tab icon={<CodeIcon />} iconPosition="start" label="Development" />
+              <Tab icon={<ChatBubbleOutlineIcon />} iconPosition="start" label={`Comments (${comments.length})`} />
+              <Tab icon={<HistoryIcon />} iconPosition="start" label={`Activity (${activityLogs.length})`} />
+            </Tabs>
+          </Box>
+                  </Box>
 
-                  <Stack direction="row" spacing={3}>
-                    <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Trạng thái
-                      </Typography>
-                    <Chip
-  label={
-    typeof selectedFunction.status === 'string'
-      ? selectedFunction.status
-      : String(selectedFunction.status?.name ?? selectedFunction.status)
-  }
-  size="medium"
-  sx={{
-    bgcolor: getStatusColor(String(selectedFunction.status)),
-  }}
-/>
+        {/* Content Area - 2 Column Layout */}
+        <Box sx={{ 
+          display: 'flex', 
+          minHeight: 'calc(100vh - 220px)',
+        }}>
+          {/* Main Content - Left Column (scrollable) */}
+          <Box sx={{ 
+            flex: 1,
+            overflow: 'auto',
+            bgcolor: 'white',
+            p: 3,
+          }}>
+            {currentTab === 0 && feature && (
+              <FeatureDetailsOverview 
+                feature={{
+                  ...feature,
+                  functions_count: functions.length,
+                  comments_count: comments.length,
+                  activities_count: activityLogs.length,
+                }}
+                onUpdate={async (updates) => {
+                  await handleFeatureUpdate(updates);
+                  // Refresh comments and activities count after update
+                  const [commentsRes, activityLogsRes] = await Promise.all([
+                    axiosInstance.get(`/api/features/${featureId}/comments`).catch(() => ({ data: [] })),
+                    axiosInstance.get(`/api/features/${featureId}/activity-logs`).catch(() => ({ data: [] })),
+                  ]);
+                  setComments(Array.isArray(commentsRes.data) ? commentsRes.data : []);
+                  setActivityLogs(Array.isArray(activityLogsRes.data) ? activityLogsRes.data : []);
+                }}
+              />
+            )}
 
-                    </Box>
-                    <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Type
-                      </Typography>
-                      <Chip
-                        label={typeof selectedFunction.type_id === 'object' ? selectedFunction.type_id?.name : '-'}
-                        size="medium"
-                        color="primary"
-                      />
-                    </Box>
-                  </Stack>
+            {currentTab === 1 && (
+              <FeatureDetailsFunctions
+                featureId={featureId}
+                projectId={projectId}
+                functions={functions}
+                statusTypes={statusTypes}
+                priorityTypes={priorityTypes}
+                onRefresh={async () => {
+                  const [functionsRes, activityLogsRes] = await Promise.all([
+                    axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`).catch(() => ({ data: [] })),
+                    axiosInstance.get(`/api/features/${featureId}/activity-logs`).catch(() => ({ data: [] })),
+                  ]);
+                  setFunctions(Array.isArray(functionsRes.data) ? functionsRes.data : []);
+                  setActivityLogs(Array.isArray(activityLogsRes.data) ? activityLogsRes.data : []);
+                }}
+                onNavigate={(path) => router.push(path)}
+              />
+            )}
 
-                  <Stack direction="row" spacing={3}>
-                    <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Estimated Effort
-                      </Typography>
-                      <Typography variant="h6" fontWeight={600}>
-                        {selectedFunction.estimated_effort} giờ
-                      </Typography>
-                    </Box>
-                    <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Actual Effort
-                      </Typography>
-                      <Typography variant="h6" fontWeight={600} color={selectedFunction.actual_effort > selectedFunction.estimated_effort ? "error.main" : "text.primary"}>
-                        {selectedFunction.actual_effort} giờ
-                      </Typography>
-                    </Box>
-                  </Stack>
+            {currentTab === 2 && (
+              <FeatureDetailsDevelopment
+                featureId={featureId}
+                projectId={projectId}
+              />
+            )}
 
-                  <Stack direction="row" spacing={3}>
-                    <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+            {currentTab === 3 && (
+              <FeatureDetailsComments
+                featureId={featureId}
+                currentUser={currentUser}
+                onUpdate={async () => {
+                  const [commentsRes, activityLogsRes] = await Promise.all([
+                    axiosInstance.get(`/api/features/${featureId}/comments`).catch(() => ({ data: [] })),
+                    axiosInstance.get(`/api/features/${featureId}/activity-logs`).catch(() => ({ data: [] })),
+                  ]);
+                  setComments(Array.isArray(commentsRes.data) ? commentsRes.data : []);
+                  setActivityLogs(Array.isArray(activityLogsRes.data) ? activityLogsRes.data : []);
+                }}
+              />
+            )}
+
+            {currentTab === 4 && (
+              <FeatureDetailsActivity
+                featureId={featureId}
+                onUpdate={async () => {
+                  const activityLogsRes = await axiosInstance.get(`/api/features/${featureId}/activity-logs`).catch(() => ({ data: [] }));
+                  setActivityLogs(Array.isArray(activityLogsRes.data) ? activityLogsRes.data : []);
+                }}
+              />
+            )}
+                    </Box>
+
+          {/* Sidebar - Right Column (fixed properties) */}
+          <Box sx={{ 
+            width: 280,
+            borderLeft: '1px solid #e8e9eb',
+            bgcolor: 'white',
+            p: 2.5,
+            overflow: 'auto',
+            display: { xs: 'none', lg: 'block' }
+          }}>
+            <Typography 
+              variant="subtitle2" 
+              fontWeight={700} 
+              sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
+            >
+              Properties
+                      </Typography>
+
+            <Stack spacing={2.5}>
+              {/* Status */}
+              <Box>
+                <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                  Status
+                      </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={typeof feature?.status_id === 'object' ? (feature.status_id as any)?._id : feature?.status_id || ''}
+                    onChange={async (e) => {
+                      try {
+                        await handleFeatureUpdate({ status_id: e.target.value });
+                      } catch (error) {
+                        console.error('Error updating status:', error);
+                      }
+                    }}
+                    displayEmpty
+                    renderValue={(value) => {
+                      const statusObj = statusTypes.find(s => s._id === value);
+                      return statusObj?.name || 'Select status';
+                    }}
+                    sx={{ 
+                      fontSize: '13px', 
+                      fontWeight: 500,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e8e9eb',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#7b68ee',
+                      }
+                    }}
+                  >
+                    {statusTypes.map((s) => (
+                      <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                    </Box>
+
+              {/* Priority */}
+              <Box>
+                <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                  Priority
+                      </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={typeof feature?.priority_id === 'object' ? (feature.priority_id as any)?._id : feature?.priority_id || ''}
+                    onChange={async (e) => {
+                      try {
+                        await handleFeatureUpdate({ priority_id: e.target.value || null });
+                      } catch (error) {
+                        console.error('Error updating priority:', error);
+                      }
+                    }}
+                    displayEmpty
+                    renderValue={(value) => {
+                      if (!value) return 'No priority';
+                      const priorityObj = priorityTypes.find(p => p._id === value);
+                      const name = priorityObj?.name || '';
+                      const emoji = name.toLowerCase().includes('critical') ? '🔥'
+                        : name.toLowerCase().includes('high') ? '🔴'
+                        : name.toLowerCase().includes('medium') ? '🟡'
+                        : '🟢';
+                      return `${emoji} ${name}`;
+                    }}
+                    sx={{ 
+                      fontSize: '13px', 
+                      fontWeight: 500,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e8e9eb',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#7b68ee',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">No Priority</MenuItem>
+                    {priorityTypes.map((p) => {
+                      const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
+                        : p.name.toLowerCase().includes('high') ? '🔴'
+                        : p.name.toLowerCase().includes('medium') ? '🟡'
+                        : '🟢';
+                      return (
+                        <MenuItem key={p._id} value={p._id}>
+                          {emoji} {p.name}
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+                    </Box>
+
+              <Divider />
+
+              {/* Dates */}
+              {feature?.start_date && (
+                <Box>
+                  <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                         Start Date
                       </Typography>
-                      <Typography variant="body1">
-                        {selectedFunction.start_date ? new Date(selectedFunction.start_date).toLocaleDateString('vi-VN') : '—'}
+                  <Typography fontSize="13px" fontWeight={500} color="text.primary">
+                    {new Date(feature.start_date).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
                       </Typography>
                     </Box>
-                    <Box flex={1}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Deadline
+              )}
+
+              {feature?.due_date && (
+                <Box>
+                  <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                    Due Date
                       </Typography>
-                      <Typography variant="body1">
-                        {selectedFunction.deadline ? new Date(selectedFunction.deadline).toLocaleDateString('vi-VN') : '—'}
+                  <Typography fontSize="13px" fontWeight={500} color="text.primary">
+                    {new Date(feature.due_date).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
                       </Typography>
                     </Box>
-                  </Stack>
+              )}
 
-                  <Divider />
-
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Tiến độ
+              {/* Created By */}
+              {feature?.created_by && (
+                <Box>
+                  <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                    Created By
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Avatar sx={{ width: 24, height: 24, fontSize: '11px', bgcolor: '#7b68ee', fontWeight: 600 }}>
+                      {(typeof feature.created_by === 'object' ? feature.created_by?.full_name : 'U')[0]?.toUpperCase() || 'U'}
+                    </Avatar>
+                    <Typography fontSize="13px" fontWeight={500} color="text.primary">
+                      {typeof feature.created_by === 'object' ? feature.created_by?.full_name : 'Unknown'}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={selectedFunction.estimated_effort > 0 
-                          ? Math.min(100, Math.round((selectedFunction.actual_effort / selectedFunction.estimated_effort) * 100))
-                          : 0
-                        }
-                        sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                      />
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedFunction.estimated_effort > 0 
-                          ? Math.min(100, Math.round((selectedFunction.actual_effort / selectedFunction.estimated_effort) * 100))
-                          : 0
-                        }%
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Created At */}
+              {feature?.createdAt && (
+                  <Box>
+                  <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                    Created
+                    </Typography>
+                  <Typography fontSize="13px" fontWeight={500} color="text.primary">
+                    {new Date(feature.createdAt).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
                       </Typography>
+                    </Box>
+              )}
+            </Stack>
                     </Box>
                   </Box>
-                </Stack>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => {
-                setOpenFunctionDetailDialog(false);
-                setSelectedFunction(null);
-              }}>
-                Đóng
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </div>
       </main>
     </div>
   );
 }
-

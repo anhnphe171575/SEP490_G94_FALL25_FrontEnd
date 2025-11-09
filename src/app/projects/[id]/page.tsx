@@ -39,33 +39,15 @@ type User = {
   email?: string;
 };
 
-type SuccessCriteria = {
-  _id?: string;
-  title: string;
-  description?: string;
-  status: "pending" | "in-review" | "verified" | "rejected";
-  verified_by?: User;
-  verified_at?: string;
-};
 
 type Milestone = {
   _id: string;
   title: string;
-  code?: string;
   start_date?: string;
-  deadline?: string;
   actual_date?: string;
-  status?: string;
   description?: string;
-  notes?: string;
-  estimated_effort?: number;
-  actual_effort?: number;
-  delay_days?: number;
   tags?: string[];
-  approved_by?: User;
   created_by?: User;
-  last_updated_by?: User;
-  success_criteria?: SuccessCriteria[];
   createdAt?: string;
   updatedAt?: string;
   progress?: {
@@ -241,17 +223,13 @@ export default function ProjectDetailPage() {
       filtered = filtered.filter(milestone => filteredMilestoneIds.has(milestone._id));
     }
 
-    // Apply status filter
-    filtered = filtered.filter(milestone => {
-      const status = milestone.status || 'Planned';
-      return statusFilter[status] !== false;
-    });
+    // Status filter is no longer applicable as milestone model doesn't have status field
 
     // Apply date range filter
     if (dateRangeFilter.enabled && (dateRangeFilter.startDate || dateRangeFilter.endDate)) {
       filtered = filtered.filter(milestone => {
         const milestoneStart = milestone.start_date ? new Date(milestone.start_date) : null;
-        const milestoneEnd = milestone.deadline ? new Date(milestone.deadline) : null;
+        const milestoneEnd = milestone.actual_date ? new Date(milestone.actual_date) : null;
 
         if (dateRangeFilter.startDate) {
           const filterStart = new Date(dateRangeFilter.startDate);
@@ -1087,7 +1065,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
             pagingStepDays={viewMode === 'Quarters' ? 90 : viewMode === 'Months' ? 30 : viewMode === 'Weeks' ? 7 : 7}
             onRequestShift={(days) => setWeekStart(prev => addDays(prev, days))}
             onMilestoneShift={(id, deltaDays) => {
-              // Local optimistic update: shift start_date and deadline by deltaDays
+              // Local optimistic update: shift start_date and actual_date by deltaDays
               onLocalUpdate((prev) => {
                 if (!prev) return prev;
                 const shiftDate = (iso?: string) => {
@@ -1099,7 +1077,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
                 return prev.map((m) => m._id === id ? ({
                   ...m,
                   start_date: shiftDate(m.start_date),
-                  deadline: shiftDate(m.deadline),
+                  actual_date: shiftDate(m.actual_date),
                 }) : m);
               });
             }}
@@ -1387,11 +1365,6 @@ function MilestoneFeaturesTable({
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   {milestone.title}
                 </Typography>
-                <Chip
-                  label={milestone.status || "Planning"}
-                  color={getStatusColor(milestone.status)}
-                  size="small"
-                />
                 <Chip
                   label={`${filteredFeatures.length}/${features.length} features`}
                   variant="outlined"
@@ -1853,20 +1826,6 @@ function MilestonesList({
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" gap={1} mb={1}>
-                        {milestone.code && (
-                          <Chip
-                            label={milestone.code}
-                            size="small"
-                            variant="outlined"
-                          />
-                        )}
-                        {milestone.status && (
-                          <Chip
-                            label={milestone.status}
-                            size="small"
-                            color={getStatusColor(milestone.status)}
-                          />
-                        )}
                         {milestone.tags && milestone.tags.slice(0, 3).map((tag, idx) => (
                           <Chip
                             key={idx}
@@ -1934,25 +1893,9 @@ function MilestonesList({
                   <Box display="flex" alignItems="center" gap={1}>
                     <CalendarTodayIcon fontSize="small" color="action" />
                     <Typography variant="caption" color="text.secondary">
-                      {formatDate(milestone.start_date)} - {formatDate(milestone.deadline)}
+                      {formatDate(milestone.start_date)} {milestone.actual_date ? ` - ${formatDate(milestone.actual_date)}` : ''}
                     </Typography>
                   </Box>
-                  {milestone.estimated_effort && milestone.estimated_effort > 0 && (
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <AccessTimeIcon fontSize="small" color="info" />
-                      <Typography variant="caption" color="text.secondary">
-                        Ước tính: {milestone.estimated_effort}h
-                      </Typography>
-                    </Box>
-                  )}
-                  {milestone.actual_effort && milestone.actual_effort > 0 && (
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <AccessTimeIcon fontSize="small" color="warning" />
-                      <Typography variant="caption" color="text.secondary">
-                        Thực tế: {milestone.actual_effort}h
-                      </Typography>
-                    </Box>
-                  )}
                   {milestone.progress && milestone.progress.by_feature && (
                     <Box display="flex" alignItems="center" gap={1}>
                       <AssignmentIcon fontSize="small" color="info" />

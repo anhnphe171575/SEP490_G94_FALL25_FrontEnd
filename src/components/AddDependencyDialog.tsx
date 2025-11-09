@@ -118,18 +118,52 @@ const AddDependencyDialog: React.FC<AddDependencyDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+      const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
         depends_on_task_id: selectedTask._id,
         dependency_type: dependencyType,
         lag_days: lagDays,
         notes: notes || undefined,
       });
 
+      // Check for warning (non-blocking)
+      if (response.data.warning) {
+        const warning = response.data.warning;
+        setError(`⚠️ ${warning.message}\n${warning.suggestion}`);
+        // Still allow to proceed, just show warning
+      }
+
       onAdd();
       handleClose();
     } catch (err: any) {
       console.error("Error adding dependency:", err);
-      setError(err?.response?.data?.message || "Failed to add dependency");
+      const errorData = err?.response?.data;
+      
+      if (err?.response?.status === 400 && errorData?.violation) {
+        // Date violation - show detailed error
+        const violation = errorData.violation;
+        const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
+        setError(errorMessage);
+        
+        // If auto-fix available, offer it
+        if (errorData.can_auto_fix && violation.required_start_date) {
+          const autoFix = window.confirm(
+            `${errorMessage}\n\nBạn có muốn tự động điều chỉnh ngày tháng không?`
+          );
+          if (autoFix) {
+            try {
+              await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
+                preserve_duration: true
+              });
+              // Retry adding dependency
+              await handleSubmit();
+            } catch (fixError: any) {
+              setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+            }
+          }
+        }
+      } else {
+        setError(errorData?.message || "Failed to add dependency");
+      }
     } finally {
       setLoading(false);
     }

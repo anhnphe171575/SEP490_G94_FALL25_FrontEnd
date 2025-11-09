@@ -23,10 +23,12 @@ import {
   IconButton,
   InputLabel,
   LinearProgress,
+  Link,
   MenuItem,
   Paper,
   Select,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -44,6 +46,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import axiosInstance from "../../ultis/axios";
 
 interface ProjectCICDViewProps {
@@ -398,6 +401,17 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
   const [creatingWorkflow, setCreatingWorkflow] = useState(false);
   const [workflowContentEdited, setWorkflowContentEdited] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [addRepoDialogOpen, setAddRepoDialogOpen] = useState(false);
+  const [addingRepo, setAddingRepo] = useState(false);
+  const [tokenVerified, setTokenVerified] = useState(false);
+  const [repoForm, setRepoForm] = useState({
+    repo_owner: "",
+    repo_name: "",
+    access_token: "",
+    auto_link_commits: true,
+    auto_link_prs: true,
+  });
+  const [addRepoError, setAddRepoError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRepositories();
@@ -423,8 +437,15 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
       const response = await axiosInstance.get(`/api/projects/${projectId}/github/repositories`);
       const repos = response.data || [];
       setRepositories(repos);
-      if (repos.length > 0) {
-        setSelectedRepo(repos[0]._id);
+      if (repos.length === 0) {
+        setSelectedRepo("");
+      } else {
+        setSelectedRepo((prev) => {
+          if (prev && repos.some((repo: Repository) => repo._id === prev)) {
+            return prev;
+          }
+          return repos[0]._id;
+        });
       }
     } catch (err: any) {
       console.error("Error loading repositories:", err);
@@ -433,6 +454,310 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
       setLoadingRepos(false);
     }
   };
+
+  const verifyRepositoryToken = async () => {
+    if (!repoForm.repo_owner || !repoForm.repo_name || !repoForm.access_token) {
+      setAddRepoError("Please fill all fields to verify");
+      setTokenVerified(false);
+      return false;
+    }
+
+    try {
+      setAddingRepo(true);
+      setAddRepoError(null);
+      setTokenVerified(false);
+
+      const testUrl = `https://api.github.com/repos/${repoForm.repo_owner}/${repoForm.repo_name}`;
+      const response = await fetch(testUrl, {
+        headers: {
+          Authorization: `token ${repoForm.access_token}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      });
+
+      if (response.status === 404) {
+        setAddRepoError(`Repository "${repoForm.repo_owner}/${repoForm.repo_name}" not found. Check owner and name.`);
+        return false;
+      }
+
+      if (response.status === 401) {
+        setAddRepoError("Invalid token. Please check your Personal Access Token.");
+        return false;
+      }
+
+      if (response.status === 403) {
+        setAddRepoError("Token doesn't have permission to access this repository. Make sure token has 'repo' scope.");
+        return false;
+      }
+
+      if (!response.ok) {
+        setAddRepoError(`Failed to verify: ${response.statusText}`);
+        return false;
+      }
+
+      const scopes =
+        response.headers.get("X-OAuth-Scopes") || response.headers.get("x-oauth-scopes");
+      if (scopes && !scopes.includes("repo")) {
+        setAddRepoError("⚠️ Warning: Token may not have 'repo' scope. You might not be able to create branches or workflows.");
+        return true;
+      }
+
+      setTokenVerified(true);
+      setAddRepoError(null);
+      return true;
+    } catch (error: any) {
+      setAddRepoError(`Network error: ${error.message}`);
+      return false;
+    } finally {
+      setAddingRepo(false);
+    }
+  };
+
+  const submitAddRepository = async () => {
+    if (!repoForm.repo_owner || !repoForm.repo_name || !repoForm.access_token) {
+      setAddRepoError("Please fill all required fields");
+      return;
+    }
+
+    let isValid = tokenVerified;
+    if (!tokenVerified) {
+      isValid = await verifyRepositoryToken();
+    }
+    if (!isValid) {
+      return;
+    }
+
+    try {
+      setAddingRepo(true);
+      const response = await axiosInstance.post(`/api/projects/${projectId}/github/repositories`, {
+        repo_owner: repoForm.repo_owner,
+        repo_name: repoForm.repo_name,
+        access_token: repoForm.access_token,
+        sync_settings: {
+          auto_link_commits: repoForm.auto_link_commits,
+          auto_link_prs: repoForm.auto_link_prs,
+          auto_link_issues: false,
+          auto_create_branches: true,
+          branch_naming_pattern: "feature/{task-key}-{task-title}",
+        },
+      });
+
+      const newRepo = response.data;
+      setAddRepoDialogOpen(false);
+      setRepoForm({
+        repo_owner: "",
+        repo_name: "",
+        access_token: "",
+        auto_link_commits: true,
+        auto_link_prs: true,
+      });
+      setTokenVerified(false);
+      setAddRepoError(null);
+      await loadRepositories();
+      if (newRepo?._id) {
+        setSelectedRepo(newRepo._id);
+      }
+      if (newRepo?.repo_owner && newRepo?.repo_name) {
+        alert(`✅ Repository connected: ${newRepo.repo_owner}/${newRepo.repo_name}`);
+      } else {
+        alert("✅ Repository connected!");
+      }
+    } catch (err: any) {
+      setAddRepoError(err?.response?.data?.message || "Failed to add repository");
+    } finally {
+      setAddingRepo(false);
+    }
+  };
+
+  const addRepoDialogElement = (
+    <Dialog
+      open={addRepoDialogOpen}
+      onClose={() => {
+        if (!addingRepo) {
+          setAddRepoDialogOpen(false);
+          setAddRepoError(null);
+          setTokenVerified(false);
+        }
+      }}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <GitHubIcon />
+          <Typography fontWeight={700}>Connect GitHub Repository</Typography>
+        </Stack>
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ pt: 2 }}>
+          <Alert severity="info" sx={{ fontSize: "12px" }}>
+            You'll need a GitHub Personal Access Token. Create one at{" "}
+            <Link href="https://github.com/settings/tokens" target="_blank" rel="noopener">
+              github.com/settings/tokens
+            </Link>{" "}
+            with <code>repo</code> scope.
+          </Alert>
+
+          {addRepoError && (
+            <Alert
+              severity={addRepoError.startsWith("⚠️") ? "warning" : "error"}
+              sx={{ fontSize: "12px" }}
+            >
+              {addRepoError}
+            </Alert>
+          )}
+
+          <TextField
+            label="Repository Owner"
+            fullWidth
+            value={repoForm.repo_owner}
+            onChange={(e) => {
+              setRepoForm((prev) => ({ ...prev, repo_owner: e.target.value }));
+              setTokenVerified(false);
+              setAddRepoError(null);
+            }}
+            placeholder="facebook"
+            helperText="GitHub username or organization name"
+            disabled={addingRepo}
+          />
+
+          <TextField
+            label="Repository Name"
+            fullWidth
+            value={repoForm.repo_name}
+            onChange={(e) => {
+              setRepoForm((prev) => ({ ...prev, repo_name: e.target.value }));
+              setTokenVerified(false);
+              setAddRepoError(null);
+            }}
+            placeholder="react"
+            helperText="Repository name (not the full URL)"
+            disabled={addingRepo}
+          />
+
+          <TextField
+            label="Personal Access Token"
+            fullWidth
+            type="password"
+            value={repoForm.access_token}
+            onChange={(e) => {
+              setRepoForm((prev) => ({ ...prev, access_token: e.target.value }));
+              setTokenVerified(false);
+              setAddRepoError(null);
+            }}
+            placeholder="ghp_xxxxxxxxxxxx"
+            helperText="Your GitHub Personal Access Token with 'repo' scope"
+            disabled={addingRepo}
+          />
+
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={verifyRepositoryToken}
+            disabled={!repoForm.repo_owner || !repoForm.repo_name || !repoForm.access_token || addingRepo}
+            sx={{
+              textTransform: "none",
+              borderColor: tokenVerified ? "#1a7f37" : "#0969da",
+              color: tokenVerified ? "#1a7f37" : "#0969da",
+              "&:hover": {
+                borderColor: tokenVerified ? "#1a7f37" : "#0969da",
+                bgcolor: tokenVerified ? "#dafbe1" : "#ddf4ff",
+              },
+            }}
+          >
+            {addingRepo ? (
+              <CircularProgress size={20} />
+            ) : tokenVerified ? (
+              "✅ Connection Verified"
+            ) : (
+              "🔍 Test Connection"
+            )}
+          </Button>
+
+          {tokenVerified && (
+            <Alert severity="success" sx={{ fontSize: "12px" }}>
+              <strong>✅ Token verified successfully!</strong>
+              <br />
+              Repository: <code>{repoForm.repo_owner}/{repoForm.repo_name}</code>
+              <br />
+              Token has proper permissions.
+            </Alert>
+          )}
+
+          <Divider />
+
+          <Typography fontWeight={600} fontSize="14px">
+            Auto-linking Settings
+          </Typography>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={repoForm.auto_link_commits}
+                onChange={(e) =>
+                  setRepoForm((prev) => ({ ...prev, auto_link_commits: e.target.checked }))
+                }
+                disabled={addingRepo}
+              />
+            }
+            label={
+              <Box>
+                <Typography fontSize="14px">Auto-link commits</Typography>
+                <Typography fontSize="12px" color="text.secondary">
+                  Automatically link commits that mention task IDs in their messages
+                </Typography>
+              </Box>
+            }
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={repoForm.auto_link_prs}
+                onChange={(e) =>
+                  setRepoForm((prev) => ({ ...prev, auto_link_prs: e.target.checked }))
+                }
+                disabled={addingRepo}
+              />
+            }
+            label={
+              <Box>
+                <Typography fontSize="14px">Auto-link pull requests</Typography>
+                <Typography fontSize="12px" color="text.secondary">
+                  Automatically link PRs that mention task IDs in title or description
+                </Typography>
+              </Box>
+            }
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: 2.5 }}>
+        <Button
+          onClick={() => {
+            setAddRepoDialogOpen(false);
+            setAddRepoError(null);
+            setTokenVerified(false);
+          }}
+          disabled={addingRepo}
+          sx={{ textTransform: "none" }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={submitAddRepository}
+          disabled={!repoForm.repo_owner || !repoForm.repo_name || !repoForm.access_token || addingRepo}
+          sx={{
+            textTransform: "none",
+            bgcolor: "#238636",
+            "&:hover": { bgcolor: "#2ea043" },
+          }}
+        >
+          {addingRepo ? <CircularProgress size={20} color="inherit" /> : "Connect Repository"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
 
   const loadWorkflows = async () => {
     if (!selectedRepo) return;
@@ -756,11 +1081,44 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
 
   if (!loadingRepos && repositories.length === 0) {
     return (
-      <Box sx={{ p: 6, textAlign: "center" }}>
-        <Typography fontSize="14px" color="#6b778c">
-          Chưa có repository GitHub nào được kết nối. Vào tab Development của task để kết nối.
-        </Typography>
-      </Box>
+      <>
+        <Box sx={{ p: 6, display: "flex", justifyContent: "center" }}>
+          <Paper
+            sx={{
+              p: 5,
+              maxWidth: 460,
+              textAlign: "center",
+              bgcolor: "#f6f8fa",
+              border: "2px dashed #d0d7de",
+              borderRadius: 2,
+            }}
+          >
+            <GitHubIcon sx={{ fontSize: 48, color: "#d0d7de", mb: 2 }} />
+            <Typography fontSize="16px" fontWeight={700} color="#24292f" sx={{ mb: 1 }}>
+              No GitHub repository connected
+            </Typography>
+            <Typography fontSize="13px" color="#57606a" sx={{ mb: 3 }}>
+              Connect a repository to pull CI/CD workflows, runs, and branches directly into this view.
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<GitHubIcon />}
+              onClick={() => {
+                setAddRepoError(null);
+                setAddRepoDialogOpen(true);
+              }}
+              sx={{
+                textTransform: "none",
+                bgcolor: "#238636",
+                "&:hover": { bgcolor: "#2ea043" },
+              }}
+            >
+              Connect GitHub Repository
+            </Button>
+          </Paper>
+        </Box>
+        {addRepoDialogElement}
+      </>
     );
   }
 
@@ -816,6 +1174,19 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
         </Box>
 
         <Stack direction="row" spacing={1.5} alignItems="center">
+          <Button
+            variant="outlined"
+            startIcon={<GitHubIcon />}
+            onClick={() => {
+              setAddRepoError(null);
+              setAddRepoDialogOpen(true);
+            }}
+            disabled={addingRepo}
+            sx={{ textTransform: "none" }}
+          >
+            Connect repository
+          </Button>
+
           <FormControl size="small" sx={{ minWidth: 220 }}>
             <InputLabel>Repository</InputLabel>
             <Select
@@ -850,7 +1221,7 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
             Trigger workflow
           </Button>
 
-          <IconButton onClick={loadWorkflowRuns} disabled={loadingRuns}>
+          <IconButton onClick={() => loadWorkflowRuns()} disabled={loadingRuns}>
             <RefreshIcon />
           </IconButton>
         </Stack>
@@ -931,10 +1302,10 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
               )}
             />
 
-            <Button
+            <Button 
               variant="outlined"
-              onClick={loadWorkflowRuns}
               disabled={loadingRuns}
+              onClick={() => loadWorkflowRuns()}
             >
               Apply filters
             </Button>
@@ -1290,6 +1661,8 @@ export default function ProjectCICDView({ projectId }: ProjectCICDViewProps) {
           )}
         </CardContent>
       </Card>
+
+      {addRepoDialogElement}
 
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Tạo workflow mới</DialogTitle>

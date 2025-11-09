@@ -1,0 +1,318 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Box,
+  Typography,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Chip,
+  Link as MuiLink,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Stack,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import LinkIcon from "@mui/icons-material/Link";
+import axiosInstance from "../../../ultis/axios";
+
+interface FeatureDetailsFunctionsProps {
+  featureId: string;
+  projectId: string;
+  functions: any[];
+  statusTypes: any[];
+  priorityTypes: any[];
+  onRefresh: () => void;
+  onNavigate: (path: string) => void;
+}
+
+export default function FeatureDetailsFunctions({
+  featureId,
+  projectId,
+  functions,
+  statusTypes,
+  priorityTypes,
+  onRefresh,
+  onNavigate
+}: FeatureDetailsFunctionsProps) {
+  const [openDialog, setOpenDialog] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    priority_id: "",
+    status: "",
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleCreate = async () => {
+    if (!form.title || !form.status) return;
+    
+    try {
+      setLoading(true);
+      await axiosInstance.post(`/api/projects/${projectId}/functions`, {
+        ...form,
+        feature_id: featureId,
+      });
+      setOpenDialog(false);
+      setForm({ title: "", description: "", priority_id: "", status: "" });
+      onRefresh();
+    } catch (error: any) {
+      console.error("Error creating function:", error);
+      alert(error?.response?.data?.message || "Cannot create function");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resolveStatusName = (status: any) => {
+    if (!status) return "-";
+    if (typeof status === "object") return status?.name || "-";
+    const match = statusTypes.find(s => String(s._id) === String(status));
+    return match?.name || "-";
+  };
+
+  const resolvePriorityName = (priority: any) => {
+    if (!priority) return "-";
+    if (typeof priority === "object") return priority?.name || "-";
+    const match = priorityTypes.find(p => String(p._id) === String(priority));
+    return match?.name || "-";
+  };
+
+  const getStatusColor = (statusName: string) => {
+    const statusLower = statusName.toLowerCase();
+    if (statusLower.includes('completed') || statusLower.includes('done')) return '#16a34a';
+    if (statusLower.includes('progress') || statusLower.includes('doing')) return '#f59e0b';
+    if (statusLower.includes('overdue') || statusLower.includes('blocked')) return '#ef4444';
+    return '#9ca3af';
+  };
+
+  const getPriorityColor = (priorityName: string) => {
+    const priorityLower = priorityName.toLowerCase();
+    if (priorityLower.includes('critical') || priorityLower.includes('high')) return '#ef4444';
+    if (priorityLower.includes('medium')) return '#f59e0b';
+    return '#3b82f6';
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
+          Functions ({functions.length})
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setOpenDialog(true)}
+          size="small"
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            bgcolor: '#7b68ee',
+            '&:hover': { bgcolor: '#6952d6' }
+          }}
+        >
+          Add Function
+        </Button>
+      </Box>
+
+      {functions.length === 0 ? (
+        <Box sx={{ 
+          p: 6, 
+          textAlign: 'center',
+          bgcolor: '#fafbfc',
+          borderRadius: 2,
+          border: '1px dashed #e8e9eb'
+        }}>
+          <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+            No functions yet
+          </Typography>
+          <Typography fontSize="12px" color="text.secondary" sx={{ mb: 2 }}>
+            Create your first function to get started
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenDialog(true)}
+            sx={{
+              textTransform: 'none',
+              borderColor: '#7b68ee',
+              color: '#7b68ee',
+              '&:hover': {
+                borderColor: '#6952d6',
+                bgcolor: '#7b68ee15'
+              }
+            }}
+          >
+            Add Function
+          </Button>
+        </Box>
+      ) : (
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Function</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Priority</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {functions.map((func) => (
+              <TableRow key={func._id} hover>
+                <TableCell>
+                  <MuiLink
+                    component="button"
+                    variant="body2"
+                    onClick={() => onNavigate(`/projects/${projectId}/functions?featureId=${featureId}`)}
+                    sx={{ 
+                      textDecoration: 'none',
+                      color: '#7b68ee',
+                      fontWeight: 600,
+                      '&:hover': { textDecoration: 'underline' },
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    {func.title}
+                  </MuiLink>
+                  {func.description && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                      {func.description}
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {func.priority_id ? (
+                    <Chip 
+                      label={resolvePriorityName(func.priority_id)} 
+                      size="small"
+                      sx={{
+                        height: 24,
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        bgcolor: `${getPriorityColor(resolvePriorityName(func.priority_id))}15`,
+                        color: getPriorityColor(resolvePriorityName(func.priority_id)),
+                        border: `1px solid ${getPriorityColor(resolvePriorityName(func.priority_id))}40`,
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" fontSize="13px">—</Typography>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Chip 
+                    label={resolveStatusName(func.status)} 
+                    size="small"
+                    sx={{
+                      height: 24,
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      bgcolor: `${getStatusColor(resolveStatusName(func.status))}15`,
+                      color: getStatusColor(resolveStatusName(func.status)),
+                      border: `1px solid ${getStatusColor(resolveStatusName(func.status))}40`,
+                    }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="small"
+                    startIcon={<LinkIcon />}
+                    onClick={() => onNavigate(`/projects/${projectId}/functions?featureId=${featureId}`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      color: '#7b68ee',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    View
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Create Function Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Function</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Function Name *"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Description"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              fullWidth
+              multiline
+              rows={3}
+            />
+            <FormControl fullWidth>
+              <InputLabel>Priority</InputLabel>
+              <Select
+                value={form.priority_id}
+                label="Priority"
+                onChange={(e) => setForm({ ...form, priority_id: e.target.value })}
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                {priorityTypes.map((priority) => (
+                  <MenuItem key={priority._id} value={priority._id}>
+                    {priority.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth required>
+              <InputLabel>Status *</InputLabel>
+              <Select
+                value={form.status}
+                label="Status *"
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                {statusTypes.map((status) => (
+                  <MenuItem key={status._id} value={status._id}>
+                    {status.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleCreate}
+            disabled={!form.title || !form.status || loading}
+            sx={{ bgcolor: '#7b68ee', '&:hover': { bgcolor: '#6952d6' } }}
+          >
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+

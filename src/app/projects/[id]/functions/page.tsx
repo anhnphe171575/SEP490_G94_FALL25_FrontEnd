@@ -67,22 +67,16 @@ type Feature = {
   _id: string;
   title: string;
   project_id: string;
-  estimated_hours?: number;
 };
 
 type FunctionType = {
   _id: string;
   title: string;
   feature_id?: Feature | string;
+  priority_id?: Setting | string;
   complexity_id?: Setting | string;
   status?: Setting | string;
-  pipeline_id?: Setting | string;
-  project_id: string;
-  estimated_effort: number;
-  actual_effort: number;
   description?: string;
-  start_date?: string;
-  deadline?: string;
   createAt?: string;
   updateAt?: string;
 };
@@ -105,7 +99,7 @@ export default function ProjectFunctionsPage() {
 
   const [functions, setFunctions] = useState<FunctionType[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
-  const [complexityTypes, setComplexityTypes] = useState<Setting[]>([]);
+  const [priorityTypes, setPriorityTypes] = useState<Setting[]>([]);
   const [statusTypes, setStatusTypes] = useState<Setting[]>([]);
   const [stats, setStats] = useState<FunctionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,13 +116,9 @@ export default function ProjectFunctionsPage() {
   const [functionForm, setFunctionForm] = useState({
     title: "",
     description: "",
-    estimated_effort: 0,
-    complexity_id: "",
+    priority_id: "",
     status: "",
     feature_id: "",
-    pipeline_id: "",
-    start_date: "",
-    deadline: "",
   });
 
   // Inline editing states
@@ -139,41 +129,7 @@ export default function ProjectFunctionsPage() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedFunction, setSelectedFunction] = useState<FunctionType | null>(null);
   
-  // Effort validation warnings
-  const [effortWarnings, setEffortWarnings] = useState<{[featureId: string]: any}>({});
-  
-  // Get effort validation for selected feature
-  const getEffortValidation = (featureId: string, effort: number) => {
-    if (!featureId || !effort) return null;
-    
-    const feature = features.find(f => f._id === featureId);
-    if (!feature || !feature.estimated_hours) return null;
-    
-    const currentFunctions = functions.filter(f => 
-      typeof f.feature_id === 'object' ? f.feature_id?._id === featureId : f.feature_id === featureId
-    );
-    
-    const otherFunctionsEffort = currentFunctions
-      .filter(f => editingFunction ? f._id !== editingFunction._id : true)
-      .reduce((sum, f) => sum + (f.estimated_effort || 0), 0);
-    
-    const newTotalEffort = otherFunctionsEffort + effort;
-    const featureEffort = feature.estimated_hours;
-    
-    if (newTotalEffort > featureEffort) {
-      return {
-        valid: false,
-        feature_title: feature.title,
-        feature_effort: featureEffort,
-        other_functions_effort: otherFunctionsEffort,
-        new_function_effort: effort,
-        new_total_effort: newTotalEffort,
-        overflow: newTotalEffort - featureEffort
-      };
-    }
-    
-    return { valid: true };
-  };
+  // Note: effort validation removed as fields don't exist in models
 
   useEffect(() => {
     if (!projectId) return;
@@ -193,17 +149,29 @@ export default function ProjectFunctionsPage() {
   const loadAllData = async () => {
     try {
       setLoading(true);
+      setError(null);
       const [functionsRes, featuresRes, statsRes, allSettingsRes] = await Promise.all([
-        axiosInstance.get(`/api/projects/${projectId}/functions`),
-        axiosInstance.get(`/api/projects/${projectId}/features`),
-        axiosInstance.get(`/api/projects/${projectId}/functions/stats`),
+        axiosInstance.get(`/api/projects/${projectId}/functions`).catch(err => {
+          console.error('Error fetching functions:', err?.response?.data || err);
+          return { data: [] };
+        }),
+        axiosInstance.get(`/api/projects/${projectId}/features`).catch(err => {
+          console.error('Error fetching features:', err?.response?.data || err);
+          return { data: [] };
+        }),
+        axiosInstance.get(`/api/projects/${projectId}/functions/stats`).catch(err => {
+          console.error('Error fetching stats:', err?.response?.data || err);
+          return { data: { total: 0, completed: 0, in_progress: 0, pending: 0, overdue: 0, completion_rate: 0 } };
+        }),
         axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
       ]);
-      console.log(allSettingsRes.data);
+      
+      console.log('Functions response:', functionsRes?.data);
+      console.log('Features response:', featuresRes?.data);
+      
       const allSettings = allSettingsRes.data || [];
-      const complexitySettings = allSettings.filter((s: any) => s.type_id === 1);
-      console.log(complexitySettings);
-      const statusSettings = allSettings.filter((s: any) => s.type_id === 2);
+      const prioritySettings = allSettings.filter((s: any) => s.type_id === 1); // Priority type_id = 1
+      const statusSettings = allSettings.filter((s: any) => s.type_id === 2); // Status type_id = 2
 
       const rawFunctions = functionsRes?.data;
       const normalizedFunctions = Array.isArray(rawFunctions)
@@ -223,46 +191,25 @@ export default function ProjectFunctionsPage() {
             ? rawFeatures.features
             : [];
 
+      console.log('Normalized functions:', normalizedFunctions);
+      console.log('Normalized features:', normalizedFeatures);
+
       setFunctions(normalizedFunctions);
       setFeatures(normalizedFeatures);
       setStats(statsRes.data);
-      setComplexityTypes(complexitySettings);
+      setPriorityTypes(prioritySettings);
       setStatusTypes(statusSettings);
       
-      // Calculate effort warnings
-      calculateEffortWarnings(normalizedFunctions, normalizedFeatures);
+      // Note: Effort warnings removed
     } catch (e: any) {
+      console.error('Error in loadAllData:', e);
       setError(e?.response?.data?.message || "Không thể tải dữ liệu");
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate effort warnings for features
-  const calculateEffortWarnings = (functionsData: FunctionType[], featuresData: Feature[]) => {
-    const warnings: {[featureId: string]: any} = {};
-    
-    featuresData.forEach(feature => {
-      const featureFunctions = functionsData.filter(f => 
-        typeof f.feature_id === 'object' ? f.feature_id?._id === feature._id : f.feature_id === feature._id
-      );
-      
-      const totalFunctionEffort = featureFunctions.reduce((sum, f) => sum + (f.estimated_effort || 0), 0);
-      const featureEffort = feature.estimated_hours || 0;
-      
-      if (featureEffort > 0 && totalFunctionEffort > featureEffort) {
-        warnings[feature._id] = {
-          feature_title: feature.title,
-          feature_effort: featureEffort,
-          functions_effort: totalFunctionEffort,
-          overflow: totalFunctionEffort - featureEffort,
-          percentage: Math.round((totalFunctionEffort / featureEffort) * 100)
-        };
-      }
-    });
-    
-    setEffortWarnings(warnings);
-  };
+  // Note: calculateEffortWarnings removed - effort fields don't exist in models
 
   const handleOpenDialog = (func?: FunctionType) => {
     if (func) {
@@ -270,26 +217,18 @@ export default function ProjectFunctionsPage() {
       setFunctionForm({
         title: func.title,
         description: func.description || "",
-        estimated_effort: func.estimated_effort,
-        complexity_id: typeof func.complexity_id === "object" ? func.complexity_id?._id : func.complexity_id || "",
+        priority_id: typeof func.priority_id === "object" ? func.priority_id?._id : func.priority_id || "",
         status: typeof func.status === "object" ? func.status?._id : func.status || "",
         feature_id: typeof func.feature_id === "object" ? func.feature_id?._id : func.feature_id || "",
-        pipeline_id: typeof func.pipeline_id === "object" ? func.pipeline_id?._id : func.pipeline_id || "",
-        start_date: func.start_date ? new Date(func.start_date).toISOString().split('T')[0] : "",
-        deadline: func.deadline ? new Date(func.deadline).toISOString().split('T')[0] : "",
       });
     } else {
       setEditingFunction(null);
       setFunctionForm({
         title: "",
         description: "",
-        estimated_effort: 0,
-        complexity_id: "",
+        priority_id: "",
         status: "",
         feature_id: "",
-        pipeline_id: "",
-        start_date: "",
-        deadline: "",
       });
     }
     setOpenDialog(true);
@@ -303,14 +242,11 @@ export default function ProjectFunctionsPage() {
   const handleSaveFunction = async () => {
     try {
       const payload = {
-        ...functionForm,
-        estimated_effort: Number(functionForm.estimated_effort),
+        title: functionForm.title,
+        description: functionForm.description || undefined,
+        priority_id: functionForm.priority_id || undefined,
         feature_id: functionForm.feature_id || undefined,
-        complexity_id: functionForm.complexity_id || undefined,
         status: functionForm.status || undefined,
-        pipeline_id: functionForm.pipeline_id || undefined,
-        start_date: functionForm.start_date || undefined,
-        deadline: functionForm.deadline || undefined,
       };
 
       if (editingFunction) {
@@ -323,16 +259,7 @@ export default function ProjectFunctionsPage() {
       loadAllData();
     } catch (e: any) {
       const errorData = e?.response?.data;
-      let errorMessage = errorData?.message || "Không thể lưu function";
-      
-      // Handle effort exceeded error
-      if (errorData?.error === 'EFFORT_EXCEEDED') {
-        errorMessage = `${errorMessage}\n\n💡 ${errorData.suggestion}`;
-        if (errorData.details) {
-          errorMessage += `\n\nChi tiết: Feature (${errorData.details.feature_effort}h) < Functions (${errorData.details.new_total_effort}h)`;
-        }
-      }
-      
+      const errorMessage = errorData?.message || "Không thể lưu function";
       setError(errorMessage);
     }
   };
@@ -383,8 +310,8 @@ export default function ProjectFunctionsPage() {
     if (isSaving) return;
     
     try {
-      // Don't save if value is empty or null (except for optional fields like deadline)
-      if (!editValue && field !== 'deadline' && field !== 'description') {
+      // Don't save if value is empty or null (except for optional fields like description)
+      if (!editValue && field !== 'description') {
         cancelEdit();
         return;
       }
@@ -439,14 +366,14 @@ export default function ProjectFunctionsPage() {
     return match?.title || "-";
   };
 
-  const resolveComplexityName = (func: FunctionType) => {
-    if (typeof func.complexity_id === "object") return func.complexity_id?.name || "-";
-    if (!func.complexity_id) return "-";
-    const target = String(func.complexity_id);
-    const match = complexityTypes.find((c) =>
-      String((c as any)?._id) === target ||
-      String((c as any)?.value) === target ||
-      String((c as any)?.name) === target
+  const resolvePriorityName = (func: FunctionType) => {
+    if (typeof func.priority_id === "object") return func.priority_id?.name || "-";
+    if (!func.priority_id) return "-";
+    const target = String(func.priority_id);
+    const match = priorityTypes.find((p) =>
+      String((p as any)?._id) === target ||
+      String((p as any)?.value) === target ||
+      String((p as any)?.name) === target
     );
     return (match as any)?.name || "-";
   };
@@ -477,7 +404,7 @@ export default function ProjectFunctionsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -489,7 +416,7 @@ export default function ProjectFunctionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="mx-auto w-full max-w-7xl">
@@ -810,26 +737,7 @@ export default function ProjectFunctionsPage() {
             </Box>
           )}
 
-          {/* Effort Validation Warnings */}
-          {Object.keys(effortWarnings).length > 0 && (
-            <Alert severity="warning" sx={{ mb: 3 }}>
-              <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
-                ⚠️ Effort Overflow Warning
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
-                Các features sau có tổng effort của functions vượt quá effort của feature:
-              </Typography>
-              {Object.entries(effortWarnings).map(([featureId, warning]) => (
-                <Typography key={featureId} variant="caption" sx={{ display: 'block', ml: 2 }}>
-                  • <strong>{warning.feature_title}</strong>: Functions ({warning.functions_effort}h) &gt; Feature ({warning.feature_effort}h) 
-                  <span style={{ color: '#d32f2f', fontWeight: 600 }}> (+{warning.overflow}h, {warning.percentage}%)</span>
-                </Typography>
-              ))}
-              <Typography variant="caption" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
-                💡 Suggestion: Giảm effort của functions hoặc tăng effort của features
-              </Typography>
-            </Alert>
-          )}
+          {/* Note: Effort validation warnings removed - effort fields don't exist */}
 
           {/* Modern Filter Popover */}
           <Popover
@@ -1053,30 +961,22 @@ export default function ProjectFunctionsPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tên Function</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Feature</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Complexity</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Priority</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Trạng thái</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Effort (giờ)</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Actual (giờ)</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Tiến độ</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Deadline</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Hành động</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredFunctions.map((func) => {
-                    const progress = func.estimated_effort > 0 
-                      ? Math.min(100, Math.round((func.actual_effort / func.estimated_effort) * 100))
-                      : 0;
+                    // Note: Progress calculation removed - effort fields don't exist
                     const featureName = resolveFeatureTitle(func);
-                    const complexityName = resolveComplexityName(func);
+                    const priorityName = resolvePriorityName(func);
                     const statusName = resolveStatusName(func);
                     
                     const isEditingTitle = editingCell?.funcId === func._id && editingCell?.field === 'title';
                     const isEditingDescription = editingCell?.funcId === func._id && editingCell?.field === 'description';
-                    const isEditingComplexity = editingCell?.funcId === func._id && editingCell?.field === 'complexity_id';
+                    const isEditingPriority = editingCell?.funcId === func._id && editingCell?.field === 'priority_id';
                     const isEditingStatus = editingCell?.funcId === func._id && editingCell?.field === 'status';
-                    const isEditingEffort = editingCell?.funcId === func._id && editingCell?.field === 'estimated_effort';
-                    const isEditingDeadline = editingCell?.funcId === func._id && editingCell?.field === 'deadline';
                     
                     return (
                       <TableRow 
@@ -1151,28 +1051,28 @@ export default function ProjectFunctionsPage() {
                             <Typography variant="body2" color="text.secondary">—</Typography>
                           )}
                         </TableCell>
-                        {/* Complexity - Inline Editable */}
+                        {/* Priority - Inline Editable */}
                         <TableCell 
                           onClick={() => {
-                            if (!isEditingComplexity) {
-                              const currentComplexityId = typeof func.complexity_id === 'object' 
-                                ? func.complexity_id?._id 
-                                : func.complexity_id;
-                              startEdit(func._id, 'complexity_id', currentComplexityId);
+                            if (!isEditingPriority) {
+                              const currentPriorityId = typeof func.priority_id === 'object' 
+                                ? func.priority_id?._id 
+                                : func.priority_id;
+                              startEdit(func._id, 'priority_id', currentPriorityId);
                             }
                           }}
                           sx={{ 
-                            cursor: isEditingComplexity ? 'default' : 'pointer',
-                            '&:hover': !isEditingComplexity ? { bgcolor: '#f9fafb' } : {},
+                            cursor: isEditingPriority ? 'default' : 'pointer',
+                            '&:hover': !isEditingPriority ? { bgcolor: '#f9fafb' } : {},
                           }}
                         >
-                          {isEditingComplexity ? (
+                          {isEditingPriority ? (
                             <Select
                               value={editValue || ""}
                               onChange={(e) => {
                                 setEditValue(e.target.value);
                                 // Auto-save on change
-                                setTimeout(() => saveInlineEdit(func._id, 'complexity_id'), 100);
+                                setTimeout(() => saveInlineEdit(func._id, 'priority_id'), 100);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
@@ -1191,17 +1091,31 @@ export default function ProjectFunctionsPage() {
                                 },
                               }}
                             >
-                              {complexityTypes.map((complexity) => (
-                                <MenuItem key={complexity._id} value={complexity._id}>
-                                  {complexity.name}
+                              <MenuItem value="">
+                                <em>None</em>
+                              </MenuItem>
+                              {priorityTypes.map((priority) => (
+                                <MenuItem key={priority._id} value={priority._id}>
+                                  {priority.name}
                                 </MenuItem>
                               ))}
                             </Select>
                           ) : (
-                          <Chip label={complexityName} size="small" color="primary" />
+                            priorityName !== "-" ? (
+                              <Chip 
+                                label={priorityName} 
+                                size="small" 
+                                color={
+                                  priorityName.toLowerCase().includes('high') ? 'error' :
+                                  priorityName.toLowerCase().includes('medium') ? 'warning' :
+                                  priorityName.toLowerCase().includes('low') ? 'default' : 'primary'
+                                }
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">—</Typography>
+                            )
                           )}
                         </TableCell>
-
                         {/* Status - Inline Editable */}
                         <TableCell 
                           onClick={() => {
@@ -1276,95 +1190,7 @@ export default function ProjectFunctionsPage() {
                           />
                           )}
                         </TableCell>
-                        {/* Estimated Effort - Inline Editable */}
-                        <TableCell 
-                          onClick={() => !isEditingEffort && startEdit(func._id, 'estimated_effort', func.estimated_effort)}
-                          sx={{ 
-                            cursor: isEditingEffort ? 'text' : 'pointer',
-                            '&:hover': !isEditingEffort ? { bgcolor: '#f9fafb' } : {},
-                          }}
-                        >
-                          {isEditingEffort ? (
-                            <TextField
-                              type="number"
-                              value={editValue}
-                              onChange={(e) => setEditValue(Number(e.target.value))}
-                              onBlur={() => saveInlineEdit(func._id, 'estimated_effort')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveInlineEdit(func._id, 'estimated_effort');
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              size="small"
-                              autoFocus
-                              sx={{
-                                width: 80,
-                                '& .MuiOutlinedInput-root': {
-                                  fontSize: '14px',
-                                  bgcolor: 'white',
-                                  '& fieldset': { borderColor: '#7b68ee' },
-                                }
-                              }}
-                            />
-                          ) : (
-                          <Typography variant="body2" fontWeight={600}>
-                            {func.estimated_effort}h
-                          </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600} color={func.actual_effort > func.estimated_effort ? "error.main" : "text.primary"}>
-                            {func.actual_effort}h
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box sx={{ width: 80 }}>
-                              <Typography variant="caption">{progress}%</Typography>
-                            </Box>
-                          </Box>
-                        </TableCell>
-                        {/* Deadline - Inline Editable */}
-                        <TableCell 
-                          onClick={() => !isEditingDeadline && startEdit(func._id, 'deadline', func.deadline || '')}
-                          sx={{ 
-                            cursor: isEditingDeadline ? 'text' : 'pointer',
-                            '&:hover': !isEditingDeadline ? { bgcolor: '#f9fafb' } : {},
-                          }}
-                        >
-                          {isEditingDeadline ? (
-                            <TextField
-                              type="date"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => saveInlineEdit(func._id, 'deadline')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveInlineEdit(func._id, 'deadline');
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              size="small"
-                              autoFocus
-                              InputLabelProps={{ shrink: true }}
-                              sx={{
-                                width: 150,
-                                '& .MuiOutlinedInput-root': {
-                                  fontSize: '14px',
-                                  bgcolor: 'white',
-                                  '& fieldset': { borderColor: '#7b68ee' },
-                                }
-                              }}
-                            />
-                          ) : (
-                            <>
-                          {func.deadline ? (
-                            <Typography variant="body2">
-                              {new Date(func.deadline).toLocaleDateString('vi-VN')}
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">—</Typography>
-                              )}
-                            </>
-                          )}
-                        </TableCell>
+                        
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Stack direction="row" spacing={0.5}>
                             <Tooltip title="Xem Tasks của Function này">
@@ -1395,10 +1221,33 @@ export default function ProjectFunctionsPage() {
                   })}
                   {filteredFunctions.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                          Không tìm thấy function nào. Bấm "Tạo Function" để thêm mới.
+                      <TableCell colSpan={5} align="center">
+                        <Stack spacing={2} sx={{ py: 4 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {functions.length === 0 ? (
+                              features.length === 0 ? (
+                                <>📋 Project chưa có Features. Hãy tạo Features trước, sau đó tạo Functions cho từng Feature.</>
+                              ) : (
+                                <>📝 Chưa có Functions nào. Bấm "Tạo Function" để thêm mới.</>
+                              )
+                            ) : (
+                              <>🔍 Không tìm thấy Functions nào với bộ lọc hiện tại. Thử xóa bộ lọc hoặc tạo Function mới.</>
+                            )}
                         </Typography>
+                          {functions.length === 0 && features.length > 0 && (
+                            <Button
+                              variant="contained"
+                              startIcon={<AddIcon />}
+                              onClick={() => handleOpenDialog()}
+                              sx={{
+                                textTransform: 'none',
+                                borderRadius: 2,
+                              }}
+                            >
+                              Tạo Function Mới
+                            </Button>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   )}
@@ -1610,16 +1459,19 @@ export default function ProjectFunctionsPage() {
                     </Select>
                   </FormControl>
 
-                  <FormControl fullWidth required>
-                    <InputLabel>Complexity *</InputLabel>
+                  <FormControl fullWidth>
+                    <InputLabel>Priority</InputLabel>
                     <Select
-                      value={functionForm.complexity_id}
-                      label="Complexity *"
-                      onChange={(e) => setFunctionForm({ ...functionForm, complexity_id: e.target.value })}
+                      value={functionForm.priority_id}
+                      label="Priority"
+                      onChange={(e) => setFunctionForm({ ...functionForm, priority_id: e.target.value })}
                     >
-                      {complexityTypes.map((complexity) => (
-                        <MenuItem key={complexity._id} value={complexity._id}>
-                          {complexity.name}
+                      <MenuItem value="">
+                        <em>Không chọn</em>
+                      </MenuItem>
+                      {priorityTypes.map((priority) => (
+                        <MenuItem key={priority._id} value={priority._id}>
+                          {priority.name}
                         </MenuItem>
                       ))}
                     </Select>
@@ -1641,43 +1493,7 @@ export default function ProjectFunctionsPage() {
                   </FormControl>
                 </Stack>
 
-                <Stack direction="row" spacing={2}>
-                  <TextField
-                    label="Estimated Effort (giờ) *"
-                    type="number"
-                    value={functionForm.estimated_effort}
-                    onChange={(e) => setFunctionForm({ ...functionForm, estimated_effort: Number(e.target.value) })}
-                    fullWidth
-                    placeholder="VD: 8"
-                    error={(() => {
-                      const validation = getEffortValidation(functionForm.feature_id, functionForm.estimated_effort);
-                      return validation ? !validation.valid : false;
-                    })()}
-                    helperText={(() => {
-                      const validation = getEffortValidation(functionForm.feature_id, functionForm.estimated_effort);
-                      if (validation && !validation.valid) {
-                        return `⚠️ Vượt quá effort của feature "${validation.feature_title}" (${validation.feature_effort}h). Tổng sẽ là ${validation.new_total_effort}h (+${validation.overflow}h)`;
-                      }
-                      return '';
-                    })()}
-                  />
-                  <TextField
-                    label="Start Date"
-                    type="date"
-                    value={functionForm.start_date}
-                    onChange={(e) => setFunctionForm({ ...functionForm, start_date: e.target.value })}
-                    fullWidth
-                    InputLabelProps={{ shrink: true }}
-                  />
-                  <TextField
-                    label="Deadline"
-                    type="date"
-                    value={functionForm.deadline}
-                    onChange={(e) => setFunctionForm({ ...functionForm, deadline: e.target.value })}
-                    fullWidth
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Stack>
+                {/* Note: Effort, Start Date, Deadline fields removed - don't exist in model */}
               </Stack>
             </DialogContent>
             <DialogActions sx={{ 
@@ -1707,7 +1523,7 @@ export default function ProjectFunctionsPage() {
               <Button 
                 variant="contained" 
                 onClick={handleSaveFunction}
-                disabled={!functionForm.title || !functionForm.complexity_id || !functionForm.status}
+                disabled={!functionForm.title || !functionForm.status}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
