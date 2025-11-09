@@ -4,16 +4,8 @@ import { useEffect, useState } from "react";
 import axiosInstance from "../../../../ultis/axios";
 import LeftSidebarHeader from "../dashboard-admin/herder";
 import { ChevronDown, AlertCircle, Edit, Trash2 } from 'lucide-react';
-
-interface User {
-  _id: string;
-  email: string;
-  full_name: string;
-  role: number;
-  avatar?: string;
-  phone?: string;
-  createdAt: string;
-}
+import EditUserModal from './edit';
+import { User, EditUserForm } from './edit';
 
 interface ApiResponse {
   success: boolean;
@@ -44,6 +36,8 @@ export default function UserManagement() {
   const [totalPages, setTotalPages] = useState(0);
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -79,21 +73,38 @@ export default function UserManagement() {
 
     try {
       setDeleteLoading(id);
-      console.log('Deleting user:', id);
-      
-      const response = await axiosInstance.delete(`/api/users/delete/${id}`);
-      console.log('Delete response:', response);
+      const response = await axiosInstance.delete(`/api/user/delete/${id}`);
 
       if (response.data.success) {
         setUsers(users.filter(user => user._id !== id));
         alert("Xóa người dùng thành công!");
       }
     } catch (err: any) {
-      console.error('Delete error:', err);
       alert(err.response?.data?.message || "Không thể xóa người dùng");
+      console.error("Delete error:", err);
     } finally {
       setDeleteLoading(null);
-      await fetchUsers(); // Refresh list after deletion attempt
+      await fetchUsers();
+    }
+  };
+  
+  const handleEditSubmit = async (formData: EditUserForm) => {
+    if (!editingUser) return;
+
+    try {
+      setEditLoading(true);
+      const response = await axiosInstance.put(`/api/users/update/${editingUser._id}`, formData);
+
+      if (response.data.success) {
+        await fetchUsers();
+        setEditingUser(null);
+        alert("Cập nhật thông tin thành công!");
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Không thể cập nhật thông tin người dùng");
+      console.error("Update error:", err);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -156,8 +167,13 @@ export default function UserManagement() {
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
         <button 
-          className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
-          onClick={() => alert('Chức năng đang phát triển')}
+          className={`inline-flex items-center px-3 py-1 rounded transition ${
+            user.role === 7 
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+          }`}
+          onClick={() => setEditingUser(user)}
+          disabled={user.role === 7}
         >
           <Edit className="w-4 h-4 mr-1" />
           Sửa
@@ -280,6 +296,14 @@ export default function UserManagement() {
             )}
           </>
         )}
+
+        {/* Edit Modal */}
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSubmit={handleEditSubmit}
+          loading={editLoading}
+        />
       </main>
     </div>
   );
