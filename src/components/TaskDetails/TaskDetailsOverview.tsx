@@ -41,10 +41,12 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
 
   const handleSave = async () => {
     try {
-      await onUpdate(form);
+      // Only update description field
+      await onUpdate({ description: form.description });
       setEditing(false);
     } catch (error) {
       console.error("Error saving:", error);
+      alert('Failed to save description. Please try again.');
     }
   };
 
@@ -337,28 +339,6 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
               </Avatar>
               <Typography fontSize="14px" fontWeight={500}>
                 {task?.assignee_id?.full_name || task?.assignee_id?.email || 'Unassigned'}
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ 
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            p: 1.5,
-            bgcolor: '#fafbfc',
-            borderRadius: 2,
-            border: '1px solid #e8e9eb',
-          }}>
-            <Typography fontSize="13px" fontWeight={600} color="text.secondary">
-              Reporter
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Avatar sx={{ width: 28, height: 28, bgcolor: '#6b7280', fontSize: '12px', fontWeight: 600 }}>
-                {(task?.assigner_id?.full_name || task?.assigner_id?.email || 'U')[0].toUpperCase()}
-              </Avatar>
-              <Typography fontSize="14px" fontWeight={500}>
-                {task?.assigner_id?.full_name || task?.assigner_id?.email || 'Unknown'}
               </Typography>
             </Box>
           </Box>

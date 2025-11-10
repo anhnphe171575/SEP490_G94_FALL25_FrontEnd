@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
-import Sidebar from "./Sidebar";
-import { Bar, Pie } from 'react-chartjs-2';
+import LeftSidebarHeader from "../dashboard-admin/herder";
+import axiosInstance from "../../../../ultis/axios";
+import { Users, UserCheck, FolderCheck, Folder } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,8 +12,9 @@ import {
   ArcElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
 } from 'chart.js';
+import { Doughnut, Bar } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -25,45 +26,105 @@ ChartJS.register(
   Legend
 );
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    students: 0,
-    admins: 0,
-    totalProjects: 0,
-    activeProjects: 0,
-    completedProjects: 0
+interface Project {
+  _id: string;
+  topic: string;
+  status: string;
+  created_by: {
+    _id: string;
+    full_name: string;
+    email: string;
+  };
+  semester: string;
+  createdAt: string;
+}
+
+interface DashboardStats {
+  users: {
+    total: number;
+    active: number;
+    byRole: {
+      admin: number;
+      supervisor: number;
+      student: number;
+    };
+    monthlyGrowth: number[];
+  };
+  projects: {
+    total: number;
+    active: number;
+    completed: number;
+    status: {
+      planned: number;
+      active: number;
+      onHold: number;
+      completed: number;
+      cancelled: number;
+    };
+  };
+}
+
+const AdminDashboard = () => {
+  const [stats, setStats] = useState<DashboardStats>({
+    users: {
+      total: 0,
+      active: 0,
+      byRole: { admin: 0, supervisor: 0, student: 0 },
+      monthlyGrowth: Array(12).fill(0)
+    },
+    projects: {
+      total: 0,
+      active: 0,
+      completed: 0,
+      status: {
+        planned: 0,
+        active: 0,
+        onHold: 0,
+        completed: 0,
+        cancelled: 0
+      }
+    }
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-        if (!token) throw new Error("No token found");
+        setLoading(true);
+        const [usersRes, projectsRes] = await Promise.all([
+          axiosInstance.get("/api/users/all"),
+          axiosInstance.get("/api/projects/all")
+        ]);
 
-        const usersResponse = await axios.get("http://localhost:5000/api/users/all", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const users = Array.isArray(usersResponse.data) ? usersResponse.data : (usersResponse.data.users ?? []);
-
-        const projectsResponse = await axios.get("http://localhost:5000/api/projects/all", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const projects = Array.isArray(projectsResponse.data) ? projectsResponse.data : (projectsResponse.data.projects ?? []);
+        const users = usersRes.data.data.users || [];
+        const projects = projectsRes.data.projects || [];
 
         setStats({
-          totalUsers: users.length,
-          students: users.filter(user => user.role !== 8).length,
-          admins: users.filter(user => user.role === 8).length,
-          totalProjects: projects.length,
-          activeProjects: projects.filter(p => p.status === 'active').length,
-          completedProjects: projects.filter(p => p.status === 'completed').length,
+          users: {
+            total: users.length,
+            active: users.filter(u => u.status !== 'inactive').length,
+            byRole: {
+              admin: users.filter(u => u.role === 8).length,
+              supervisor: users.filter(u => u.role === 4).length,
+              student: users.filter(u => u.role === 1).length
+            },
+            monthlyGrowth: calculateMonthlyGrowth(users)
+          },
+          projects: {
+            total: projects.length,
+            active: projects.filter(p => p.status === 'active').length,
+            completed: projects.filter(p => p.status === 'completed').length,
+            status: {
+              planned: projects.filter(p => p.status === 'planned').length,
+              active: projects.filter(p => p.status === 'active').length,
+              onHold: projects.filter(p => p.status === 'on-hold').length,
+              completed: projects.filter(p => p.status === 'completed').length,
+              cancelled: projects.filter(p => p.status === 'cancelled').length
+            }
+          }
         });
-      } catch (err) {
-        console.error("Error fetching stats:", err);
-        setError("Không thể tải thông tin thống kê");
+      } catch (error) {
+        console.error("Error fetching stats:", error);
       } finally {
         setLoading(false);
       }
@@ -72,113 +133,114 @@ export default function DashboardPage() {
     fetchStats();
   }, []);
 
-  const userChartData = {
-    labels: ['Phân bố người dùng'],
-    datasets: [
-      {
-        label: 'Sinh viên',
-        data: [stats.students],
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
-        borderColor: '#3b82f6',
-        borderWidth: 1
-      },
-      {
-        label: 'Quản trị viên',
-        data: [stats.admins],
-        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-        borderColor: '#10b981',
-        borderWidth: 1
-      }
-    ]
-  };
-
-  const projectPieData = {
-    labels: ['Dự án đang thực hiện', 'Dự án hoàn thành'],
-    datasets: [
-      {
-        data: [stats.activeProjects, stats.completedProjects],
-        backgroundColor: [
-          'rgba(245, 158, 11, 0.8)',
-          'rgba(99, 102, 241, 0.8)'
-        ],
-        borderColor: [
-          '#f59e0b',
-          '#6366f1'
-        ],
-        borderWidth: 1
-      }
-    ]
+  const calculateMonthlyGrowth = (users: any[]) => {
+    const months = Array(12).fill(0);
+    users.forEach(user => {
+      const month = new Date(user.createdAt).getMonth();
+      months[month]++;
+    });
+    return months;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
-        <Sidebar />
-        <main className="p-6 md:ml-72">
-          <div className="flex items-center justify-center h-80">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500" />
-          </div>
+      <div className="min-h-screen flex bg-gray-50">
+        <LeftSidebarHeader />
+        <main className="flex-1 ml-64 p-6 flex items-center justify-center">
+          <div className="animate-spin h-8 w-8 border-2 border-blue-500 rounded-full border-t-transparent" />
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <main className="p-6 md:ml-72">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Tổng quan hệ thống</h1>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl p-6 text-white shadow-lg">
-            <div className="text-sm opacity-80 mb-2">Tổng người dùng</div>
-            <div className="text-3xl font-bold mb-1">{stats.totalUsers}</div>
-            <div className="text-sm opacity-80">Tài khoản đã đăng ký</div>
+    <div className="min-h-screen flex bg-gray-50">
+      <LeftSidebarHeader />
+      <main className="flex-1 ml-64 p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Tổng quan hệ thống</h1>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Users className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Tổng người dùng</p>
+                <p className="text-xl font-bold text-gray-800">{stats.users.total}</p>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-gradient-to-r from-violet-500 to-purple-500 rounded-2xl p-6 text-white shadow-lg">
-            <div className="text-sm opacity-80 mb-2">Tổng dự án</div>
-            <div className="text-3xl font-bold mb-1">{stats.totalProjects}</div>
-            <div className="text-sm opacity-80">Dự án đã tạo</div>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <UserCheck className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Hoạt động</p>
+                <p className="text-xl font-bold text-gray-800">{stats.users.active}</p>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-6 text-white shadow-lg">
-            <div className="text-sm opacity-80 mb-2">Đang thực hiện</div>
-            <div className="text-3xl font-bold mb-1">{stats.activeProjects}</div>
-            <div className="text-sm opacity-80">Dự án</div>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Folder className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Tổng dự án</p>
+                <p className="text-xl font-bold text-gray-800">{stats.projects.total}</p>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-6 text-white shadow-lg">
-            <div className="text-sm opacity-80 mb-2">Đã hoàn thành</div>
-            <div className="text-3xl font-bold mb-1">{stats.completedProjects}</div>
-            <div className="text-sm opacity-80">Dự án</div>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <FolderCheck className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Dự án hoàn thành</p>
+                <p className="text-xl font-bold text-gray-800">{stats.projects.completed}</p>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Charts Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl shadow p-6">
+          {/* User Role Distribution */}
+          <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-4">Phân bố người dùng</h3>
-            <div className="h-64">
-              <Bar 
-                data={userChartData}
+            <div className="h-[300px]">
+              <Doughnut
+                data={{
+                  labels: ['Admin', 'Giám sát', 'Sinh viên'],
+                  datasets: [{
+                    data: [
+                      stats.users.byRole.admin,
+                      stats.users.byRole.supervisor,
+                      stats.users.byRole.student
+                    ],
+                    backgroundColor: [
+                      'rgba(147, 51, 234, 0.7)',
+                      'rgba(16, 185, 129, 0.7)',
+                      'rgba(59, 130, 246, 0.7)'
+                    ],
+                    borderWidth: 1
+                  }]
+                }}
                 options={{
+                  responsive: true,
                   maintainAspectRatio: false,
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      grid: {
-                        color: 'rgba(0,0,0,0.05)'
-                      }
-                    },
-                    x: {
-                      grid: {
-                        display: false
-                      }
-                    }
-                  },
                   plugins: {
                     legend: {
-                      position: 'top'
+                      position: 'bottom'
                     }
                   }
                 }}
@@ -186,36 +248,78 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow p-6">
+          {/* Project Status Distribution */}
+          <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-4">Trạng thái dự án</h3>
-            <div className="h-64 flex items-center justify-center">
-              <div className="w-4/5">
-                <Pie
-                  data={projectPieData}
-                  options={{
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: 'bottom'
-                      }
+            <div className="h-[300px]">
+              <Doughnut
+                data={{
+                  labels: ['Đang thực hiện', 'Hoàn thành', 'Tạm dừng', 'Đã hủy', 'Lên kế hoạch'],
+                  datasets: [{
+                    data: [
+                      stats.projects.status.active,
+                      stats.projects.status.completed,
+                      stats.projects.status.onHold,
+                      stats.projects.status.cancelled,
+                      stats.projects.status.planned
+                    ],
+                    backgroundColor: [
+                      'rgba(59, 130, 246, 0.7)',
+                      'rgba(16, 185, 129, 0.7)',
+                      'rgba(234, 179, 8, 0.7)',
+                      'rgba(239, 68, 68, 0.7)',
+                      'rgba(168, 162, 158, 0.7)'
+                    ],
+                    borderWidth: 1
+                  }]
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
                     }
-                  }}
-                />
-              </div>
+                  }
+                }}
+              />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-4 text-center">
-              <div className="p-2 rounded bg-amber-50">
-                <div className="text-amber-600 font-semibold">Đang thực hiện</div>
-                <div className="text-2xl font-bold text-amber-700">{stats.activeProjects}</div>
-              </div>
-              <div className="p-2 rounded bg-indigo-50">
-                <div className="text-indigo-600 font-semibold">Hoàn thành</div>
-                <div className="text-2xl font-bold text-indigo-700">{stats.completedProjects}</div>
-              </div>
+          </div>
+
+          {/* Monthly Growth Chart */}
+          <div className="bg-white p-6 rounded-lg shadow md:col-span-2">
+            <h3 className="text-lg font-semibold mb-4">Tăng trưởng người dùng theo tháng</h3>
+            <div className="h-[300px]">
+              <Bar
+                data={{
+                  labels: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
+                  datasets: [{
+                    label: 'Người dùng mới',
+                    data: stats.users.monthlyGrowth,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                  }]
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }}
+              />
             </div>
           </div>
         </div>
       </main>
     </div>
   );
-}
+};
+
+export default AdminDashboard;

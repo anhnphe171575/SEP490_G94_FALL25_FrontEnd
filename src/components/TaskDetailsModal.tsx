@@ -29,24 +29,23 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PersonIcon from "@mui/icons-material/Person";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
-import ShareIcon from "@mui/icons-material/Share";
-import NotificationsIcon from "@mui/icons-material/Notifications";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import BugReportIcon from "@mui/icons-material/BugReport";
 import axiosInstance from "../../ultis/axios";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
 import TaskDetailsSubtasks from "./TaskDetails/TaskDetailsSubtasks";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
-import TaskDetailsDevelopment from "./TaskDetails/TaskDetailsDevelopment";
-import TaskDetailsCICD from "./TaskDetails/TaskDetailsCICD";
 import TaskDetailsTimeLogs from "./TaskDetails/TaskDetailsTimeLogs";
 import TaskDetailsComments from "./TaskDetails/TaskDetailsComments";
 import TaskDetailsAttachments from "./TaskDetails/TaskDetailsAttachments";
 import TaskDetailsActivity from "./TaskDetails/TaskDetailsActivity";
+import TaskDetailsBugs from "./TaskDetails/TaskDetailsBugs";
+import DependencyViolationDialog from "./DependencyViolationDialog";
 
 type Task = {
   _id: string;
@@ -91,6 +90,17 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   const [allPriorities, setAllPriorities] = useState<any[]>([]);
   const [allFeatures, setAllFeatures] = useState<any[]>([]);
   const [allFunctions, setAllFunctions] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  
+  // Dependency violation dialog
+  const [dependencyViolationOpen, setDependencyViolationOpen] = useState(false);
+  const [dependencyViolations, setDependencyViolations] = useState<any[]>([]);
+  const [pendingUpdate, setPendingUpdate] = useState<any>(null);
+  const [canForceUpdate, setCanForceUpdate] = useState(false);
+  
+  // Dependencies state
+  const [dependencies, setDependencies] = useState<any[]>([]);
+  const [hasMandatoryDependencies, setHasMandatoryDependencies] = useState(false);
   
   // Check if this is a subtask
   const isSubtask = !!task?.parent_task_id;
@@ -105,12 +115,12 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   // Get tab name from index (handles dynamic tabs for subtask)
   const getTabContent = (index: number) => {
     if (isSubtask) {
-      // For subtasks: Overview, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'time', 'comments', 'files', 'activity'];
+      // For subtasks: Overview, Bugs, Time, Comments, Files, Activity
+      const tabMap = ['overview', 'bugs', 'time', 'comments', 'files', 'activity'];
       return tabMap[index];
     } else {
-      // For tasks: Overview, Subtasks, Dependencies, Development, CI/CD, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'subtasks', 'dependencies', 'development', 'cicd', 'time', 'comments', 'files', 'activity'];
+      // For tasks: Overview, Subtasks, Dependencies, Bugs, Time, Comments, Files, Activity
+      const tabMap = ['overview', 'subtasks', 'dependencies', 'bugs', 'time', 'comments', 'files', 'activity'];
       return tabMap[index];
     }
   };
@@ -119,23 +129,16 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
     if (open && taskId) {
       setCurrentTab(0); // Reset to Overview tab when task changes
       loadTaskDetails();
-      loadSettings();
+      loadDependencies();
+      // Load constants instead of API call
+      setAllStatuses(STATUS_OPTIONS);
+      setAllPriorities(PRIORITY_OPTIONS);
       if (projectId) {
         loadFeatures();
+        loadTeamMembers();
       }
     }
   }, [open, taskId, projectId]);
-  
-  const loadSettings = async () => {
-    try {
-      const response = await axiosInstance.get('/api/settings');
-      const settings = response.data || [];
-      setAllStatuses(settings.filter((s: any) => s.type_id === 2));
-      setAllPriorities(settings.filter((s: any) => s.type_id === 3));
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
 
   const loadFeatures = async () => {
     if (!projectId) return;
@@ -147,22 +150,48 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
     }
   };
 
-  const loadFunctions = async (featureId: string) => {
-    if (!featureId) {
-      setAllFunctions([]);
-      return;
-    }
+  const loadFunctions = async () => {
     if (!projectId) {
       console.error('Error loading functions: projectId is required');
       setAllFunctions([]);
       return;
     }
     try {
-      const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
+      const response = await axiosInstance.get(`/api/projects/${projectId}/functions`);
       setAllFunctions(response.data || []);
     } catch (error) {
       console.error('Error loading functions:', error);
       setAllFunctions([]);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    if (!projectId) return;
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
+      // API returns { team_members: { leaders: [], members: [] } }
+      const teamData = response.data?.team_members || {};
+      const allMembers = [...(teamData.leaders || []), ...(teamData.members || [])];
+      setTeamMembers(allMembers);
+    } catch (error) {
+      console.error('Error loading team members:', error);
+      setTeamMembers([]);
+    }
+  };
+
+  const loadDependencies = async () => {
+    if (!taskId) return;
+    try {
+      const response = await axiosInstance.get(`/api/tasks/${taskId}/dependencies`);
+      const deps = response.data?.dependencies || [];
+      setDependencies(deps);
+      // Check if there are mandatory dependencies
+      const hasMandatory = deps.some((dep: any) => dep.is_mandatory === true);
+      setHasMandatoryDependencies(hasMandatory);
+    } catch (error) {
+      console.error('Error loading dependencies:', error);
+      setDependencies([]);
+      setHasMandatoryDependencies(false);
     }
   };
 
@@ -174,10 +203,9 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
       const response = await axiosInstance.get(`/api/tasks/${taskId}`);
       setTask(response.data);
       
-      // Load functions if task has feature_id
-      const featureId = response.data?.feature_id?._id || response.data?.feature_id;
-      if (featureId) {
-        await loadFunctions(featureId);
+      // Load all functions for the project
+      if (projectId) {
+        await loadFunctions();
       }
     } catch (error: any) {
       console.error("Error loading task:", error);
@@ -186,14 +214,57 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
     }
   };
 
-  const handleTaskUpdate = async (updates: any) => {
+  const handleTaskUpdate = async (updates: any, forceUpdate = false) => {
     try {
-      await axiosInstance.patch(`/api/tasks/${taskId}`, updates);
-      await loadTaskDetails();
+      // Optimistic update - update local state immediately
+      setTask(prev => prev ? { ...prev, ...updates } : prev);
+      
+      // Send request to server
+      await axiosInstance.patch(`/api/tasks/${taskId}`, {
+        ...updates,
+        force_update: forceUpdate
+      });
+      
+      // Reload to get populated data from server
+      const response = await axiosInstance.get(`/api/tasks/${taskId}`);
+      setTask(response.data);
+      
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error("Error updating task:", error);
+      
+      // Check if error is due to dependency violation
+      if (error?.response?.status === 400 && error?.response?.data?.violations) {
+        const violations = error.response.data.violations;
+        const canForce = error.response.data.can_force || false;
+        
+        // Show dependency violation dialog
+        setDependencyViolations(violations);
+        setCanForceUpdate(canForce);
+        setPendingUpdate(updates);
+        setDependencyViolationOpen(true);
+        
+        // Reload to restore correct state
+        await loadTaskDetails();
+        return; // Don't throw error, let user decide
+      }
+      
+      // Reload on other errors to restore correct state
+      await loadTaskDetails();
       throw error;
+    }
+  };
+  
+  const handleForceUpdate = async () => {
+    if (pendingUpdate) {
+      try {
+        await handleTaskUpdate(pendingUpdate, true);
+        setDependencyViolationOpen(false);
+        setPendingUpdate(null);
+      } catch (error) {
+        console.error("Force update failed:", error);
+        alert("Không thể force update. Vui lòng thử lại.");
+      }
     }
   };
 
@@ -247,13 +318,20 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
           {/* Breadcrumb */}
           <Breadcrumbs separator={<ChevronRightIcon sx={{ fontSize: 16, color: '#9ca3af' }} />}>
             <Link 
-              href="#" 
+              component="button"
+              onClick={onClose}
               underline="hover" 
               color="text.secondary"
               fontSize="13px"
-              sx={{ '&:hover': { color: '#7b68ee' } }}
+              sx={{ 
+                '&:hover': { color: '#7b68ee' },
+                cursor: 'pointer',
+                background: 'none',
+                border: 'none',
+                padding: 0
+              }}
             >
-              {task?.feature_id?.title || 'Feature'}
+              {task?.function_id && typeof task.function_id === 'object' ? task.function_id.title : 'Tasks'}
             </Link>
             <Typography 
               fontSize="13px" 
@@ -271,26 +349,9 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
           </Breadcrumbs>
 
           {/* Action Buttons */}
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Share">
-              <IconButton size="small" sx={{ color: '#6b7280' }}>
-                <ShareIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Watch">
-              <IconButton size="small" sx={{ color: '#6b7280' }}>
-                <NotificationsIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="More actions">
-              <IconButton size="small" sx={{ color: '#6b7280' }}>
-                <MoreVertIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-            <IconButton size="small" onClick={onClose} sx={{ color: '#6b7280' }}>
-              <CloseIcon sx={{ fontSize: 20 }} />
-            </IconButton>
-          </Stack>
+          <IconButton size="small" onClick={onClose} sx={{ color: '#6b7280' }}>
+            <CloseIcon sx={{ fontSize: 20 }} />
+          </IconButton>
         </Box>
 
         {/* Task Title & Quick Actions */}
@@ -451,8 +512,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             <Tab label="Overview" />
             {!isSubtask && <Tab label="Subtasks" />}
             {!isSubtask && <Tab label="Dependencies" />}
-            {!isSubtask && <Tab label="Development" />}
-            {!isSubtask && <Tab label="CI/CD" />}
+            <Tab label="Bugs" />
             <Tab label="Time" />
             <Tab label="Comments" />
             <Tab label="Files" />
@@ -482,9 +542,8 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             <>
               {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
               {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
-              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies taskId={taskId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'development' && <TaskDetailsDevelopment taskId={taskId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'cicd' && <TaskDetailsCICD taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
+              {getTabContent(currentTab) === 'bugs' && taskId && <TaskDetailsBugs taskId={taskId} projectId={projectId} />}
               {getTabContent(currentTab) === 'time' && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
               {getTabContent(currentTab) === 'comments' && <TaskDetailsComments taskId={taskId} />}
               {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments taskId={taskId} />}
@@ -601,103 +660,50 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </FormControl>
             </Box>
 
-            {/* Feature & Function - Hide for Subtasks */}
+            {/* Feature (Read-only) & Function - Hide for Subtasks */}
             {!isSubtask && (
               <>
             <Divider />
 
-                {/* Feature */}
+                {/* Feature (Read-only, derived from Function) */}
                 <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Feature
               </Typography>
-              <FormControl fullWidth size="small">
-                <Select
-                  value={typeof task?.feature_id === 'object' ? task.feature_id?._id || '' : task?.feature_id || ''}
-                  onChange={async (e) => {
-                    const newFeatureId = e.target.value;
-                    try {
-                      await handleTaskUpdate({ 
-                        feature_id: newFeatureId || null,
-                        function_id: null // Reset function when feature changes
-                      });
-                      // Load functions for new feature
-                      if (newFeatureId) {
-                        await loadFunctions(newFeatureId);
-                      } else {
-                        setAllFunctions([]);
-                      }
-                    } catch (error) {
-                      console.error('Error updating feature:', error);
-                      alert('Không thể cập nhật feature. Vui lòng thử lại.');
-                    }
-                  }}
-                  displayEmpty
-                  renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn feature</em>;
-                    const selected = allFeatures.find((f: any) => f._id === value);
-                    const title = selected?.title || 'Unknown';
-                    return (
-                      <Tooltip title={title} arrow placement="top">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6', flexShrink: 0 }} />
-                          <Typography 
-                            fontSize="13px" 
-                            fontWeight={500}
-                            sx={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {title}
-                          </Typography>
-                        </Box>
-                      </Tooltip>
-                    );
-                  }}
-                  sx={{ 
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    bgcolor: '#f0f9ff',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#bae6fd',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#3b82f6',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#3b82f6',
-                    }
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: '#f9fafb',
+                  border: '1px solid #e8e9eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6', flexShrink: 0 }} />
+                <Typography 
+                  fontSize="13px" 
+                  fontWeight={500}
+                  color="text.secondary"
+                  sx={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  <MenuItem value=""><em>Không chọn</em></MenuItem>
-                  {allFeatures.map((f: any) => (
-                    <MenuItem key={f._id} value={f._id}>
-                      <Tooltip title={f.title} arrow placement="right">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden', width: '100%' }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6', flexShrink: 0 }} />
-                          <Typography 
-                            fontSize="13px" 
-                            fontWeight={500}
-                            sx={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {f.title}
-                          </Typography>
-                        </Box>
-                      </Tooltip>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  {task?.function_id?.feature_id?.title || 'No feature'}
+                </Typography>
+              </Box>
+              <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                Feature is determined by the selected function
+              </Typography>
             </Box>
 
-            {/* Function */}
-            <Box>
+            <Divider />
+
+                {/* Function */}
+                <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Function
               </Typography>
@@ -705,14 +711,16 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 <Select
                   value={typeof task?.function_id === 'object' ? task.function_id?._id || '' : task?.function_id || ''}
                   onChange={async (e) => {
+                    const newFunctionId = e.target.value;
                     try {
-                      await handleTaskUpdate({ function_id: e.target.value || null });
+                      await handleTaskUpdate({ 
+                        function_id: newFunctionId || null
+                      });
                     } catch (error) {
                       console.error('Error updating function:', error);
                       alert('Không thể cập nhật function. Vui lòng thử lại.');
                     }
                   }}
-                  disabled={!task?.feature_id}
                   displayEmpty
                   renderValue={(value) => {
                     if (!value) return <em style={{ color: '#9ca3af' }}>Chọn function</em>;
@@ -740,12 +748,12 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   sx={{ 
                     fontSize: '13px',
                     fontWeight: 500,
-                    bgcolor: task?.feature_id ? '#faf5ff' : '#f9fafb',
+                    bgcolor: '#faf5ff',
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: task?.feature_id ? '#e9d5ff' : '#e5e7eb',
+                      borderColor: '#e9d5ff',
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: task?.feature_id ? '#8b5cf6' : '#d1d5db',
+                      borderColor: '#8b5cf6',
                     },
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                       borderColor: '#8b5cf6',
@@ -753,9 +761,9 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                 >
                   <MenuItem value=""><em>Không chọn</em></MenuItem>
-                  {allFunctions.map((fn: any) => (
-                    <MenuItem key={fn._id} value={fn._id}>
-                      <Tooltip title={fn.title} arrow placement="right">
+                  {allFunctions.map((f: any) => (
+                    <MenuItem key={f._id} value={f._id}>
+                      <Tooltip title={f.title} arrow placement="right">
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, overflow: 'hidden', width: '100%' }}>
                           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#8b5cf6', flexShrink: 0 }} />
                           <Typography 
@@ -767,38 +775,115 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {fn.title}
+                            {f.title}
                           </Typography>
                         </Box>
                       </Tooltip>
                     </MenuItem>
                   ))}
                 </Select>
-                {!task?.feature_id && (
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      mt: 0.5,
-                      ml: 1,
-                      color: '#9ca3af',
-                      fontSize: '11px'
-                    }}
-                  >
-                    ⓘ Vui lòng chọn Feature trước
-                  </Typography>
-                )}
               </FormControl>
-                </Box>
+            </Box>
 
                 <Divider />
               </>
             )}
+
+            {/* Assignee */}
+            <Box>
+              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                Assignee
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={typeof task?.assignee_id === 'object' ? task.assignee_id?._id || '' : task?.assignee_id || ''}
+                  onChange={async (e) => {
+                    try {
+                      await handleTaskUpdate({ assignee_id: e.target.value || null });
+                    } catch (error) {
+                      console.error('Error updating assignee:', error);
+                    }
+                  }}
+                  displayEmpty
+                  renderValue={(value) => {
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Unassigned</em>;
+                    
+                    // Try to get from current task data first
+                    let name = 'Unknown';
+                    if (typeof task?.assignee_id === 'object' && task?.assignee_id) {
+                      name = task.assignee_id.full_name || task.assignee_id.email || 'Unknown';
+                    } else {
+                      // Fallback to team members
+                      const selected = teamMembers.find((m: any) => m.user_id?._id === value);
+                      name = selected?.user_id?.full_name || selected?.user_id?.email || 'Unknown';
+                    }
+                    
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar sx={{ width: 20, height: 20, fontSize: '10px', bgcolor: '#7b68ee' }}>
+                          {name[0].toUpperCase()}
+                        </Avatar>
+                        <Typography fontSize="13px" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {name}
+                        </Typography>
+                      </Box>
+                    );
+                  }}
+                  sx={{ 
+                    fontSize: '13px', 
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e8e9eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#7b68ee',
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Unassigned</em>
+                  </MenuItem>
+                  {teamMembers.map((member: any) => (
+                    <MenuItem key={member.user_id?._id} value={member.user_id?._id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Avatar sx={{ width: 24, height: 24, fontSize: '11px', bgcolor: '#7b68ee' }}>
+                          {(member.user_id?.full_name || member.user_id?.email || 'U')[0].toUpperCase()}
+                        </Avatar>
+                        <Box>
+                          <Typography fontSize="13px" fontWeight={500}>
+                            {member.user_id?.full_name || member.user_id?.email}
+                          </Typography>
+                          <Typography fontSize="11px" color="text.secondary">
+                            {member.role}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Divider />
 
             {/* Dates - Hide Start Date for Subtasks */}
             {!isSubtask && (
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Start Date
+                {hasMandatoryDependencies && (
+                  <Chip 
+                    label="⚠️ Constrained by dependencies" 
+                    size="small" 
+                    sx={{ 
+                      ml: 1,
+                      height: 18,
+                      fontSize: '10px',
+                      bgcolor: '#fff3cd',
+                      color: '#856404',
+                      fontWeight: 600
+                    }} 
+                  />
+                )}
               </Typography>
               <TextField
                 type="date"
@@ -806,8 +891,18 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 size="small"
                 value={task?.start_date ? new Date(task.start_date).toISOString().split('T')[0] : ''}
                 onChange={async (e) => {
+                  if (hasMandatoryDependencies) {
+                    const confirm = window.confirm(
+                      '⚠️ This task has mandatory dependencies!\n\n' +
+                      'Changing the start date may violate dependency constraints.\n\n' +
+                      'Consider using "Auto-adjust dates" in the Dependencies tab instead.\n\n' +
+                      'Do you want to proceed anyway?'
+                    );
+                    if (!confirm) return;
+                  }
                   try {
                     await handleTaskUpdate({ start_date: e.target.value });
+                    await loadDependencies(); // Reload to check new state
                   } catch (error) {
                     console.error('Error updating start date:', error);
                   }
@@ -816,10 +911,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   sx: { 
                     fontSize: '13px',
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#e8e9eb',
+                      borderColor: hasMandatoryDependencies ? '#ffc107' : '#e8e9eb',
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#7b68ee',
+                      borderColor: hasMandatoryDependencies ? '#ff9800' : '#7b68ee',
                     }
                   }
                 }}
@@ -830,6 +925,20 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Due Date
+                {hasMandatoryDependencies && (
+                  <Chip 
+                    label="⚠️ Constrained by dependencies" 
+                    size="small" 
+                    sx={{ 
+                      ml: 1,
+                      height: 18,
+                      fontSize: '10px',
+                      bgcolor: '#fff3cd',
+                      color: '#856404',
+                      fontWeight: 600
+                    }} 
+                  />
+                )}
               </Typography>
               <TextField
                 type="date"
@@ -837,8 +946,18 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 size="small"
                 value={task?.deadline ? new Date(task.deadline).toISOString().split('T')[0] : ''}
                 onChange={async (e) => {
+                  if (hasMandatoryDependencies) {
+                    const confirm = window.confirm(
+                      '⚠️ This task has mandatory dependencies!\n\n' +
+                      'Changing the deadline may violate dependency constraints.\n\n' +
+                      'Consider using "Auto-adjust dates" in the Dependencies tab instead.\n\n' +
+                      'Do you want to proceed anyway?'
+                    );
+                    if (!confirm) return;
+                  }
                   try {
                     await handleTaskUpdate({ deadline: e.target.value });
+                    await loadDependencies(); // Reload to check new state
                   } catch (error) {
                     console.error('Error updating deadline:', error);
                   }
@@ -847,10 +966,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   sx: { 
                     fontSize: '13px',
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#e8e9eb',
+                      borderColor: hasMandatoryDependencies ? '#ffc107' : '#e8e9eb',
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#7b68ee',
+                      borderColor: hasMandatoryDependencies ? '#ff9800' : '#7b68ee',
                     }
                   }
                 }}
@@ -973,24 +1092,21 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 </Stack>
               </Box>
             )}
-
-            {/* Created Info */}
-            <Box sx={{ pt: 2, borderTop: '1px solid #f3f4f6' }}>
-              <Typography fontSize="11px" color="text.secondary" sx={{ mb: 0.5 }}>
-                Created by
-              </Typography>
-              <Typography fontSize="12px" fontWeight={600} color="text.primary">
-                {task?.assigner_id?.full_name || task?.assigner_id?.email || 'Unknown'}
-              </Typography>
-              {task?.createdAt && (
-                <Typography fontSize="10px" color="text.secondary" sx={{ mt: 1 }}>
-                  Created: {new Date(task.createdAt).toLocaleDateString()}
-                </Typography>
-              )}
-            </Box>
           </Stack>
         </Box>
       </Box>
+      
+      {/* Dependency Violation Dialog */}
+      <DependencyViolationDialog
+        open={dependencyViolationOpen}
+        onClose={() => {
+          setDependencyViolationOpen(false);
+          setPendingUpdate(null);
+        }}
+        onForceUpdate={handleForceUpdate}
+        violations={dependencyViolations}
+        canForce={canForceUpdate}
+      />
     </Drawer>
   );
 }

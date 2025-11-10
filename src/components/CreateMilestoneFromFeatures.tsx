@@ -79,16 +79,10 @@ export default function CreateMilestoneFromFeatures({
   };
 
   // Calculate summary
-  const totalEffort = selectedFeatures.reduce((sum, f) => sum + (f.estimated_effort || 0), 0);
   const earliestStart = selectedFeatures.reduce<string | null>((earliest, f) => {
     if (!f.start_date) return earliest;
     if (!earliest) return f.start_date;
     return new Date(f.start_date) < new Date(earliest) ? f.start_date : earliest;
-  }, null);
-  const latestEnd = selectedFeatures.reduce<string | null>((latest, f) => {
-    if (!f.end_date) return latest;
-    if (!latest) return f.end_date;
-    return new Date(f.end_date) > new Date(latest) ? f.end_date : latest;
   }, null);
 
   return (
@@ -132,24 +126,8 @@ export default function CreateMilestoneFromFeatures({
             </Typography>
             <Stack spacing={1}>
               <Typography variant="body2">
-                <strong>Tổng Effort:</strong> {totalEffort} giờ
-              </Typography>
-              <Typography variant="body2">
-                <strong>Ngày bắt đầu:</strong>{" "}
-                {earliestStart ? new Date(earliestStart).toLocaleDateString() : "Chưa có"}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Ngày kết thúc:</strong>{" "}
-                {latestEnd ? new Date(latestEnd).toLocaleDateString() : "Chưa có"}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Duration:</strong>{" "}
-                {earliestStart && latestEnd
-                  ? Math.ceil(
-                      (new Date(latestEnd).getTime() - new Date(earliestStart).getTime()) /
-                        (1000 * 60 * 60 * 24)
-                    ) + " ngày"
-                  : "Chưa có"}
+                <strong>Ngày bắt đầu (sớm nhất):</strong>{" "}
+                {earliestStart ? new Date(earliestStart).toLocaleDateString('vi-VN') : "Chưa có"}
               </Typography>
             </Stack>
           </Box>
