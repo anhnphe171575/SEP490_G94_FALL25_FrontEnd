@@ -1,27 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 
 export default function ContributorDetailPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
   const projectId = searchParams.get("project_id") || undefined;
@@ -46,6 +32,8 @@ export default function ContributorDetailPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [featureFilter, setFeatureFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     if (!userId) {
@@ -63,6 +51,7 @@ export default function ContributorDetailPage() {
         if (projectId) params.append("project_id", projectId);
         const res = await axiosInstance.get(`/api/users/${userId}/tasks?${params.toString()}`);
         const data = res.data;
+        console.log("data", data)
         setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
 
         // Fetch features if projectId exists
@@ -87,13 +76,46 @@ export default function ContributorDetailPage() {
     })();
   }, [userId, projectId]);
 
+  // Normalize status name to handle various formats (Completed, In Progress, In Review, etc.)
+  const normalizeStatus = (status: string | undefined): string => {
+    if (!status) return "";
+    // First, trim and normalize whitespace, remove special characters
+    const trimmed = String(status).trim();
+    // Remove any special characters and normalize to lowercase
+    const cleaned = trimmed.replace(/[^\w\s-]/g, "").toLowerCase();
+    const normalized = cleaned.replace(/\s+/g, "-");
+    
+    // Handle exact matches first (most common cases)
+    if (normalized === "testing") return "in-review";
+    if (normalized === "planning" || normalized === "planing" || normalized === "plan") return "pending";
+    if (normalized === "complete" || normalized === "completed") return "completed";
+    
+    // Handle status that starts with "plan" (to catch "planing", "planning", "plan", etc.)
+    // This will catch "planing", "planning", "plan-xxx", etc.
+    if (normalized.startsWith("plan")) return "pending";
+    
+    // Handle common variations with includes (for partial matches)
+    if (normalized.includes("completed") || normalized.includes("complete")) return "completed";
+    if (normalized.includes("in-review") || normalized.includes("inreview") || normalized.includes("review") || normalized.includes("testing")) return "in-review";
+    if (normalized.includes("in-progress") || normalized.includes("inprogress") || normalized.includes("progress")) return "in-progress";
+    if (normalized.includes("pending")) return "pending";
+    
+    return normalized;
+  };
+
   const filtered = useMemo(() => {
     return tasks.filter(t => {
       const matchesQ = q
         ? (t.title?.toLowerCase().includes(q.toLowerCase()) || t.description?.toLowerCase().includes(q.toLowerCase()))
         : true;
+      
       const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-      const matchesStatus = status === "all" ? true : (taskStatus === status);
+      let matchesStatus = true;
+      if (status !== "all") {
+        const normalizedTaskStatus = normalizeStatus(taskStatus);
+        const normalizedFilterStatus = normalizeStatus(status);
+        matchesStatus = normalizedTaskStatus === normalizedFilterStatus;
+      }
       
       // Handle feature filter - support both object and string formats
       let matchesFeature = true;
@@ -111,57 +133,60 @@ export default function ContributorDetailPage() {
     });
   }, [tasks, q, status, featureFilter]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, status, featureFilter]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTasks = filtered.slice(startIndex, endIndex);
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
   // Calculate statistics
   const totalTasks = tasks.length;
-  const completedCount = tasks.filter(t => {
+  const planningCount = tasks.filter(t => {
     const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return taskStatus === "Completed" || taskStatus === "Done";
+    return normalizeStatus(taskStatus) === "pending";
   }).length;
   const inProgressCount = tasks.filter(t => {
     const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return taskStatus === "In Progress";
+    return normalizeStatus(taskStatus) === "in-progress";
   }).length;
-  const pendingCount = tasks.filter(t => {
+  const testingCount = tasks.filter(t => {
     const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return taskStatus === "Pending" || taskStatus === "To Do";
+    return normalizeStatus(taskStatus) === "in-review";
   }).length;
-  const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+  const completeCount = tasks.filter(t => {
+    const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
+    return normalizeStatus(taskStatus) === "completed";
+  }).length;
+  const completionRate = totalTasks > 0 ? Math.round((completeCount / totalTasks) * 100) : 0;
 
   // Get user info from first task
   const contributorName = tasks[0]?.assignee_id?.full_name || "Thành viên";
   const contributorEmail = tasks[0]?.assignee_id?.email || "";
   const avatarText = contributorName ? contributorName.charAt(0).toUpperCase() : "U";
 
-  // Prepare chart data
-  const statusData = [
-    { name: "Completed", value: completedCount, color: "#22c55e" },
-    { name: "In Progress", value: inProgressCount, color: "#0ea5e9" },
-    { name: "Pending", value: pendingCount, color: "#94a3b8" },
-  ].filter(item => item.value > 0);
-
-  const statusBreakdown = useMemo(() => {
-    const breakdown: Record<string, number> = {};
-    tasks.forEach(task => {
-      const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Unknown";
-      breakdown[taskStatus] = (breakdown[taskStatus] || 0) + 1;
-    });
-    return breakdown;
-  }, [tasks]);
-
-  const chartData = Object.entries(statusBreakdown).map(([name, value]) => ({
-    name,
-    value,
-  }));
-
   // Get status color
   const getStatusColor = (status: string) => {
-    const statusLower = status.toLowerCase();
-    if (statusLower.includes("completed") || statusLower.includes("done")) return "bg-green-100 text-green-700";
-    if (statusLower.includes("progress")) return "bg-blue-100 text-blue-700";
-    if (statusLower.includes("pending") || statusLower.includes("to do")) return "bg-gray-100 text-gray-700";
-    if (statusLower.includes("overdue")) return "bg-red-100 text-red-700";
-    if (statusLower.includes("blocked")) return "bg-orange-100 text-orange-700";
-    if (statusLower.includes("hold")) return "bg-yellow-100 text-yellow-700";
+    const normalized = normalizeStatus(status);
+    if (normalized === "completed") return "bg-green-100 text-green-700";
+    if (normalized === "in-review") return "bg-purple-100 text-purple-700";
+    if (normalized === "in-progress") return "bg-blue-100 text-blue-700";
+    if (normalized === "pending") return "bg-amber-100 text-amber-700";
     return "bg-gray-100 text-gray-700";
   };
 
@@ -172,6 +197,16 @@ export default function ContributorDetailPage() {
     if (priorityLower.includes("medium") || priorityLower.includes("normal")) return "bg-amber-100 text-amber-700";
     if (priorityLower.includes("low")) return "bg-green-100 text-green-700";
     return "bg-gray-100 text-gray-700";
+  };
+
+  // Translate status to Vietnamese
+  const getStatusLabel = (status: string) => {
+    const normalized = normalizeStatus(status);
+    if (normalized === "pending") return "Đang lên kế hoạch";
+    if (normalized === "in-progress") return "Đang thực hiện";
+    if (normalized === "in-review") return "Đang kiểm thử";
+    if (normalized === "completed") return "Hoàn thành";
+    return status || "Chưa xác định";
   };
 
   if (loading) {
@@ -224,16 +259,20 @@ export default function ContributorDetailPage() {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6">
               <Link 
                 href={`/supervisor/contributor${projectId ? `?project_id=${projectId}` : ''}`} 
-                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
                 <span className="font-medium">Quay lại Dashboard</span>
               </Link>
+            </div>
+
+            {/* Quick Navigation */}
+            <div className="flex justify-end mb-6">
               <QuickNav selectedProject={projectId} />
             </div>
 
@@ -258,112 +297,72 @@ export default function ContributorDetailPage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+              <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-blue-200 text-sm mb-1">Tổng Task</p>
+                    <p className="text-slate-200 text-sm mb-1">Tổng Task</p>
                     <p className="text-4xl font-bold">{totalTasks}</p>
                   </div>
-                  <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <p className="text-sm text-blue-200">Tổng số công việc</p>
+                <p className="text-sm text-slate-200">Tổng số công việc</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white shadow-lg">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-amber-200 text-sm mb-1">Đang lên kế hoạch</p>
+                    <p className="text-4xl font-bold">{planningCount}</p>
+                  </div>
+                  <svg className="w-8 h-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <p className="text-sm text-amber-200">Tasks đang lên kế hoạch</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-blue-200 text-sm mb-1">Đang thực hiện</p>
+                    <p className="text-4xl font-bold">{inProgressCount}</p>
+                  </div>
+                  <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-blue-200">Tasks đang thực hiện</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-purple-200 text-sm mb-1">Đang kiểm thử</p>
+                    <p className="text-4xl font-bold">{testingCount}</p>
+                  </div>
+                  <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-purple-200">Tasks đang kiểm thử</p>
               </div>
 
               <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <p className="text-green-200 text-sm mb-1">Hoàn thành</p>
-                    <p className="text-4xl font-bold">{completedCount}</p>
+                    <p className="text-4xl font-bold">{completeCount}</p>
                   </div>
                   <svg className="w-8 h-8 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-sm text-green-200">{completionRate}% completion rate</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="text-purple-200 text-sm mb-1">Đang thực hiện</p>
-                    <p className="text-4xl font-bold">{inProgressCount}</p>
-                  </div>
-                  <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="text-sm text-purple-200">Tasks in progress</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white shadow-lg">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="text-amber-200 text-sm mb-1">Chờ xử lý</p>
-                    <p className="text-4xl font-bold">{pendingCount}</p>
-                  </div>
-                  <svg className="w-8 h-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="text-sm text-amber-200">Pending tasks</p>
+                <p className="text-sm text-green-200">{completionRate}% tỷ lệ hoàn thành</p>
               </div>
             </div>
-
-            {/* Charts Row */}
-            {chartData.length > 0 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {/* Status Pie Chart */}
-                {statusData.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Phân bố Trạng thái</h2>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={statusData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                          outerRadius={100}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {statusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
-                          labelStyle={{ color: "#0f172a" }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-
-                {/* Status Bar Chart */}
-                {chartData.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Thống kê Trạng thái</h2>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "12px" }} />
-                        <YAxis stroke="#64748b" style={{ fontSize: "12px" }} allowDecimals={false} />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
-                          labelStyle={{ color: "#0f172a" }}
-                        />
-                        <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Filters */}
@@ -388,14 +387,10 @@ export default function ContributorDetailPage() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="Pending">Pending</option>
-                <option value="To Do">To Do</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-                <option value="Done">Done</option>
-                <option value="Overdue">Overdue</option>
-                <option value="Blocked">Blocked</option>
-                <option value="On Hold">On Hold</option>
+                <option value="Pending">Đang lên kế hoạch</option>
+                <option value="In Progress">Đang thực hiện</option>
+                <option value="In Review">Đang kiểm thử</option>
+                <option value="Completed">Hoàn thành</option>
               </select>
               {projectId && features.length > 0 && (
                 <select
@@ -403,7 +398,7 @@ export default function ContributorDetailPage() {
                   onChange={(e) => setFeatureFilter(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 >
-                  <option value="all">Tất cả Features</option>
+                  <option value="all">Tất cả tính năng</option>
                   {features.map((feature) => (
                     <option key={feature._id} value={feature._id}>
                       {feature.title}
@@ -418,6 +413,19 @@ export default function ContributorDetailPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Danh sách Tasks ({filtered.length})</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Hiển thị:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handleItemsPerPageChange(e.target.value)}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
             </div>
 
             {filtered.length === 0 ? (
@@ -431,76 +439,173 @@ export default function ContributorDetailPage() {
                 <p className="text-gray-600">Thử thay đổi bộ lọc để tìm kiếm task khác</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filtered.map((task) => {
-                  const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Unknown";
-                  const taskPriority = typeof task.priority === "object" ? task.priority?.name : task.priority || "";
-                  
-                  return (
-                    <div
-                      key={task._id}
-                      className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <h3 className="text-xl font-semibold text-gray-900 mb-2">{task.title}</h3>
-                          {task.description && (
-                            <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
-                          )}
-                          
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {task.feature_id?.title && (
-                              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                                📋 {task.feature_id.title}
-                              </span>
+              <>
+                <div className="space-y-4 mb-6">
+                  {paginatedTasks.map((task) => {
+                    const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Unknown";
+                    const taskPriority = typeof task.priority === "object" ? task.priority?.name : task.priority || "";
+                    
+                    return (
+                      <div
+                        key={task._id}
+                        className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">{task.title}</h3>
+                            {task.description && (
+                              <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
                             )}
-                            {taskPriority && (
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(taskPriority)}`}>
-                                ⚡ {taskPriority}
-                              </span>
-                            )}
-                            {taskStatus && (
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(taskStatus)}`}>
-                                {taskStatus}
-                              </span>
-                            )}
+                            
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {task.feature_id?.title && (
+                                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                  📋 {task.feature_id.title}
+                                </span>
+                              )}
+                              {taskPriority && (
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(taskPriority)}`}>
+                                  ⚡ {taskPriority}
+                                </span>
+                              )}
+                              {taskStatus && (
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(taskStatus)}`}>
+                                  {getStatusLabel(taskStatus)}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                              {task.assigner_id?.full_name && (
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  <span>Giao bởi: <span className="font-medium">{task.assigner_id.full_name}</span></span>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                            {task.assigner_id?.full_name && (
-                              <div className="flex items-center gap-2">
+                          <div className="text-right text-sm text-gray-600 space-y-2">
+                            {task.deadline && (
+                              <div className="flex items-center gap-2 text-gray-700">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
-                                <span>Giao bởi: <span className="font-medium">{task.assigner_id.full_name}</span></span>
+                                <span className="font-medium">{new Date(task.deadline).toLocaleDateString("vi-VN")}</span>
+                              </div>
+                            )}
+                            {task.updateAt && (
+                              <div className="flex items-center gap-2 text-gray-500">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Cập nhật: {new Date(task.updateAt).toLocaleDateString("vi-VN")}</span>
                               </div>
                             )}
                           </div>
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
-                        <div className="text-right text-sm text-gray-600 space-y-2">
-                          {task.deadline && (
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              <span className="font-medium">{new Date(task.deadline).toLocaleDateString("vi-VN")}</span>
-                            </div>
-                          )}
-                          {task.updateAt && (
-                            <div className="flex items-center gap-2 text-gray-500">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <span>Cập nhật: {new Date(task.updateAt).toLocaleDateString("vi-VN")}</span>
-                            </div>
-                          )}
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="text-sm text-gray-600">
+                        Hiển thị {startIndex + 1} - {Math.min(endIndex, filtered.length)} trong tổng số {filtered.length} tasks
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className={`px-3 py-2 rounded-lg border transition-all ${
+                            currentPage === 1
+                              ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-purple-500"
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+
+                        <div className="flex items-center gap-1 flex-wrap justify-center">
+                          {(() => {
+                            // Hiển thị tất cả nếu <= 10 trang, nếu nhiều hơn thì hiển thị các trang xung quanh
+                            let pagesToShow: number[];
+                            if (totalPages <= 10) {
+                              pagesToShow = Array.from({ length: totalPages }, (_, i) => i + 1);
+                            } else {
+                              // Hiển thị trang đầu, trang cuối, và các trang xung quanh trang hiện tại
+                              const startPage = Math.max(1, currentPage - 2);
+                              const endPage = Math.min(totalPages, currentPage + 2);
+                              pagesToShow = [];
+                              
+                              // Thêm trang 1 nếu không nằm trong khoảng
+                              if (startPage > 1) {
+                                pagesToShow.push(1);
+                                if (startPage > 2) pagesToShow.push(-1); // -1 là dấu hiệu cho ellipsis
+                              }
+                              
+                              // Thêm các trang trong khoảng
+                              for (let i = startPage; i <= endPage; i++) {
+                                pagesToShow.push(i);
+                              }
+                              
+                              // Thêm trang cuối nếu không nằm trong khoảng
+                              if (endPage < totalPages) {
+                                if (endPage < totalPages - 1) pagesToShow.push(-1); // -1 là dấu hiệu cho ellipsis
+                                pagesToShow.push(totalPages);
+                              }
+                            }
+                            
+                            return pagesToShow.map((page, index) => {
+                              if (page === -1) {
+                                return (
+                                  <span key={`ellipsis-${index}`} className="px-2 text-gray-400">
+                                    ...
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  key={page}
+                                  onClick={() => handlePageChange(page)}
+                                  className={`min-w-[40px] px-3 py-2 rounded-lg border transition-all ${
+                                    currentPage === page
+                                      ? "bg-purple-500 text-white border-purple-500 font-medium"
+                                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-purple-500"
+                                  }`}
+                                >
+                                  {page}
+                                </button>
+                              );
+                            });
+                          })()}
                         </div>
+
+                        <button
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className={`px-3 py-2 rounded-lg border transition-all ${
+                            currentPage === totalPages
+                              ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-purple-500"
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

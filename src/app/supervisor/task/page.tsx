@@ -215,11 +215,24 @@ export default function TaskDashboardPage() {
     <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64 space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Dashboard Task</h1>
-            <p className="text-gray-600">Project Timeline & Progress Tracking</p>
+        {/* Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 shadow-xl">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-32 -mb-32"></div>
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-medium mb-3">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              Task Dashboard
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Dashboard Task</h1>
+            <p className="text-blue-100">Project Timeline & Progress Tracking</p>
           </div>
+        </div>
+
+        {/* Quick Navigation */}
+        <div className="flex justify-end">
           <QuickNav selectedProject={selectedProject} />
         </div>
 
@@ -246,35 +259,7 @@ export default function TaskDashboardPage() {
           </div>
         </div>
 
-        {/* Task Status Overview - Separate Section */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Task Status Overview</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={120} paddingAngle={2} dataKey="value">
-                    {pieData.map((e, i) => (
-                      <Cell key={i} fill={e.color} />
-                    ))}
-                  </Pie>
-                  <ReTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-col justify-center">
-              <div className="space-y-3">
-                {pieData.map((p) => (
-                  <div key={p.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <span className="inline-block w-4 h-4 rounded-full" style={{ backgroundColor: p.color }} />
-                    <span className="text-gray-700 font-medium flex-1">{p.name}</span>
-                    <span className="ml-auto font-bold text-lg text-gray-900">{p.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        
 
         {/* Row: Milestones + Upcoming + Overdue */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
