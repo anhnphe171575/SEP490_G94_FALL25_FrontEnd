@@ -13,17 +13,40 @@ export default function NewMilestonePage() {
   const projectId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string);
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
-  const [actualDate, setActualDate] = useState("");
+  const [deadline, setDeadline] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState<string>("");
+  const [priorityId, setPriorityId] = useState("");
+  const [statusId, setStatusId] = useState("");
+  const [priorities, setPriorities] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<string[]>([]);
 
+  // Fetch priorities and statuses
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await axiosInstance.get('/api/setting');
+        const allSettings = res.data || [];
+        setPriorities(allSettings.filter((s: any) => s.type_id === 1));
+        setStatuses(allSettings.filter((s: any) => s.type_id === 2));
+      } catch (err) {
+        console.error('Failed to fetch settings:', err);
+      }
+    })();
+  }, []);
+
   const validationMessage = useMemo(() => {
     if (!title.trim()) return "Tiêu đề là bắt buộc";
+    if (startDate && deadline) {
+      const start = new Date(startDate);
+      const end = new Date(deadline);
+      if (start > end) return "Ngày bắt đầu phải trước deadline";
+    }
     return "";
-  }, [title]);
+  }, [title, startDate, deadline]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,8 +68,10 @@ export default function NewMilestonePage() {
       const body: any = { 
         title, 
         start_date: startDate || undefined, 
-        actual_date: actualDate || undefined,
+        deadline: deadline || undefined,
         description, 
+        priority_id: priorityId || undefined,
+        status_id: statusId || undefined,
         tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
       };
       
@@ -118,6 +143,32 @@ export default function NewMilestonePage() {
                     placeholder="Ví dụ: Sprint 1"
                   />
                 </div>
+                <div>
+                  <label className="text-sm">Độ ưu tiên</label>
+                  <select
+                    value={priorityId}
+                    onChange={(e) => setPriorityId(e.target.value)}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 bg-transparent"
+                  >
+                    <option value="">— Chọn priority —</option>
+                    {priorities.map((p) => (
+                      <option key={p._id} value={p._id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm">Trạng thái</label>
+                  <select
+                    value={statusId}
+                    onChange={(e) => setStatusId(e.target.value)}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 bg-transparent"
+                  >
+                    <option value="">— Chọn status —</option>
+                    {statuses.map((s) => (
+                      <option key={s._id} value={s._id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -135,13 +186,16 @@ export default function NewMilestonePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm">Ngày thực tế</label>
+                  <label className="text-sm">Deadline</label>
                   <input
                     type="date"
-                    value={actualDate}
-                    onChange={(e) => setActualDate(e.target.value)}
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
                     className="mt-1 w-full border rounded-lg px-3 py-2"
                   />
+                  {validationMessage && startDate && deadline && new Date(startDate) > new Date(deadline) ? (
+                    <div className="text-xs text-red-600 mt-1">Ngày bắt đầu phải trước deadline</div>
+                  ) : null}
                 </div>
               </div>
             </div>

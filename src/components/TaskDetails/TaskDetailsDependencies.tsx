@@ -26,13 +26,15 @@ import BlockIcon from "@mui/icons-material/Block";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import axiosInstance from "../../../ultis/axios";
+import DependencyDateConflictDialog from "../DependencyDateConflictDialog";
 
 interface TaskDetailsDependenciesProps {
   taskId: string | null;
   projectId?: string;
+  onTaskUpdate?: () => void | Promise<void>;
 }
 
-export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetailsDependenciesProps) {
+export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdate }: TaskDetailsDependenciesProps) {
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [dependents, setDependents] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
@@ -43,17 +45,36 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
   const [newDependency, setNewDependency] = useState({
     depends_on_task_id: '',
     dependency_type: 'FS',
-    lag_days: 0
+    lag_days: 0,
+    is_mandatory: true,
+    notes: ''
   });
+
+  // State for date conflict dialog
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [conflictViolation, setConflictViolation] = useState<any>(null);
+  const [currentTask, setCurrentTask] = useState<any>(null);
 
   useEffect(() => {
     if (taskId) {
+      loadCurrentTask();
       loadDependencies();
       if (projectId) {
         loadAvailableTasks();
       }
     }
   }, [taskId, projectId]);
+
+  const loadCurrentTask = async () => {
+    if (!taskId) return;
+    
+    try {
+      const response = await axiosInstance.get(`/api/tasks/${taskId}`);
+      setCurrentTask(response.data);
+    } catch (error: any) {
+      console.error("Error loading current task:", error);
+    }
+  };
 
   const loadDependencies = async () => {
     if (!taskId) return;
@@ -97,20 +118,37 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
       const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
         depends_on_task_id: newDependency.depends_on_task_id,
         dependency_type: newDependency.dependency_type,
-        lag_days: newDependency.lag_days
+        lag_days: newDependency.lag_days,
+        is_mandatory: newDependency.is_mandatory,
+        notes: newDependency.notes,
+        strict_validation: newDependency.is_mandatory // Enable strict validation for mandatory dependencies
       });
       
-      // Check for warning (non-blocking)
-      if (response.data.warning) {
-        const warning = response.data.warning;
-        const confirmMessage = `${warning.message}\n\n${warning.suggestion}\n\nBạn có muốn tiếp tục không?`;
-        if (!window.confirm(confirmMessage)) {
-          return;
-        }
+      // Check for warnings (non-blocking)
+      const warnings = response.data.warnings || [];
+      const statusWarning = response.data.status_warning;
+      const dateWarning = response.data.warning;
+      
+      if (warnings.length > 0) {
+        let warningMessage = '⚠️ Dependency created with warnings:\n\n';
+        warnings.forEach((w: any, index: number) => {
+          warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
+        });
+        
+        alert(warningMessage);
+      } else if (statusWarning) {
+        // Legacy: show status warning
+        const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
+        alert(confirmMessage);
+      } else if (dateWarning) {
+        // Legacy: show date warning  
+        const confirmMessage = `${dateWarning.message}\n\n${dateWarning.suggestion}\n\n✅ Dependency was created successfully.`;
+        alert(confirmMessage);
       }
       
-      setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
+      setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
       setShowAddForm(false);
+      setError(null);
       await loadDependencies();
     } catch (error: any) {
       const errorData = error?.response?.data;
@@ -118,29 +156,33 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
         // Date violation - show detailed error
         const violation = errorData.violation;
         const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
-        setError(errorMessage);
         
-        // If auto-fix available, offer it
-        if (errorData.can_auto_fix && violation.required_start_date) {
-          const autoFix = window.confirm(
-            `${errorMessage}\n\nBạn có muốn tự động điều chỉnh ngày tháng không?`
+        // Only offer auto-fix for MANDATORY dependencies
+        if (newDependency.is_mandatory && errorData.can_auto_fix && violation.required_start_date) {
+          // Show new conflict dialog instead of window.confirm
+          setConflictViolation(violation);
+          setShowConflictDialog(true);
+        } else if (!newDependency.is_mandatory) {
+          // For OPTIONAL dependencies, show warning and ask if user wants to proceed anyway
+          const proceed = window.confirm(
+            `⚠️ Cảnh báo:\n\n${errorMessage}\n\nĐây là optional dependency nên không tự động điều chỉnh ngày.\n\nBạn có muốn tiếp tục thêm dependency này không?`
           );
-          if (autoFix) {
+          if (proceed) {
+            // Force add the optional dependency by disabling strict validation
             try {
-              await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
-                preserve_duration: true
-              });
-              // Retry adding dependency with same params
-              const retryResponse = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+              await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
                 depends_on_task_id: newDependency.depends_on_task_id,
                 dependency_type: newDependency.dependency_type,
-                lag_days: newDependency.lag_days
+                lag_days: newDependency.lag_days,
+                is_mandatory: newDependency.is_mandatory,
+                notes: newDependency.notes,
+                strict_validation: false
               });
-              setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
+              setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
               setShowAddForm(false);
               await loadDependencies();
-            } catch (fixError: any) {
-              setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+            } catch (forceError: any) {
+              setError(forceError?.response?.data?.message || 'Không thể thêm dependency');
             }
           }
         }
@@ -148,6 +190,66 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
         setError(errorData?.message || 'Failed to add dependency');
       }
     }
+  };
+
+  const handleAutoFix = async () => {
+    try {
+      setShowConflictDialog(false);
+      setError(null);
+      
+      // STEP 1: Create dependency first (without strict validation)
+      console.log('➕ Step 1: Creating dependency...');
+      const retryResponse = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+        depends_on_task_id: newDependency.depends_on_task_id,
+        dependency_type: newDependency.dependency_type,
+        lag_days: newDependency.lag_days,
+        is_mandatory: newDependency.is_mandatory,
+        notes: newDependency.notes,
+        strict_validation: false
+      });
+      console.log('✅ Dependency created:', retryResponse.data);
+      
+      // STEP 2: Auto-adjust dates based on the newly created dependency
+      console.log('🔧 Step 2: Auto-adjusting dates for task:', taskId);
+      const adjustResponse = await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
+        preserve_duration: true
+      });
+      console.log('✅ Auto-adjust response:', adjustResponse.data);
+      
+      if (adjustResponse.data.success) {
+        console.log('✅ Dates adjusted successfully!');
+        console.log('Old dates:', adjustResponse.data.task?.old_dates);
+        console.log('New dates:', adjustResponse.data.task?.new_dates);
+      } else {
+        console.warn('⚠️ No adjustments made:', adjustResponse.data.message);
+      }
+      
+      setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+      setShowAddForm(false);
+      
+      // STEP 3: Reload everything to show changes
+      console.log('🔄 Step 3: Reloading data...');
+      await loadDependencies();
+      await loadCurrentTask();
+      
+      // Reload task details in parent component
+      if (onTaskUpdate) {
+        await onTaskUpdate();
+      }
+      console.log('✅ All done!');
+    } catch (fixError: any) {
+      console.error('❌ Auto-fix error:', fixError);
+      console.error('Error details:', fixError?.response?.data);
+      setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+      setShowConflictDialog(true); // Show dialog again on error
+    }
+  };
+
+  const handleManualEdit = () => {
+    // Close conflict dialog but keep add form open so user can edit dates
+    setShowConflictDialog(false);
+    setError('⚠️ Vui lòng chỉnh sửa ngày tháng của task trong tab Overview trước khi thêm dependency này. Sau đó thử lại.');
+    // Keep form open so they can try again after editing dates
   };
 
   const removeDependency = async (depId: string) => {
@@ -234,7 +336,7 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
         </Stack>
       </Box>
 
-      {/* Blocking Dependencies (Tasks this task blocks) */}
+      {/* Dependencies (Tasks this task depends on) */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ 
           display: 'flex', 
@@ -256,10 +358,10 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
             </Box>
             <Box>
               <Typography variant="h6" fontWeight={700}>
-                This task blocks
+                Waiting on (Blocked by)
               </Typography>
               <Typography fontSize="12px" color="text.secondary">
-                Tasks that cannot proceed until this task meets certain conditions
+                Tasks that must be completed before this task can proceed
               </Typography>
             </Box>
           </Stack>
@@ -342,19 +444,43 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
                           </Stack>
                         )}
                         {dep.lag_days !== 0 && (
-                          <Chip
-                            label={dep.lag_days > 0 ? `+${dep.lag_days}d` : `${dep.lag_days}d`}
-                            size="small"
-                            sx={{
-                              height: 18,
-                              fontSize: '10px',
-                              fontWeight: 600,
-                              bgcolor: dep.lag_days > 0 ? '#fef3c7' : '#dbeafe',
-                              color: dep.lag_days > 0 ? '#92400e' : '#1e40af'
-                            }}
-                          />
+                          <Tooltip title={dep.lag_days > 0 ? `Lag: ${dep.lag_days} days delay` : `Lead: ${Math.abs(dep.lag_days)} days advance`}>
+                            <Chip
+                              label={dep.lag_days > 0 ? `+${dep.lag_days}d lag` : `${dep.lag_days}d lead`}
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                bgcolor: dep.lag_days > 0 ? '#fef3c7' : '#dbeafe',
+                                color: dep.lag_days > 0 ? '#92400e' : '#1e40af'
+                              }}
+                            />
+                          </Tooltip>
+                        )}
+                        {!dep.is_mandatory && (
+                          <Tooltip title="Optional - Soft Logic">
+                            <Chip
+                              label="✏️ Optional"
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                bgcolor: '#e0e7ff',
+                                color: '#4338ca'
+                              }}
+                            />
+                          </Tooltip>
                         )}
                       </Stack>
+                      {dep.notes && (
+                        <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f3ff', borderRadius: 1, border: '1px dashed #c4b5fd' }}>
+                          <Typography fontSize="11px" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            💡 {dep.notes}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
 
                     {/* Delete Button */}
@@ -399,10 +525,10 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
             border: '1px dashed #e8e9eb'
           }}>
             <Typography fontSize="14px" color="text.secondary">
-              No blocking dependencies
+              No dependencies
             </Typography>
             <Typography fontSize="12px" color="text.secondary" sx={{ mt: 0.5 }}>
-              Add dependencies to define which tasks this task blocks
+              This task doesn't depend on any other tasks
             </Typography>
           </Box>
         )}
@@ -420,16 +546,16 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
             }}
           >
             <Typography fontSize="14px" fontWeight={700} sx={{ mb: 2, color: '#7b68ee' }}>
-              Add Blocking Dependency
+              Add Dependency (This Task Depends On)
             </Typography>
             
             <Stack spacing={2}>
               {/* Task Selection */}
               <FormControl fullWidth size="small">
-                <InputLabel>Select Task</InputLabel>
+                <InputLabel>Task that must be completed first</InputLabel>
                 <Select
                   value={newDependency.depends_on_task_id}
-                  label="Select Task"
+                  label="Task that must be completed first"
                   onChange={(e) => setNewDependency({ ...newDependency, depends_on_task_id: e.target.value })}
                 >
                   {availableTasks.map((task) => (
@@ -517,13 +643,68 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
                 />
               </Stack>
 
+              {/* Is Mandatory Checkbox */}
+              <FormControl fullWidth size="small">
+                <Stack direction="row" alignItems="center" spacing={1.5} sx={{ p: 1.5, bgcolor: '#f8f9fb', borderRadius: 1.5, border: '1px solid #e8e9eb' }}>
+                  <Box
+                    onClick={() => setNewDependency({ ...newDependency, is_mandatory: !newDependency.is_mandatory })}
+                    sx={{
+                      width: 40,
+                      height: 22,
+                      borderRadius: 11,
+                      bgcolor: newDependency.is_mandatory ? '#7b68ee' : '#d1d5db',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      '&:hover': { opacity: 0.8 }
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        bgcolor: 'white',
+                        position: 'absolute',
+                        top: 2,
+                        left: newDependency.is_mandatory ? 20 : 2,
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography fontSize="13px" fontWeight={600} color={newDependency.is_mandatory ? '#7b68ee' : '#6b7280'}>
+                      {newDependency.is_mandatory ? '🔒 Mandatory' : '✏️ Optional'}
+                    </Typography>
+                    <Typography fontSize="10px" color="text.secondary">
+                      {newDependency.is_mandatory 
+                        ? 'Hard logic - must be enforced'
+                        : 'Soft logic - can be changed if needed'}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </FormControl>
+
+              {/* Notes */}
+              <TextField
+                label="Notes (Optional)"
+                size="small"
+                multiline
+                rows={2}
+                value={newDependency.notes}
+                onChange={(e) => setNewDependency({ ...newDependency, notes: e.target.value })}
+                placeholder="Explain why this dependency exists..."
+                helperText="Provide context for team members"
+              />
+
               {/* Action Buttons */}
               <Stack direction="row" spacing={1} justifyContent="flex-end">
                 <Button
                   size="small"
                   onClick={() => {
                     setShowAddForm(false);
-                    setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
+                    setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
                   }}
                   sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
                 >
@@ -575,7 +756,7 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
 
       <Divider sx={{ my: 4 }} />
 
-      {/* Blocked By Dependencies */}
+      {/* Blocking (Tasks that depend on this task) */}
       <Box>
         <Box sx={{ 
           display: 'flex', 
@@ -593,14 +774,14 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <BlockIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <LinkIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
             </Box>
             <Box>
               <Typography variant="h6" fontWeight={700}>
-                Blocked by
+                Blocking
               </Typography>
               <Typography fontSize="12px" color="text.secondary">
-                Tasks that are blocking this task from proceeding
+                Tasks that are waiting for this task to be completed
               </Typography>
             </Box>
           </Stack>
@@ -684,19 +865,43 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
                           </Stack>
                         )}
                         {dep.lag_days !== 0 && (
-                          <Chip
-                            label={dep.lag_days > 0 ? `+${dep.lag_days}d` : `${dep.lag_days}d`}
-                            size="small"
-                            sx={{
-                              height: 18,
-                              fontSize: '10px',
-                              fontWeight: 600,
-                              bgcolor: dep.lag_days > 0 ? '#fef3c7' : '#dbeafe',
-                              color: dep.lag_days > 0 ? '#92400e' : '#1e40af'
-                            }}
-                          />
+                          <Tooltip title={dep.lag_days > 0 ? `Lag: ${dep.lag_days} days delay` : `Lead: ${Math.abs(dep.lag_days)} days advance`}>
+                            <Chip
+                              label={dep.lag_days > 0 ? `+${dep.lag_days}d lag` : `${dep.lag_days}d lead`}
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                bgcolor: dep.lag_days > 0 ? '#fef3c7' : '#dbeafe',
+                                color: dep.lag_days > 0 ? '#92400e' : '#1e40af'
+                              }}
+                            />
+                          </Tooltip>
+                        )}
+                        {!dep.is_mandatory && (
+                          <Tooltip title="Optional - Soft Logic">
+                            <Chip
+                              label="✏️ Optional"
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                bgcolor: '#e0e7ff',
+                                color: '#4338ca'
+                              }}
+                            />
+                          </Tooltip>
                         )}
                       </Stack>
+                      {dep.notes && (
+                        <Box sx={{ mt: 1, p: 1, bgcolor: '#fff7ed', borderRadius: 1, border: '1px dashed #fed7aa' }}>
+                          <Typography fontSize="11px" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            💡 {dep.notes}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                   </Stack>
 
@@ -723,10 +928,10 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
             border: '1px dashed #e8e9eb'
           }}>
             <Typography fontSize="14px" color="text.secondary">
-              No blocking dependencies
+              Not blocking any tasks
             </Typography>
             <Typography fontSize="12px" color="text.secondary" sx={{ mt: 0.5 }}>
-              This task is not blocked by any other tasks
+              No other tasks are waiting for this task to be completed
             </Typography>
           </Box>
         )}
@@ -769,6 +974,22 @@ export default function TaskDetailsDependencies({ taskId, projectId }: TaskDetai
           })}
         </Stack>
       </Box>
+
+      {/* Date Conflict Dialog */}
+      {showConflictDialog && conflictViolation && (
+        <DependencyDateConflictDialog
+          open={showConflictDialog}
+          onClose={() => {
+            setShowConflictDialog(false);
+            setConflictViolation(null);
+          }}
+          onAutoFix={handleAutoFix}
+          onManualEdit={handleManualEdit}
+          violation={conflictViolation}
+          taskTitle={currentTask?.title}
+          predecessorTitle={availableTasks.find(t => t._id === newDependency.depends_on_task_id)?.title}
+        />
+      )}
     </Box>
   );
 }

@@ -8,6 +8,7 @@ import TaskDetailsModal from "@/components/TaskDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import dynamic from 'next/dynamic';
 import './tasks.module.css';
+import { STATUS_OPTIONS, PRIORITY_OPTIONS, TASK_TYPE_OPTIONS } from "@/constants/settings";
 
 const ClickUpGanttChart = dynamic(
   () => import('@/components/ClickUpGanttChart'),
@@ -179,7 +180,9 @@ export default function ProjectTasksPage() {
   const [dependencyForm, setDependencyForm] = useState({
     depends_on_task_id: '',
     dependency_type: 'FS',
-    lag_days: 0
+    lag_days: 0,
+    is_mandatory: true,
+    notes: ''
   });
 
   // subtasks
@@ -352,12 +355,11 @@ export default function ProjectTasksPage() {
 
   const loadFilterOptions = async () => {
     try {
-      // Fetch all features, milestones, functions, and settings for filters
-      const [featuresRes, milestonesRes, functionsRes, settingsRes] = await Promise.all([
+      // Fetch all features, milestones, and functions for filters
+      const [featuresRes, milestonesRes, functionsRes] = await Promise.all([
         axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: [] })),
         axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: [] })),
         axiosInstance.get(`/api/projects/${projectId}/functions`).catch(() => ({ data: [] })),
-        axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
       ]);
 
       // Set features
@@ -372,16 +374,9 @@ export default function ProjectTasksPage() {
       const functionsData = Array.isArray(functionsRes.data) ? functionsRes.data : functionsRes.data?.functions || [];
       setAllFunctions(functionsData);
 
-      // Set statuses and priorities from settings
-      const settingsData = Array.isArray(settingsRes.data) ? settingsRes.data : [];
-      
-      // Status settings (type_id = 2)
-      const statusSettings = settingsData.filter((s: any) => s.type_id === 2 || s.type_id?._id === 2);
-      setAllStatuses(statusSettings);
-
-      // Priority settings (type_id = 3)
-      const prioritySettings = settingsData.filter((s: any) => s.type_id === 3 || s.type_id?._id === 3);
-      setAllPriorities(prioritySettings);
+      // Set statuses and priorities from constants
+      setAllStatuses(STATUS_OPTIONS);
+      setAllPriorities(PRIORITY_OPTIONS);
 
     } catch (e: any) {
       console.error("Error loading filter options:", e);
@@ -567,12 +562,14 @@ export default function ProjectTasksPage() {
     }
   };
 
-  const addDependency = async (taskId: string, dependsOnTaskId: string, type: string = 'FS', lagDays: number = 0) => {
+  const addDependency = async (taskId: string, dependsOnTaskId: string, type: string = 'FS', lagDays: number = 0, isMandatory: boolean = true, notes: string = '') => {
     try {
       const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
         depends_on_task_id: dependsOnTaskId,
         dependency_type: type,
-        lag_days: lagDays
+        lag_days: lagDays,
+        is_mandatory: isMandatory,
+        notes: notes
       });
       
       // Check for warning (non-blocking)
@@ -588,22 +585,84 @@ export default function ProjectTasksPage() {
         // Date violation - show detailed error
         const violation = errorData.violation;
         const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
-        setError(errorMessage);
         
-        // If auto-fix available, offer it
-        if (errorData.can_auto_fix && violation.required_start_date) {
+        // Only offer auto-fix for MANDATORY dependencies
+        if (isMandatory && errorData.can_auto_fix && violation.required_start_date) {
+          setError(errorMessage);
+          
+          // Format dates for better display
+          const currentStart = violation.current_start_date ? new Date(violation.current_start_date).toLocaleDateString('vi-VN') : 'N/A';
+          const requiredStart = violation.required_start_date ? new Date(violation.required_start_date).toLocaleDateString('vi-VN') : 'N/A';
+          const currentEnd = violation.current_deadline ? new Date(violation.current_deadline).toLocaleDateString('vi-VN') : 'N/A';
+          
+          // Calculate task duration and new end date
+          let newEnd = 'N/A';
+          let durationMessage = '';
+          if (violation.current_start_date && violation.current_deadline && violation.required_start_date) {
+            const currentStartDate = new Date(violation.current_start_date);
+            const currentEndDate = new Date(violation.current_deadline);
+            const newStartDate = new Date(violation.required_start_date);
+            
+            // Calculate duration in days
+            const duration = Math.ceil((currentEndDate.getTime() - currentStartDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Calculate new end date (preserve duration)
+            const newEndDate = new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate() + duration);
+            newEnd = newEndDate.toLocaleDateString('vi-VN');
+            
+            durationMessage = `\n\nThời lượng task: ${duration} ngày (giữ nguyên)`;
+          }
+          
           const autoFix = window.confirm(
-            `${errorMessage}\n\nBạn có muốn tự động điều chỉnh ngày tháng không?`
+            `${errorMessage}\n\n` +
+            `📅 Ngày hiện tại:\n` +
+            `   • Bắt đầu: ${currentStart}\n` +
+            `   • Kết thúc: ${currentEnd}\n\n` +
+            `📅 Ngày sau khi điều chỉnh:\n` +
+            `   • Bắt đầu: ${requiredStart}\n` +
+            `   • Kết thúc: ${newEnd}${durationMessage}\n\n` +
+            `Bạn có muốn tự động điều chỉnh ngày tháng không?`
           );
           if (autoFix) {
             try {
               await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
                 preserve_duration: true
               });
-              // Retry adding dependency
-              await addDependency(taskId, dependsOnTaskId, type, lagDays);
+              // Retry adding dependency with strict_validation disabled
+              // (dates already adjusted, no need to validate again)
+              await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+                depends_on_task_id: dependsOnTaskId,
+                dependency_type: type,
+                lag_days: lagDays,
+                is_mandatory: isMandatory,
+                notes: notes,
+                strict_validation: false
+              });
+              await loadTaskDependencies(taskId);
             } catch (fixError: any) {
               setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+            }
+          }
+        } else if (!isMandatory) {
+          // For OPTIONAL dependencies, show warning and ask if user wants to proceed anyway
+          const proceed = window.confirm(
+            `⚠️ Cảnh báo:\n\n${errorMessage}\n\nĐây là optional dependency nên không tự động điều chỉnh ngày.\n\nBạn có muốn tiếp tục thêm dependency này không?`
+          );
+          if (proceed) {
+            // Force add the optional dependency by disabling strict validation
+            try {
+              await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
+                depends_on_task_id: dependsOnTaskId,
+                dependency_type: type,
+                lag_days: lagDays,
+                is_mandatory: isMandatory,
+                notes: notes,
+                strict_validation: false
+              });
+              await loadTaskDependencies(taskId);
+            } catch (forceError: any) {
+              setError(forceError?.response?.data?.message || 'Không thể thêm dependency');
             }
           }
         }
@@ -2165,8 +2224,8 @@ export default function ProjectTasksPage() {
                 py: 1.5, 
                 display: 'grid !important', 
                 gridTemplateColumns: { 
-                  xs: '40px minmax(200px, 1fr) 120px 110px', 
-                  md: '40px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                  xs: '50px minmax(200px, 1fr) 120px 110px', 
+                  md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
                 }, 
                 columnGap: 2, 
                 color: '#6b7280', 
@@ -2178,7 +2237,7 @@ export default function ProjectTasksPage() {
                 borderBottom: '1px solid #e8e9eb',
                 alignItems: 'center',
               }}>
-                <Box></Box>
+                <Box>STT</Box>
                 <Box>Task name</Box>
                 <Box>Assignee</Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Assigner</Box>
@@ -2233,7 +2292,7 @@ export default function ProjectTasksPage() {
                     </Box>
 
                     {/* ClickUp-style compact Rows */}
-                    {!collapsedGroups[statusName] && rows.map((t) => {
+                    {!collapsedGroups[statusName] && rows.map((t, index) => {
                       const assigneeName = resolveName(t.assignee_id, "");
                       const assigneeInitials = assigneeName ? assigneeName.split(' ').map((part: string) => part[0]).join('').slice(0, 2).toUpperCase() : '';
                       const assignerName = resolveName(t.assigner_id, "");
@@ -2241,15 +2300,19 @@ export default function ProjectTasksPage() {
                       const priorityName = typeof t.priority === 'object' ? (t.priority as any)?.name : (t.priority as any) || '-';
                       const isOverdue = t.deadline ? new Date(t.deadline).getTime() < Date.now() && (String(t.status).toLowerCase() !== 'completed') : false;
                       
-                      // Check if task is blocked by incomplete dependencies
-                      const hasBlockingDependencies = taskDependencies[t._id]?.dependents?.some((dep: any) => {
-                        const status = dep.task_id?.status;
+                      // Check if task is blocked by incomplete dependencies (predecessors)
+                      const hasBlockingDependencies = taskDependencies[t._id]?.dependencies?.some((dep: any) => {
+                        const status = dep.depends_on_task_id?.status;
                         const isCompleted = ['Done', 'Completed'].includes(status);
                         const isStarted = ['In Progress', 'Testing', 'Review', 'Done', 'Completed'].includes(status);
                         
+                        // FS: This task is blocked if predecessor is not completed
                         if (dep.dependency_type === 'FS' && !isCompleted) return true;
+                        // FF: This task cannot finish if predecessor is not completed
                         if (dep.dependency_type === 'FF' && !isCompleted) return true;
+                        // SS: This task is blocked if predecessor hasn't started
                         if (dep.dependency_type === 'SS' && !isStarted) return true;
+                        // SF: This task cannot finish if predecessor hasn't started
                         if (dep.dependency_type === 'SF' && !isStarted) return true;
                         return false;
                       });
@@ -2262,8 +2325,8 @@ export default function ProjectTasksPage() {
                             py: 1.25, 
                             display: 'grid !important', 
                             gridTemplateColumns: { 
-                              xs: '40px minmax(200px, 1fr) 120px 110px', 
-                              md: '40px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                              xs: '50px minmax(200px, 1fr) 120px 110px', 
+                              md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
                             }, 
                             columnGap: 2, 
                             alignItems: 'center', 
@@ -2276,8 +2339,14 @@ export default function ProjectTasksPage() {
                           }}
                           onClick={() => openTaskDetailsModal(t._id)}
                         >
-                          {/* Checkbox with expand/collapse for subtasks */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {/* STT - Click to open detail */}
+                          <Box 
+                            sx={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                            }}
+                          >
                             {/* Expand/Collapse chevron - only show if task has subtasks AND is not a subtask itself */}
                             {taskSubtasks[t._id]?.length > 0 && !t.parent_task_id ? (
                               <IconButton
@@ -2305,15 +2374,21 @@ export default function ProjectTasksPage() {
                               <Box sx={{ width: 20 }} />
                             )}
                             
-                            {/* Checkbox */}
-                            <Box sx={{ 
-                              width: 16, 
-                              height: 16, 
-                              border: '2px solid #d1d5db',
-                              borderRadius: 0.5,
-                              '&:hover': { borderColor: '#7b68ee' }
-                            }} />
-                              </Box>
+                            <Typography
+                              sx={{ 
+                                fontSize: '13px', 
+                                fontWeight: 600, 
+                                color: '#7b68ee',
+                                cursor: 'pointer',
+                                '&:hover': { 
+                                  textDecoration: 'underline',
+                                  color: '#6b5bd6'
+                                }
+                              }}
+                            >
+                              {index + 1}
+                            </Typography>
+                          </Box>
 
                           {/* Task name - double click to edit */}
                           <Box onClick={(e) => e.stopPropagation()}>
@@ -2480,7 +2555,7 @@ export default function ProjectTasksPage() {
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      router.push(`/projects/${projectId}/milestones/${(t.milestone_id as any)._id}/features`);
+                                      // Open milestone modal instead of navigating
                                     }}
                                     sx={{ 
                                       height: 18,
@@ -2846,7 +2921,7 @@ export default function ProjectTasksPage() {
                                     {taskDependencies[t._id]?.dependencies?.length > 0 && (
                                       <Box sx={{ mb: 0.5 }}>
                                         <Typography fontSize="10px" fontWeight={700} sx={{ mb: 0.5, color: '#93c5fd' }}>
-                                          This task blocks:
+                                          Waiting on:
                                         </Typography>
                                         {taskDependencies[t._id].dependencies.map((d: any) => (
                                           <Typography key={d._id} fontSize="11px" sx={{ pl: 1 }}>
@@ -2859,7 +2934,7 @@ export default function ProjectTasksPage() {
                                     {taskDependencies[t._id]?.dependents?.length > 0 && (
                           <Box>
                                         <Typography fontSize="10px" fontWeight={700} sx={{ mb: 0.5, color: '#fcd34d' }}>
-                                          Blocked by:
+                                          Blocking:
                                         </Typography>
                                         {taskDependencies[t._id].dependents.map((d: any) => (
                                           <Typography key={d._id} fontSize="11px" sx={{ pl: 1 }}>
@@ -2961,11 +3036,11 @@ export default function ProjectTasksPage() {
                             sx={{ 
                               px: 3, 
                               py: 1.5,
-                              pl: 7, // Extra left padding for indentation
+                              pl: 5, // Extra left padding for indentation
                               display: 'grid !important', 
                               gridTemplateColumns: { 
-                                xs: '40px minmax(200px, 1fr) 120px 110px', 
-                                md: '40px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                                xs: '50px minmax(200px, 1fr) 120px 110px', 
+                                md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
                               }, 
                               columnGap: 2, 
                               alignItems: 'center', 
@@ -3003,15 +3078,14 @@ export default function ProjectTasksPage() {
                             }}
                             onClick={() => openTaskDetailsModal(subtask._id)}
                           >
-                            {/* Checkbox/Status indicator */}
+                            {/* STT - Click to open detail */}
                             <Box 
                               sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: 0.5,
-                                pl: 2, 
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                pl: 2,
                               }}
-                              onClick={(e) => e.stopPropagation()}
                             >
                               <Checkbox
                                 checked={isSubtaskCompleted}
@@ -3036,6 +3110,20 @@ export default function ProjectTasksPage() {
                                   }
                                 }}
                               />
+                              <Typography
+                                sx={{ 
+                                  fontSize: '12px', 
+                                  fontWeight: 500, 
+                                  color: '#9ca3af',
+                                  cursor: 'pointer',
+                                  '&:hover': { 
+                                    textDecoration: 'underline',
+                                    color: '#7b68ee'
+                                  }
+                                }}
+                              >
+                                {index + 1}.{subIndex + 1}
+                              </Typography>
                             </Box>
 
                             {/* Subtask name with icon */}
@@ -4479,8 +4567,13 @@ export default function ProjectTasksPage() {
                   <span style={{ fontSize: '16px' }}>💡</span>
                   <span>
                     <strong>Options:</strong><br/>
-                    • Complete the blocking tasks first, or<br/>
-                    • Click "Force Update" to override this constraint (not recommended)
+                    • Complete the blocking tasks first
+                    {dependencyViolationDialog.violations.some((v: any) => !v.is_mandatory) && (
+                      <><br/>• Click "Force Update" to override optional dependencies (not recommended)</>
+                    )}
+                    {dependencyViolationDialog.violations.every((v: any) => v.is_mandatory) && (
+                      <><br/>• ❌ Cannot force update - all dependencies are <strong>mandatory</strong></>
+                    )}
                   </span>
                 </Typography>
               </Box>
@@ -4496,32 +4589,35 @@ export default function ProjectTasksPage() {
               >
                 Cancel
               </Button>
-              <Button
-                variant="contained"
-                color="warning"
-                onClick={async () => {
-                  try {
-                    // Force update with force_update flag
-                    await axiosInstance.patch(`/api/tasks/${dependencyViolationDialog.taskId}`, {
-                      status: dependencyViolationDialog.newStatus,
-                      force_update: true
-                    });
-                    await loadAll();
-                    setDependencyViolationDialog({ open: false, violations: [], taskId: '', newStatus: '' });
-                  } catch (error: any) {
-                    setError(error?.response?.data?.message || 'Không thể cập nhật status');
-                    setDependencyViolationDialog({ open: false, violations: [], taskId: '', newStatus: '' });
-                  }
-                }}
-                sx={{
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  bgcolor: '#f59e0b',
-                  '&:hover': { bgcolor: '#d97706' }
-                }}
-              >
-                ⚡ Force Update Anyway
-              </Button>
+              {/* Only show Force Update button if there are non-mandatory violations */}
+              {dependencyViolationDialog.violations.some((v: any) => !v.is_mandatory) && (
+                <Button
+                  variant="contained"
+                  color="warning"
+                  onClick={async () => {
+                    try {
+                      // Force update with force_update flag
+                      await axiosInstance.patch(`/api/tasks/${dependencyViolationDialog.taskId}`, {
+                        status: dependencyViolationDialog.newStatus,
+                        force_update: true
+                      });
+                      await loadAll();
+                      setDependencyViolationDialog({ open: false, violations: [], taskId: '', newStatus: '' });
+                    } catch (error: any) {
+                      setError(error?.response?.data?.message || 'Không thể cập nhật status');
+                      setDependencyViolationDialog({ open: false, violations: [], taskId: '', newStatus: '' });
+                    }
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    bgcolor: '#f59e0b',
+                    '&:hover': { bgcolor: '#d97706' }
+                  }}
+                >
+                  ⚡ Force Update Anyway
+                </Button>
+              )}
             </DialogActions>
           </Dialog>
 
@@ -4558,18 +4654,18 @@ export default function ProjectTasksPage() {
                   </Box>
                 )}
 
-                {/* Dependencies (tasks this task blocks) */}
+                {/* Dependencies (tasks this task depends on) */}
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <BlockIcon sx={{ fontSize: 18, color: '#ef4444' }} />
-                      This task blocks
+                      Waiting on (Blocked by)
                     </Typography>
                     <Button
                       size="small"
                       startIcon={<AddIcon />}
                       onClick={() => {
-                        setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
+                        setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
                       }}
                       sx={{ 
                         textTransform: 'none',
@@ -4597,80 +4693,105 @@ export default function ProjectTasksPage() {
                           <Box 
                             key={dep._id}
                             sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'space-between',
                               p: 1.5,
                               border: '1px solid #e8e9eb',
                               borderRadius: 2,
                               '&:hover': { bgcolor: '#fafbfc' }
                             }}
                           >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-                              {/* Dependency Type Badge */}
-                              <Tooltip title={`${dep.dependency_type} dependency`}>
-                                <Chip 
-                                  label={depInfo.label}
-                                  size="small"
-                                  sx={{ 
-                                    height: 22,
-                                    minWidth: 40,
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    bgcolor: `${depInfo.color}15`,
-                                    color: depInfo.color,
-                                    border: `1px solid ${depInfo.color}40`
-                                  }}
-                                />
-                              </Tooltip>
-                              
-                              {/* Arrow Icon */}
-                              <ArrowForwardIcon sx={{ fontSize: 14, color: '#d1d5db' }} />
-                              
-                              {/* Task Title */}
-                              <Typography fontSize="14px" fontWeight={500} sx={{ flex: 1 }}>
-                                {dep.depends_on_task_id?.title}
-                              </Typography>
-                              
-                              {/* Status */}
-                              <Chip 
-                                label={dep.depends_on_task_id?.status} 
-                                size="small" 
-                                sx={{ height: 20, fontSize: '11px' }}
-                              />
-                              
-                              {/* Lag indicator */}
-                              {dep.lag_days !== 0 && (
-                                <Tooltip title={dep.lag_days > 0 ? `${dep.lag_days} days delay` : `${Math.abs(dep.lag_days)} days lead time`}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                                {/* Dependency Type Badge */}
+                                <Tooltip title={`${dep.dependency_type} dependency`}>
                                   <Chip 
-                                    label={dep.lag_days > 0 ? `+${dep.lag_days}d` : `${dep.lag_days}d`}
+                                    label={depInfo.label}
                                     size="small"
                                     sx={{ 
-                                      height: 20, 
-                                      fontSize: '10px',
-                                      bgcolor: dep.lag_days > 0 ? '#fef3c7' : '#dbeafe',
-                                      color: dep.lag_days > 0 ? '#92400e' : '#1e40af',
-                                      fontWeight: 600
+                                      height: 22,
+                                      minWidth: 40,
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      bgcolor: `${depInfo.color}15`,
+                                      color: depInfo.color,
+                                      border: `1px solid ${depInfo.color}40`
                                     }}
                                   />
                                 </Tooltip>
-                              )}
+                                
+                                {/* Arrow Icon */}
+                                <ArrowForwardIcon sx={{ fontSize: 14, color: '#d1d5db' }} />
+                                
+                                {/* Task Title */}
+                                <Typography fontSize="14px" fontWeight={500} sx={{ flex: 1 }}>
+                                  {dep.depends_on_task_id?.title}
+                                </Typography>
+                                
+                                {/* Status */}
+                                <Chip 
+                                  label={dep.depends_on_task_id?.status} 
+                                  size="small" 
+                                  sx={{ height: 20, fontSize: '11px' }}
+                                />
+                                
+                                {/* Lag indicator */}
+                                {dep.lag_days !== 0 && (
+                                  <Tooltip title={dep.lag_days > 0 ? `${dep.lag_days} days delay` : `${Math.abs(dep.lag_days)} days lead time`}>
+                                    <Chip 
+                                      label={dep.lag_days > 0 ? `+${dep.lag_days}d` : `${dep.lag_days}d`}
+                                      size="small"
+                                      sx={{ 
+                                        height: 20, 
+                                        fontSize: '10px',
+                                        bgcolor: dep.lag_days > 0 ? '#fef3c7' : '#dbeafe',
+                                        color: dep.lag_days > 0 ? '#92400e' : '#1e40af',
+                                        fontWeight: 600
+                                      }}
+                                    />
+                                  </Tooltip>
+                                )}
+                                
+                                {/* Optional indicator */}
+                                {!dep.is_mandatory && (
+                                  <Tooltip title="Optional - Soft Logic">
+                                    <Chip
+                                      label="✏️ Optional"
+                                      size="small"
+                                      sx={{
+                                        height: 18,
+                                        fontSize: '10px',
+                                        fontWeight: 600,
+                                        bgcolor: '#e0e7ff',
+                                        color: '#4338ca'
+                                      }}
+                                    />
+                                  </Tooltip>
+                                )}
+                              </Box>
+                              
+                              {/* Delete Button */}
+                              <IconButton
+                                size="small"
+                                onClick={() => removeDependency(dependencyTaskId || '', dep._id)}
+                                sx={{ 
+                                  color: '#9ca3af',
+                                  '&:hover': { 
+                                    color: '#ef4444',
+                                    bgcolor: '#fee2e2'
+                                  }
+                                }}
+                              >
+                                <DeleteIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
                             </Box>
                             
-                            {/* Delete Button */}
-                            <IconButton
-                              size="small"
-                              onClick={() => removeDependency(dependencyTaskId || '', dep._id)}
-                              sx={{ 
-                                color: '#9ca3af',
-                                '&:hover': { 
-                                  color: '#ef4444',
-                                  bgcolor: '#fee2e2'
-                                }
-                              }}
-                            >
-                              <DeleteIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
+                            {/* Notes Display */}
+                            {dep.notes && (
+                              <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f3ff', borderRadius: 1, border: '1px dashed #c4b5fd' }}>
+                                <Typography fontSize="11px" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  💡 {dep.notes}
+                                </Typography>
+                              </Box>
+                            )}
                           </Box>
                         );
                       })}
@@ -4782,6 +4903,61 @@ export default function ProjectTasksPage() {
                         />
                       </Stack>
 
+                      {/* Is Mandatory Toggle Switch */}
+                      <FormControl fullWidth size="small">
+                        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ p: 1.5, bgcolor: '#f8f9fb', borderRadius: 1.5, border: '1px solid #e8e9eb' }}>
+                          <Box
+                            onClick={() => setDependencyForm({ ...dependencyForm, is_mandatory: !dependencyForm.is_mandatory })}
+                            sx={{
+                              width: 40,
+                              height: 22,
+                              borderRadius: 11,
+                              bgcolor: dependencyForm.is_mandatory ? '#7b68ee' : '#d1d5db',
+                              position: 'relative',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              '&:hover': { opacity: 0.8 }
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: '50%',
+                                bgcolor: 'white',
+                                position: 'absolute',
+                                top: 2,
+                                left: dependencyForm.is_mandatory ? 20 : 2,
+                                transition: 'all 0.2s',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                              }}
+                            />
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography fontSize="13px" fontWeight={600} color={dependencyForm.is_mandatory ? '#7b68ee' : '#6b7280'}>
+                              {dependencyForm.is_mandatory ? '🔒 Mandatory' : '✏️ Optional'}
+                            </Typography>
+                            <Typography fontSize="10px" color="text.secondary">
+                              {dependencyForm.is_mandatory 
+                                ? 'Hard logic - must be enforced'
+                                : 'Soft logic - can be changed if needed'}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </FormControl>
+
+                      {/* Notes */}
+                      <TextField
+                        label="Notes (Optional)"
+                        size="small"
+                        multiline
+                        rows={2}
+                        value={dependencyForm.notes}
+                        onChange={(e) => setDependencyForm({ ...dependencyForm, notes: e.target.value })}
+                        placeholder="Explain why this dependency exists..."
+                        helperText="Provide context for team members"
+                      />
+
                       {/* Submit Button */}
                       <Button
                         variant="contained"
@@ -4793,9 +4969,11 @@ export default function ProjectTasksPage() {
                               dependencyTaskId, 
                               dependencyForm.depends_on_task_id, 
                               dependencyForm.dependency_type,
-                              dependencyForm.lag_days
+                              dependencyForm.lag_days,
+                              dependencyForm.is_mandatory,
+                              dependencyForm.notes
                             );
-                            setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0 });
+                            setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
                           }
                         }}
                         sx={{
@@ -4815,11 +4993,11 @@ export default function ProjectTasksPage() {
 
                 <Divider />
 
-                {/* Blocked by (tasks that block this task) */}
+                {/* Blocking (tasks that depend on this task) */}
                 <Box>
                   <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <BlockIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
-                    Blocked by
+                    <LinkIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+                    Blocking
                   </Typography>
 
                   {taskDependencies[dependencyTaskId || '']?.dependents?.length > 0 ? (

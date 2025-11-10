@@ -4,6 +4,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import FunctionDetailsModal from "@/components/FunctionDetailsModal";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import {
   Box,
   Button,
@@ -33,15 +35,12 @@ import {
   InputAdornment,
   Tooltip,
   Alert,
-  Menu,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import FunctionsIcon from "@mui/icons-material/Functions";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TuneIcon from "@mui/icons-material/Tune";
@@ -107,6 +106,7 @@ export default function ProjectFunctionsPage() {
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFunction, setEditingFunction] = useState<FunctionType | null>(null);
+  const [functionModal, setFunctionModal] = useState<{ open: boolean; functionId?: string | null }>({ open: false, functionId: null });
   
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -126,8 +126,6 @@ export default function ProjectFunctionsPage() {
   const [editValue, setEditValue] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedFunction, setSelectedFunction] = useState<FunctionType | null>(null);
   
   // Note: effort validation removed as fields don't exist in models
 
@@ -150,7 +148,7 @@ export default function ProjectFunctionsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [functionsRes, featuresRes, statsRes, allSettingsRes] = await Promise.all([
+      const [functionsRes, featuresRes, statsRes, ] = await Promise.all([
         axiosInstance.get(`/api/projects/${projectId}/functions`).catch(err => {
           console.error('Error fetching functions:', err?.response?.data || err);
           return { data: [] };
@@ -163,15 +161,14 @@ export default function ProjectFunctionsPage() {
           console.error('Error fetching stats:', err?.response?.data || err);
           return { data: { total: 0, completed: 0, in_progress: 0, pending: 0, overdue: 0, completion_rate: 0 } };
         }),
-        axiosInstance.get(`/api/settings`).catch(() => ({ data: [] })),
       ]);
       
       console.log('Functions response:', functionsRes?.data);
       console.log('Features response:', featuresRes?.data);
       
-      const allSettings = allSettingsRes.data || [];
-      const prioritySettings = allSettings.filter((s: any) => s.type_id === 1); // Priority type_id = 1
-      const statusSettings = allSettings.filter((s: any) => s.type_id === 2); // Status type_id = 2
+      // Use constants instead of API
+      const prioritySettings = PRIORITY_OPTIONS;
+      const statusSettings = STATUS_OPTIONS;
 
       const rawFunctions = functionsRes?.data;
       const normalizedFunctions = Array.isArray(rawFunctions)
@@ -274,25 +271,6 @@ export default function ProjectFunctionsPage() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
-    try {
-      await axiosInstance.patch(`/api/functions/${id}`, { status });
-      loadAllData();
-      handleMenuClose();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể cập nhật status");
-    }
-  };
-
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>, func: FunctionType) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedFunction(func);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setSelectedFunction(null);
-  };
 
   // Inline editing handlers
   const startEdit = (funcId: string, field: string, currentValue: any) => {
@@ -305,20 +283,23 @@ export default function ProjectFunctionsPage() {
     setEditValue(null);
   };
 
-  const saveInlineEdit = async (funcId: string, field: string) => {
+  const saveInlineEdit = async (funcId: string, field: string, value?: any) => {
     // Prevent double-save
     if (isSaving) return;
     
     try {
+      // Use provided value or fallback to editValue
+      const valueToSave = value !== undefined ? value : editValue;
+      
       // Don't save if value is empty or null (except for optional fields like description)
-      if (!editValue && field !== 'description') {
+      if (!valueToSave && field !== 'description') {
         cancelEdit();
         return;
       }
 
       setIsSaving(true);
       const updateData: any = {};
-      updateData[field] = editValue;
+      updateData[field] = valueToSave;
       
       await axiosInstance.patch(`/api/functions/${funcId}`, updateData);
       
@@ -959,6 +940,7 @@ export default function ProjectFunctionsPage() {
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', width: '60px' }}>STT</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tên Function</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Feature</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Priority</TableCell>
@@ -967,14 +949,12 @@ export default function ProjectFunctionsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredFunctions.map((func) => {
+                  {filteredFunctions.map((func, index) => {
                     // Note: Progress calculation removed - effort fields don't exist
                     const featureName = resolveFeatureTitle(func);
                     const priorityName = resolvePriorityName(func);
                     const statusName = resolveStatusName(func);
                     
-                    const isEditingTitle = editingCell?.funcId === func._id && editingCell?.field === 'title';
-                    const isEditingDescription = editingCell?.funcId === func._id && editingCell?.field === 'description';
                     const isEditingPriority = editingCell?.funcId === func._id && editingCell?.field === 'priority_id';
                     const isEditingStatus = editingCell?.funcId === func._id && editingCell?.field === 'status';
                     
@@ -982,66 +962,58 @@ export default function ProjectFunctionsPage() {
                       <TableRow 
                         key={func._id} 
                         hover
-                        sx={{ 
-                          '&:hover': {
-                            bgcolor: '#fafbfc',
-                          },
-                          transition: 'all 0.2s ease',
-                        }}
                       >
-                        {/* Title - Inline Editable */}
+                        {/* STT */}
                         <TableCell 
-                          onClick={() => !isEditingTitle && startEdit(func._id, 'title', func.title)}
+                          onClick={() => setFunctionModal({ open: true, functionId: func._id })}
                           sx={{ 
-                            cursor: isEditingTitle ? 'text' : 'pointer',
-                            '&:hover': !isEditingTitle ? { bgcolor: '#f9fafb' } : {},
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: '#f3f4f6',
+                            },
+                            transition: 'all 0.2s ease',
                           }}
                         >
-                          {isEditingTitle ? (
-                            <TextField
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => saveInlineEdit(func._id, 'title')}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveInlineEdit(func._id, 'title');
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              size="small"
-                              fullWidth
-                              autoFocus
-                              sx={{
-                                '& .MuiOutlinedInput-root': {
-                                  fontSize: '14px',
-                                  bgcolor: 'white',
-                                  '& fieldset': { borderColor: '#7b68ee' },
-                                }
-                              }}
-                            />
-                          ) : (
-                            <>
+                          <Box
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                              fontWeight: 700,
+                              fontSize: '14px',
+                              boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                transform: 'scale(1.1)',
+                                boxShadow: '0 4px 12px rgba(123, 104, 238, 0.5)',
+                              }
+                            }}
+                          >
+                            {index + 1}
+                          </Box>
+                        </TableCell>
+                        {/* Title */}
+                        <TableCell>
                           <Typography fontWeight="medium">{func.title}</Typography>
                           {func.description && (
-                                <Typography 
-                                  variant="caption" 
-                                  color="text.secondary" 
-                                  sx={{ 
-                                    display: 'block', 
-                                    maxWidth: 300, 
-                                    overflow: 'hidden', 
-                                    textOverflow: 'ellipsis', 
-                                    whiteSpace: 'nowrap',
-                                    cursor: 'pointer',
-                                    '&:hover': { color: '#7b68ee' }
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    startEdit(func._id, 'description', func.description);
-                                  }}
-                                >
+                            <Typography 
+                              variant="caption" 
+                              color="text.secondary" 
+                              sx={{ 
+                                display: 'block', 
+                                maxWidth: 300, 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
                               {func.description}
                             </Typography>
-                              )}
-                            </>
                           )}
                         </TableCell>
                         <TableCell>
@@ -1070,9 +1042,10 @@ export default function ProjectFunctionsPage() {
                             <Select
                               value={editValue || ""}
                               onChange={(e) => {
-                                setEditValue(e.target.value);
-                                // Auto-save on change
-                                setTimeout(() => saveInlineEdit(func._id, 'priority_id'), 100);
+                                const newValue = e.target.value;
+                                setEditValue(newValue);
+                                // Auto-save immediately with the new value
+                                saveInlineEdit(func._id, 'priority_id', newValue);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
@@ -1135,9 +1108,10 @@ export default function ProjectFunctionsPage() {
                             <Select
                               value={editValue || ""}
                               onChange={(e) => {
-                                setEditValue(e.target.value);
-                                // Auto-save on change
-                                setTimeout(() => saveInlineEdit(func._id, 'status'), 100);
+                                const newValue = e.target.value;
+                                setEditValue(newValue);
+                                // Auto-save immediately with the new value
+                                saveInlineEdit(func._id, 'status', newValue);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
@@ -1205,15 +1179,18 @@ export default function ProjectFunctionsPage() {
                                 <AssignmentIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMenuClick(e, func);
-                              }}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
+                            <Tooltip title="Xóa Function">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteFunction(func._id);
+                                }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -1221,7 +1198,7 @@ export default function ProjectFunctionsPage() {
                   })}
                   {filteredFunctions.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} align="center">
+                      <TableCell colSpan={6} align="center">
                         <Stack spacing={2} sx={{ py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
                             {functions.length === 0 ? (
@@ -1256,115 +1233,6 @@ export default function ProjectFunctionsPage() {
             </Box>
           </Paper>
 
-          {/* Action Menu - Modern Style */}
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleMenuClose}
-            slotProps={{
-              paper: {
-                sx: {
-                  borderRadius: 3,
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
-                  minWidth: 240,
-                  mt: 1,
-                  overflow: 'visible',
-                  '&:before': {
-                    content: '""',
-                    display: 'block',
-                    position: 'absolute',
-                    top: 0,
-                    right: 20,
-                    width: 10,
-                    height: 10,
-                    bgcolor: 'background.paper',
-                    transform: 'translateY(-50%) rotate(45deg)',
-                    zIndex: 0,
-                  },
-                }
-              }
-            }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          >
-            {/* Edit Action */}
-              <MenuItem 
-                onClick={() => {
-              if (selectedFunction) handleOpenDialog(selectedFunction);
-              }}
-              sx={{
-                py: 1.5,
-                px: 2,
-                gap: 1.5,
-                borderRadius: 2,
-                mx: 1,
-                my: 0.5,
-                '&:hover': {
-                  bgcolor: '#f3f4f6',
-                  '& .MuiSvgIcon-root': {
-                    transform: 'scale(1.1)',
-                  }
-                },
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <Box sx={{ 
-                width: 32, 
-                height: 32, 
-                borderRadius: 2,
-                bgcolor: '#e0e7ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s ease',
-              }}>
-                <EditIcon fontSize="small" sx={{ color: '#6366f1' }} />
-              </Box>
-              <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
-                Chỉnh sửa
-              </Typography>
-              </MenuItem>
-
-            <Divider sx={{ my: 1 }} />
-
-            {/* Delete Action */}
-            <MenuItem 
-              onClick={() => {
-                if (selectedFunction) handleDeleteFunction(selectedFunction._id);
-              }}
-              sx={{
-                py: 1.5,
-                px: 2,
-                gap: 1.5,
-                borderRadius: 2,
-                mx: 1,
-                my: 0.5,
-                '&:hover': {
-                  bgcolor: '#fee2e2',
-                  '& .MuiSvgIcon-root': {
-                    transform: 'scale(1.1) rotate(-5deg)',
-                  }
-                },
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <Box sx={{ 
-                width: 32, 
-                height: 32, 
-                borderRadius: 2,
-                bgcolor: '#fee2e2',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s ease',
-              }}>
-                <DeleteIcon fontSize="small" sx={{ color: '#ef4444' }} />
-              </Box>
-              <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, color: '#ef4444' }}>
-                Xóa
-              </Typography>
-            </MenuItem>
-          </Menu>
 
           {/* Function Dialog - Modern Style */}
           <Dialog 
@@ -1403,15 +1271,11 @@ export default function ProjectFunctionsPage() {
                   ? '0 4px 12px rgba(99, 102, 241, 0.3)' 
                   : '0 4px 12px rgba(16, 185, 129, 0.3)',
               }}>
-                {editingFunction ? (
-                  <EditIcon sx={{ color: 'white', fontSize: 22 }} />
-                ) : (
-                  <AddIcon sx={{ color: 'white', fontSize: 22 }} />
-                )}
+                <AddIcon sx={{ color: 'white', fontSize: 22 }} />
               </Box>
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-              {editingFunction ? "Chỉnh sửa Function" : "Tạo Function mới"}
+              Tạo Function mới
                 </Typography>
                 {editingFunction && (
                   <Typography variant="caption" sx={{ color: '#6b7280' }}>
@@ -1558,6 +1422,19 @@ export default function ProjectFunctionsPage() {
               </Button>
             </DialogActions>
           </Dialog>
+
+          {/* Function Details Modal */}
+          {functionModal.open && functionModal.functionId && (
+            <FunctionDetailsModal
+              open={functionModal.open}
+              functionId={functionModal.functionId}
+              projectId={projectId}
+              onClose={() => setFunctionModal({ open: false, functionId: null })}
+              onUpdate={async () => {
+                await loadAllData();
+              }}
+            />
+          )}
         </div>
       </main>
     </div>

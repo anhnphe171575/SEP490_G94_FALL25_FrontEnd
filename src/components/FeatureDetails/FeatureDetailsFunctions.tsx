@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -24,28 +24,23 @@ import {
   Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import LinkIcon from "@mui/icons-material/Link";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import axiosInstance from "../../../ultis/axios";
+import FunctionDetailsModal from "../FunctionDetailsModal";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 
 interface FeatureDetailsFunctionsProps {
-  featureId: string;
-  projectId: string;
-  functions: any[];
-  statusTypes: any[];
-  priorityTypes: any[];
-  onRefresh: () => void;
-  onNavigate: (path: string) => void;
+  featureId: string | null;
+  projectId?: string;
 }
 
 export default function FeatureDetailsFunctions({
   featureId,
   projectId,
-  functions,
-  statusTypes,
-  priorityTypes,
-  onRefresh,
-  onNavigate
 }: FeatureDetailsFunctionsProps) {
+  const [functions, setFunctions] = useState<any[]>([]);
+  const [statusTypes, setStatusTypes] = useState<any[]>([]);
+  const [priorityTypes, setPriorityTypes] = useState<any[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -54,6 +49,30 @@ export default function FeatureDetailsFunctions({
     status: "",
   });
   const [loading, setLoading] = useState(false);
+  const [functionModal, setFunctionModal] = useState<{ open: boolean; functionId?: string | null }>({ 
+    open: false, 
+    functionId: null 
+  });
+
+  // Load functions and settings
+  useEffect(() => {
+    if (featureId && projectId) {
+      loadFunctions();
+      // Load constants instead of API call
+      setStatusTypes(STATUS_OPTIONS);
+      setPriorityTypes(PRIORITY_OPTIONS);
+    }
+  }, [featureId, projectId]);
+
+  const loadFunctions = async () => {
+    if (!featureId || !projectId) return;
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
+      setFunctions(response.data || []);
+    } catch (error) {
+      console.error('Error loading functions:', error);
+    }
+  };
 
   const handleCreate = async () => {
     if (!form.title || !form.status) return;
@@ -66,7 +85,7 @@ export default function FeatureDetailsFunctions({
       });
       setOpenDialog(false);
       setForm({ title: "", description: "", priority_id: "", status: "" });
-      onRefresh();
+      loadFunctions();
     } catch (error: any) {
       console.error("Error creating function:", error);
       alert(error?.response?.data?.message || "Cannot create function");
@@ -161,6 +180,7 @@ export default function FeatureDetailsFunctions({
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '60px' }}>STT</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Function</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Priority</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Status</TableCell>
@@ -168,26 +188,33 @@ export default function FeatureDetailsFunctions({
             </TableRow>
           </TableHead>
           <TableBody>
-            {functions.map((func) => (
-              <TableRow key={func._id} hover>
+            {functions.map((func, index) => (
+              <TableRow 
+                key={func._id} 
+                hover
+                onClick={() => setFunctionModal({ open: true, functionId: func._id })}
+                sx={{ cursor: 'pointer' }}
+              >
                 <TableCell>
-                  <MuiLink
-                    component="button"
-                    variant="body2"
-                    onClick={() => onNavigate(`/projects/${projectId}/functions?featureId=${featureId}`)}
+                  <Typography 
                     sx={{ 
-                      textDecoration: 'none',
+                      fontSize: '13px', 
+                      fontWeight: 600, 
                       color: '#7b68ee',
-                      fontWeight: 600,
-                      '&:hover': { textDecoration: 'underline' },
-                      border: 'none',
-                      background: 'none',
                       cursor: 'pointer',
-                      fontSize: '14px'
+                      '&:hover': { 
+                        textDecoration: 'underline',
+                        color: '#6b5bd6'
+                      }
                     }}
                   >
+                    {index + 1}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" fontWeight={600} fontSize="14px" color="#1f2937">
                     {func.title}
-                  </MuiLink>
+                  </Typography>
                   {func.description && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                       {func.description}
@@ -229,8 +256,11 @@ export default function FeatureDetailsFunctions({
                 <TableCell>
                   <Button
                     size="small"
-                    startIcon={<LinkIcon />}
-                    onClick={() => onNavigate(`/projects/${projectId}/functions?featureId=${featureId}`)}
+                    startIcon={<VisibilityIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFunctionModal({ open: true, functionId: func._id });
+                    }}
                     sx={{
                       textTransform: 'none',
                       fontSize: '13px',
@@ -238,7 +268,7 @@ export default function FeatureDetailsFunctions({
                       '&:hover': { bgcolor: '#f3f4f6' }
                     }}
                   >
-                    View
+                    View Details
                   </Button>
                 </TableCell>
               </TableRow>
@@ -312,6 +342,19 @@ export default function FeatureDetailsFunctions({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Function Details Modal */}
+      {functionModal.open && functionModal.functionId && projectId && (
+        <FunctionDetailsModal
+          open={functionModal.open}
+          functionId={functionModal.functionId}
+          projectId={projectId}
+          onClose={() => setFunctionModal({ open: false, functionId: null })}
+          onUpdate={() => {
+            loadFunctions();
+          }}
+        />
+      )}
     </Box>
   );
 }

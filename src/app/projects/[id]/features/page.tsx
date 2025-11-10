@@ -7,8 +7,10 @@ import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import GanttChart from "@/components/GanttChart";
 import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ModalMilestone from "@/components/ModalMilestone";
+import FeatureDetailsModal from "@/components/FeatureDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import StarIcon from "@mui/icons-material/Star";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import {
   Box,
   Button,
@@ -83,7 +85,7 @@ type Feature = {
   created_by?: User | string;
   last_updated_by?: User | string;
   start_date?: string;
-  due_date?: string;
+  end_date?: string;
   tags?: string[];
   createdAt?: string;
   updatedAt?: string;
@@ -120,7 +122,7 @@ export default function ProjectFeaturesPage() {
     description: "", 
     milestone_ids: [],
     start_date: "",
-    due_date: "",
+    end_date: "",
     tags: []
   });
 
@@ -130,6 +132,7 @@ export default function ProjectFeaturesPage() {
   const [autoFit, setAutoFit] = useState<boolean>(true);
   const [detailMode, setDetailMode] = useState<boolean>(false);
   const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
+  const [featureModal, setFeatureModal] = useState<{ open: boolean; featureId?: string | null }>({ open: false, featureId: null });
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -137,8 +140,8 @@ export default function ProjectFeaturesPage() {
     title?: string;
     description?: string;
     start_date?: string;
-    due_date?: string;
-  }>({ title: "", description: "", start_date: "", due_date: "" });
+    end_date?: string;
+  }>({ title: "", description: "", start_date: "", end_date: "" });
 
   // Feature selection for milestone creation
   const [selectedFeatureIds, setSelectedFeatureIds] = useState<string[]>([]);
@@ -176,13 +179,11 @@ export default function ProjectFeaturesPage() {
     (async () => {
       try {
         setLoading(true);
-        const [projectRes, teamRes, milestoneRes, featureRes, priorityRes, statusRes] = await Promise.all([
+        const [projectRes, teamRes, milestoneRes, featureRes] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/team-members`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: null })),
-          axiosInstance.get(`/api/settings/by-type/1`).catch(() => ({ data: [] })), // Priority
-          axiosInstance.get(`/api/settings/by-type/2`).catch(() => ({ data: [] })), // Status
         ]);
         
         // Set project data
@@ -198,15 +199,9 @@ export default function ProjectFeaturesPage() {
         const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
         setMilestones(milestonesList);
 
-        // Set settings
-        setPriorities(Array.isArray(priorityRes.data) ? priorityRes.data : []);
-        setStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
-        
-        // Debug logging
-        console.log('Settings loaded:', {
-          priorities: priorityRes.data,
-          statuses: statusRes.data
-        });
+        // Set settings from constants
+        setPriorities(PRIORITY_OPTIONS);
+        setStatuses(STATUS_OPTIONS);
 
         if (Array.isArray(featureRes.data)) {
           // Enrich features with linked milestone ids
@@ -320,7 +315,7 @@ export default function ProjectFeaturesPage() {
       description: "", 
       milestone_ids: [],
       start_date: "",
-      due_date: "",
+      end_date: "",
       tags: []
     });
     setOpenForm(true);
@@ -335,7 +330,7 @@ export default function ProjectFeaturesPage() {
         priority_id: form.priority_id,
         status_id: form.status_id,
         start_date: form.start_date,
-        due_date: form.due_date,
+        end_date: form.end_date,
         tags: form.tags || [],
         milestone_ids: form.milestone_ids || [],
       };
@@ -363,7 +358,7 @@ export default function ProjectFeaturesPage() {
         description: "", 
         milestone_ids: [],
         start_date: "",
-        due_date: "",
+        end_date: "",
         tags: []
       });
     } catch (e: any) {
@@ -378,13 +373,13 @@ export default function ProjectFeaturesPage() {
       title: f.title,
       description: f.description,
       start_date: f.start_date,
-      due_date: f.due_date
+      end_date: f.end_date
     });
   };
   const cancelEditRow = () => {
     setEditingId(null);
     setEditingField(null);
-    setEditDraft({ title: "", description: "", start_date: "", due_date: "" });
+    setEditDraft({ title: "", description: "", start_date: "", end_date: "" });
   };
   const saveEditRow = async (id: string) => {
     try {
@@ -392,7 +387,7 @@ export default function ProjectFeaturesPage() {
         title: editDraft.title,
         description: editDraft.description,
         start_date: editDraft.start_date,
-        due_date: editDraft.due_date
+        end_date: editDraft.end_date
       };
       const payload: any = editingField ? { [editingField]: all[editingField] } : all;
       await axiosInstance.patch(`/api/features/${id}`, payload).catch(() => null);
@@ -894,15 +889,15 @@ export default function ProjectFeaturesPage() {
                         return latest;
                       })();
                       const dueDateText = due ? new Date(due).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
-                      const statusName = typeof f.status_id === 'object' ? f.status_id?.name : '';
-                      const priorityName = typeof f.priority_id === 'object' ? f.priority_id?.name : '';
+                      const statusName = typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?.name : '');
+                      const priorityName = typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?.name : '');
                       const statusChip = (
                         <Chip
                           size="small"
                           label={statusName || '-'}
                           sx={{
                             color: '#fff',
-                            bgcolor: statusName === 'completed' ? '#22c55e' : statusName === 'in-progress' ? '#f59e0b' : '#3b82f6',
+                            bgcolor: statusName === 'Completed' ? '#22c55e' : statusName === 'In Progress' ? '#f59e0b' : '#3b82f6',
                             fontWeight: 600,
                           }}
                         />
@@ -924,7 +919,7 @@ export default function ProjectFeaturesPage() {
                               '&:hover': { textDecoration: 'underline' }
                             }}
                             onClick={() => {
-                              router.push(`/projects/${projectId}/features/${f._id}`);
+                              setFeatureModal({ open: true, featureId: f._id });
                             }}
                           >
                             {idx + 1}
@@ -947,13 +942,13 @@ export default function ProjectFeaturesPage() {
                             {editingId === f._id && editingField === 'status_id' ? (
                               <Select
                                 size="small"
-                                value={typeof f.status_id === 'object' ? f.status_id?._id : (f.status_id || '')}
+                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
                                 onChange={async (e) => {
                                   const newStatusId = e.target.value;
                                   try {
                                     await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
                                     setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, status_id: statuses.find(s => s._id === newStatusId) } : x
+                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
                                     ));
                                     cancelEditRow();
                                   } catch (err) {
@@ -979,13 +974,13 @@ export default function ProjectFeaturesPage() {
                             {editingId === f._id && editingField === 'priority_id' ? (
                               <Select
                                 size="small"
-                                value={typeof f.priority_id === 'object' ? f.priority_id?._id : (f.priority_id || '')}
+                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
                                 onChange={async (e) => {
                                   const newPriorityId = e.target.value;
                                   try {
                                     await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
                                     setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, priority_id: priorities.find(p => p._id === newPriorityId) } : x
+                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
                                     ));
                                     cancelEditRow();
                                   } catch (err) {
@@ -1007,9 +1002,9 @@ export default function ProjectFeaturesPage() {
                                 label={priorityName || '-'}
                                 size="small"
                                 color={
-                                  priorityName === 'critical' ? 'error' :
-                                  priorityName === 'high' ? 'warning' :
-                                  priorityName === 'medium' ? 'primary' : 'default'
+                                  priorityName === 'Critical' ? 'error' :
+                                  priorityName === 'High' ? 'warning' :
+                                  priorityName === 'Medium' ? 'primary' : 'default'
                                 }
                                 variant="outlined"
                               />
@@ -1086,7 +1081,7 @@ export default function ProjectFeaturesPage() {
                                 {f.start_date ? new Date(f.start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {f.due_date ? new Date(f.due_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              {f.end_date ? new Date(f.end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                               </Typography>
                             </Stack>
                           </TableCell>
@@ -1128,28 +1123,6 @@ export default function ProjectFeaturesPage() {
                                   }}
                                 >
                                   <AssignmentIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Tự động tính effort từ Functions">
-                                <IconButton
-                                  size="small"
-                                  color="secondary"
-                                onClick={async () => {
-                                  try {
-                                    // Call API to calculate effort from functions
-                                    const res = await axiosInstance.post(`/api/features/${f._id}/calculate-effort`);
-                                    // Update local state
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id 
-                                        ? { ...x, estimated_hours: res.data.estimated_hours, actual_effort: res.data.actual_effort }
-                                        : x
-                                    ));
-                                  } catch (err) {
-                                    console.error('Error calculating effort:', err);
-                                  }
-                                }}
-                              >
-                                  <span style={{ fontSize: '14px' }}>🔄</span>
                               </IconButton>
                             </Tooltip>
                             </Stack>
@@ -1266,10 +1239,10 @@ export default function ProjectFeaturesPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                   <TextField
-                    label="Due Date"
+                    label="End Date"
                     type="date"
-                    value={form.due_date || ''}
-                    onChange={(e) => setForm(prev => ({ ...prev, due_date: e.target.value }))}
+                    value={form.end_date || ''}
+                    onChange={(e) => setForm(prev => ({ ...prev, end_date: e.target.value }))}
                     fullWidth
                     InputLabelProps={{ shrink: true }}
                   />
@@ -1375,13 +1348,13 @@ export default function ProjectFeaturesPage() {
                       Status
                     </Typography>
                     <Chip
-                      label={typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-'}
+                      label={typeof selectedFeatureDetail.status_id === 'string' ? selectedFeatureDetail.status_id : (typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-')}
                       size="medium"
                       sx={{
                         color: '#fff',
-                        bgcolor: (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'completed') ? '#22c55e' : 
-                                 (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'in-progress') ? '#f59e0b' : 
-                                 (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'testing') ? '#8b5cf6' : '#3b82f6',
+                        bgcolor: selectedFeatureDetail.status_id === 'Completed' ? '#22c55e' : 
+                                 selectedFeatureDetail.status_id === 'In Progress' ? '#f59e0b' : 
+                                 selectedFeatureDetail.status_id === 'Testing' ? '#8b5cf6' : '#3b82f6',
                         fontWeight: 600,
                       }}
                     />
@@ -1391,12 +1364,12 @@ export default function ProjectFeaturesPage() {
                       Priority
                     </Typography>
                     <Chip
-                      label={typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-'}
+                      label={typeof selectedFeatureDetail.priority_id === 'string' ? selectedFeatureDetail.priority_id : (typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-')}
                       size="medium"
                       color={
-                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'critical') ? 'error' :
-                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'high') ? 'warning' :
-                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'medium') ? 'primary' : 'default'
+                        selectedFeatureDetail.priority_id === 'Critical' ? 'error' :
+                        selectedFeatureDetail.priority_id === 'High' ? 'warning' :
+                        selectedFeatureDetail.priority_id === 'Medium' ? 'primary' : 'default'
                       }
                       variant="outlined"
                     />
@@ -1415,10 +1388,10 @@ export default function ProjectFeaturesPage() {
                   </Box>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Due Date
+                      End Date
                     </Typography>
                     <Typography variant="body1">
-                      {selectedFeatureDetail.due_date ? new Date(selectedFeatureDetail.due_date).toLocaleDateString('vi-VN') : '—'}
+                      {selectedFeatureDetail.end_date ? new Date(selectedFeatureDetail.end_date).toLocaleDateString('vi-VN') : '—'}
                     </Typography>
                   </Box>
                 </Stack>
@@ -1483,18 +1456,50 @@ export default function ProjectFeaturesPage() {
                 Đóng
               </Button>
               {selectedFeatureDetail && (
-                <Button 
-                  variant="contained"
+              <Button
+                variant="contained"
                   onClick={() => {
                     setOpenFeatureDetail(false);
-                    router.push(`/projects/${projectId}/features/${selectedFeatureDetail._id}`);
+                    setFeatureModal({ open: true, featureId: selectedFeatureDetail._id });
                   }}
                 >
                   Xem Chi Tiết
-                </Button>
+              </Button>
               )}
             </DialogActions>
           </Dialog>
+
+          {/* Feature Details Modal */}
+          {featureModal.open && featureModal.featureId && (
+            <FeatureDetailsModal
+              open={featureModal.open}
+              featureId={featureModal.featureId}
+              projectId={projectId}
+              onClose={() => setFeatureModal({ open: false, featureId: null })}
+              onUpdate={async () => {
+                // Reload features
+                try {
+                  const featureRes = await axiosInstance.get(`/api/projects/${projectId}/features`);
+                  if (Array.isArray(featureRes.data)) {
+                    const enriched: Feature[] = await Promise.all(
+                      featureRes.data.map(async (f: any) => {
+                        try {
+                          const linkRes = await axiosInstance.get(`/api/features/${f._id}/milestones`);
+                          const uniqueMilestoneIds = Array.isArray(linkRes.data) ? [...new Set(linkRes.data)] : [];
+                          return { ...f, milestone_ids: uniqueMilestoneIds } as Feature;
+                        } catch {
+                          return { ...f, milestone_ids: [] } as Feature;
+                        }
+                      })
+                    );
+                    setFeatures(enriched);
+                  }
+                } catch (error) {
+                  console.error('Error reloading features:', error);
+                }
+              }}
+            />
+          )}
         </div>
       </main>
     </div>

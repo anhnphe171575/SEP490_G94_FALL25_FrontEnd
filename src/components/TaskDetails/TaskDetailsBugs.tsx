@@ -56,6 +56,17 @@ interface Bug {
   deadline?: string;
   createAt?: string;
   updateAt?: string;
+  task_id?: {
+    _id: string;
+    title: string;
+    status?: string;
+  };
+  relationship_type?: 'blocks' | 'relates_to' | 'affects';
+  affected_tasks?: Array<{
+    _id: string;
+    title: string;
+    status?: string;
+  }>;
 }
 
 interface TaskDetailsBugsProps {
@@ -94,6 +105,8 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
     solution: '',
     deadline: '',
     assignee_id: '',
+    relationship_type: 'relates_to' as const,
+    affected_tasks: [] as string[],
   });
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
@@ -108,9 +121,11 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/api/defects`, {
-        params: { project_id: projectId }
+        params: { 
+          project_id: projectId,
+          task_id: taskId // Filter bugs related to this task
+        }
       });
-      // Filter bugs related to this task (you may need to add task_id field to defect model)
       setBugs(response.data.defects || []);
     } catch (error) {
       console.error('Error fetching bugs:', error);
@@ -140,6 +155,8 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
         solution: bug.solution || '',
         deadline: bug.deadline ? bug.deadline.split('T')[0] : '',
         assignee_id: bug.assignee_id?._id || '',
+        relationship_type: bug.relationship_type || 'relates_to',
+        affected_tasks: bug.affected_tasks?.map(t => t._id) || [],
       });
     } else {
       setEditingBug(null);
@@ -152,6 +169,8 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
         solution: '',
         deadline: '',
         assignee_id: '',
+        relationship_type: 'relates_to',
+        affected_tasks: [],
       });
     }
     setOpenDialog(true);
@@ -168,13 +187,67 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
       setSubmitting(true);
       setError('');
 
+      // Frontend Validation
+      if (!formData.title.trim()) {
+        setError('Title is required');
+        setSubmitting(false);
+        return;
+      }
+
+      if (formData.title.trim().length < 5) {
+        setError('Title must be at least 5 characters');
+        setSubmitting(false);
+        return;
+      }
+
+      if (formData.title.length > 200) {
+        setError('Title must not exceed 200 characters');
+        setSubmitting(false);
+        return;
+      }
+
+      if (formData.description && formData.description.length > 2000) {
+        setError('Description must not exceed 2000 characters');
+        setSubmitting(false);
+        return;
+      }
+
+      if (formData.solution && formData.solution.length > 2000) {
+        setError('Solution must not exceed 2000 characters');
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate deadline is not in the past
+      if (formData.deadline) {
+        const deadlineDate = new Date(formData.deadline);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (deadlineDate < today) {
+          setError('Deadline cannot be in the past');
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Validate that if relationship_type is 'affects', there should be affected_tasks
+      if (formData.relationship_type === 'affects' && formData.affected_tasks.length === 0) {
+        setError('When relationship type is "Affects", you must specify at least one affected task');
+        setSubmitting(false);
+        return;
+      }
+
       // Clean up form data - remove empty strings
       const submitData = {
         ...formData,
+        title: formData.title.trim(),
         assignee_id: formData.assignee_id || undefined,
         solution: formData.solution || undefined,
         deadline: formData.deadline || undefined,
         description: formData.description || undefined,
+        task_id: taskId, // Link bug to current task
+        relationship_type: formData.relationship_type,
+        affected_tasks: formData.affected_tasks.length > 0 ? formData.affected_tasks : undefined,
       };
 
       if (editingBug) {
@@ -392,6 +465,19 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
                     variant="outlined"
                     sx={{ fontSize: '11px', height: 22 }}
                   />
+                  {bug.relationship_type && (
+                    <Chip
+                      label={bug.relationship_type === 'blocks' ? '🚫 Blocks' : bug.relationship_type === 'affects' ? '⚠️ Affects' : '🔗 Related'}
+                      size="small"
+                      sx={{
+                        bgcolor: bug.relationship_type === 'blocks' ? '#fee2e2' : bug.relationship_type === 'affects' ? '#fef3c7' : '#e0e7ff',
+                        color: bug.relationship_type === 'blocks' ? '#991b1b' : bug.relationship_type === 'affects' ? '#92400e' : '#3730a3',
+                        fontWeight: 600,
+                        fontSize: '11px',
+                        height: 22,
+                      }}
+                    />
+                  )}
                 </Stack>
 
                 {/* Footer */}
@@ -487,6 +573,13 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              error={formData.title.trim().length > 0 && formData.title.trim().length < 5}
+              helperText={
+                formData.title.trim().length > 0 && formData.title.trim().length < 5
+                  ? 'Title must be at least 5 characters'
+                  : `${formData.title.length}/200 characters`
+              }
+              inputProps={{ maxLength: 200 }}
             />
             <TextField
               label="Description"
@@ -495,8 +588,14 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
               rows={3}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              helperText="Provide detailed information about the bug"
+              error={formData.description.length > 2000}
+              helperText={
+                formData.description.length > 2000
+                  ? 'Description exceeds 2000 characters'
+                  : `${formData.description.length}/2000 characters - Describe what went wrong, steps to reproduce, expected vs actual behavior`
+              }
               placeholder="Describe what went wrong, steps to reproduce, expected vs actual behavior..."
+              inputProps={{ maxLength: 2000 }}
             />
             <Stack direction="row" spacing={2}>
               <FormControl fullWidth>
@@ -575,7 +674,13 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
                 rows={2}
                 value={formData.solution}
                 onChange={(e) => setFormData({ ...formData, solution: e.target.value })}
-                helperText="Describe how this bug was resolved"
+                error={formData.solution.length > 2000}
+                helperText={
+                  formData.solution.length > 2000
+                    ? 'Solution exceeds 2000 characters'
+                    : `${formData.solution.length}/2000 characters - Describe how this bug was resolved`
+                }
+                inputProps={{ maxLength: 2000 }}
               />
             )}
             <TextField
@@ -585,8 +690,44 @@ export default function TaskDetailsBugs({ taskId, projectId }: TaskDetailsBugsPr
               InputLabelProps={{ shrink: true }}
               value={formData.deadline}
               onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-              helperText="Set a deadline for resolving this bug"
+              inputProps={{ 
+                min: new Date().toISOString().split('T')[0] 
+              }}
+              helperText="Set a deadline for resolving this bug (cannot be in the past)"
             />
+            
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              Relationship with Task/Subtask
+            </Typography>
+            
+            <FormControl fullWidth>
+              <InputLabel>Relationship Type</InputLabel>
+              <Select
+                value={formData.relationship_type}
+                label="Relationship Type"
+                onChange={(e) => setFormData({ ...formData, relationship_type: e.target.value as any })}
+              >
+                <MenuItem value="relates_to">
+                  <Stack>
+                    <Typography fontSize="14px" fontWeight={600}>Relates To</Typography>
+                    <Typography fontSize="12px" color="text.secondary">Bug is related to this task</Typography>
+                  </Stack>
+                </MenuItem>
+                <MenuItem value="blocks">
+                  <Stack>
+                    <Typography fontSize="14px" fontWeight={600}>Blocks</Typography>
+                    <Typography fontSize="12px" color="text.secondary">Bug blocks task completion (must fix first)</Typography>
+                  </Stack>
+                </MenuItem>
+                <MenuItem value="affects">
+                  <Stack>
+                    <Typography fontSize="14px" fontWeight={600}>Affects</Typography>
+                    <Typography fontSize="12px" color="text.secondary">Bug affects multiple tasks/subtasks</Typography>
+                  </Stack>
+                </MenuItem>
+              </Select>
+            </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions>

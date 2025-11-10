@@ -14,9 +14,10 @@ import EditIcon from "@mui/icons-material/Edit";
 interface FeatureDetailsOverviewProps {
   feature: any;
   onUpdate: (updates: any) => Promise<void>;
+  projectId?: string;
 }
 
-export default function FeatureDetailsOverview({ feature, onUpdate }: FeatureDetailsOverviewProps) {
+export default function FeatureDetailsOverview({ feature, onUpdate, projectId }: FeatureDetailsOverviewProps) {
   const [editing, setEditing] = useState(false);
   const [description, setDescription] = useState(feature?.description || '');
 
@@ -150,81 +151,8 @@ export default function FeatureDetailsOverview({ feature, onUpdate }: FeatureDet
         )}
       </Box>
 
-      {/* Statistics */}
-      <Box sx={{ mb: 4 }}>
-        <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase" sx={{ mb: 2 }}>
-          Statistics
-        </Typography>
-        
-        <Box sx={{ 
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2
-        }}>
-          <Box sx={{ 
-            p: 2,
-            bgcolor: '#fafbfc',
-            borderRadius: 2,
-            border: '1px solid #e8e9eb',
-          }}>
-            <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-              Functions
-            </Typography>
-            <Typography fontSize="20px" fontWeight={700} color="text.primary">
-              {feature?.functions_count || 0}
-            </Typography>
-          </Box>
-
-          <Box sx={{ 
-            p: 2,
-            bgcolor: '#fafbfc',
-            borderRadius: 2,
-            border: '1px solid #e8e9eb',
-          }}>
-            <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-              Comments
-            </Typography>
-            <Typography fontSize="20px" fontWeight={700} color="text.primary">
-              {feature?.comments_count || 0}
-            </Typography>
-          </Box>
-
-          <Box sx={{ 
-            p: 2,
-            bgcolor: '#fafbfc',
-            borderRadius: 2,
-            border: '1px solid #e8e9eb',
-          }}>
-            <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-              Activities
-            </Typography>
-            <Typography fontSize="20px" fontWeight={700} color="text.primary">
-              {feature?.activities_count || 0}
-            </Typography>
-          </Box>
-
-          <Box sx={{ 
-            p: 2,
-            bgcolor: '#fafbfc',
-            borderRadius: 2,
-            border: '1px solid #e8e9eb',
-          }}>
-            <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-              Created
-            </Typography>
-            <Typography fontSize="14px" fontWeight={600} color="text.primary">
-              {feature?.createdAt ? new Date(feature.createdAt).toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                year: 'numeric' 
-              }) : '—'}
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-
       {/* Dates */}
-      {(feature?.start_date || feature?.due_date) && (
+      {(feature?.start_date || feature?.end_date) && (
         <Box>
           <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase" sx={{ mb: 2 }}>
             Dates
@@ -255,22 +183,22 @@ export default function FeatureDetailsOverview({ feature, onUpdate }: FeatureDet
               </Box>
             )}
 
-            {feature?.due_date && (
+            {feature?.end_date && (
               <Box sx={{ 
                 p: 2,
-                bgcolor: feature?.due_date && new Date(feature.due_date) < new Date() ? '#fef3c7' : '#fafbfc',
+                bgcolor: feature?.end_date && new Date(feature.end_date) < new Date() ? '#fef3c7' : '#fafbfc',
                 borderRadius: 2,
-                border: `1px solid ${feature?.due_date && new Date(feature.due_date) < new Date() ? '#fbbf24' : '#e8e9eb'}`,
+                border: `1px solid ${feature?.end_date && new Date(feature.end_date) < new Date() ? '#fbbf24' : '#e8e9eb'}`,
               }}>
                 <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                  Due Date
+                  End Date
                 </Typography>
                 <Typography 
                   fontSize="14px" 
                   fontWeight={600} 
-                  color={feature?.due_date && new Date(feature.due_date) < new Date() ? '#92400e' : 'text.primary'}
+                  color={feature?.end_date && new Date(feature.end_date) < new Date() ? '#92400e' : 'text.primary'}
                 >
-                  {new Date(feature.due_date).toLocaleDateString('en-US', { 
+                  {new Date(feature.end_date).toLocaleDateString('en-US', { 
                     month: 'short', 
                     day: 'numeric', 
                     year: 'numeric' 
