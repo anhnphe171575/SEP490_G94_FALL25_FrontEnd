@@ -75,6 +75,7 @@ export default function UserManagement() {
       setDeleteLoading(id);
       const response = await axiosInstance.delete(`/api/user/delete/${id}`);
 
+
       if (response.data.success) {
         setUsers(users.filter(user => user._id !== id));
         alert("Xóa người dùng thành công!");
