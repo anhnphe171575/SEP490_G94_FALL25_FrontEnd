@@ -44,8 +44,20 @@ type Dependency = {
   dependency_type: "FS" | "FF" | "SS" | "SF";
 };
 
+type FunctionItem = {
+  _id: string;
+  title: string;
+  start_date?: string;
+  deadline?: string;
+  status: string;
+  feature_id?: any;
+  priority_id?: string;
+  description?: string;
+};
+
 type DashboardData = {
   tasks: Task[];
+  functions: FunctionItem[];
   dependencies: Record<string, { dependencies: Dependency[]; dependents: Dependency[] }>;
   statistics: {
     total: number;
@@ -89,16 +101,25 @@ type MilestoneSummaryData = {
   milestones: MilestoneSummary[];
 };
 
+type Feature = {
+  _id: string;
+  title: string;
+  status?: string;
+};
+
 export default function TaskDashboardPage() {
   const searchParams = useSearchParams();
   const selectedProject = searchParams.get('project_id') || undefined;
   
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [milestoneSummary, setMilestoneSummary] = useState<MilestoneSummaryData | null>(null);
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [selectedFeature, setSelectedFeature] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [dependenciesMap, setDependenciesMap] = useState<Record<string, { dependencies: Dependency[]; dependents: Dependency[] }>>({});
 
   const openComments = (taskId: string) => {
     setActiveTaskId(taskId);
@@ -115,14 +136,31 @@ export default function TaskDashboardPage() {
         const params = new URLSearchParams();
         if (selectedProject) params.append('project_id', selectedProject);
         
-        // Fetch dashboard data and milestone summary in parallel
-        const [dashboardResponse, milestoneResponse] = await Promise.all([
+        // Fetch dashboard data, milestone summary, dependencies, and features in parallel
+        const promises = [
           axiosInstance.get(`/api/tasks/dashboard?${params.toString()}`),
-          axiosInstance.get(`/api/milestones/summary?${params.toString()}`)
-        ]);
+          axiosInstance.get(`/api/milestones/summary?${params.toString()}`),
+          axiosInstance.get(`/api/tasks/dependencies/gantt?${params.toString()}`)
+        ];
         
-        setDashboardData(dashboardResponse.data);
-        setMilestoneSummary(milestoneResponse.data);
+        // Fetch features if project is selected
+        if (selectedProject) {
+          promises.push(axiosInstance.get(`/api/projects/${selectedProject}/features`));
+        }
+        
+        const responses = await Promise.all(promises);
+        
+        setDashboardData(responses[0].data);
+        setMilestoneSummary(responses[1].data);
+        // Set dependencies from the new API (responses[2] is always dependencies API)
+        setDependenciesMap(responses[2]?.data?.dependencies || {});
+        
+        // Features response is at index 3 if project is selected
+        if (selectedProject && responses.length > 3 && responses[3]) {
+          setFeatures(responses[3].data);
+        } else {
+          setFeatures([]);
+        }
       } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
         setError(err?.response?.data?.message || 'Không thể tải dữ liệu');
@@ -135,7 +173,75 @@ export default function TaskDashboardPage() {
   }, [selectedProject]);
 
   const tasks = dashboardData?.tasks || [];
-  const dependenciesMap = dashboardData?.dependencies || {};
+  const allFunctions = dashboardData?.functions || [];
+  // dependenciesMap is now from the separate API call
+
+  // Filter functions by selected feature
+  const filteredFunctions = useMemo(() => {
+    if (selectedFeature === 'all') {
+      return allFunctions;
+    }
+    
+    return allFunctions.filter(func => {
+      const funcFeatureId = typeof func.feature_id === 'object' 
+        ? func.feature_id?._id 
+        : func.feature_id;
+      return funcFeatureId === selectedFeature;
+    });
+  }, [allFunctions, selectedFeature]);
+
+  // Filter tasks to only show those belonging to filtered functions
+  const filteredTasks = useMemo(() => {
+    if (selectedFeature === 'all') {
+      return tasks;
+    }
+    
+    const functionIds = filteredFunctions.map(f => f._id);
+    return tasks.filter(task => {
+      const taskFunctionId = typeof task.function_id === 'object' 
+        ? task.function_id?._id 
+        : task.function_id;
+      return functionIds.includes(taskFunctionId);
+    });
+  }, [tasks, filteredFunctions, selectedFeature]);
+
+  // Filter dependencies to only include those between filtered tasks/functions
+  const filteredDependencies = useMemo(() => {
+    if (selectedFeature === 'all') {
+      return dependenciesMap;
+    }
+    
+    // Get all IDs of filtered items (functions + tasks)
+    const filteredIds = new Set([
+      ...filteredFunctions.map(f => f._id),
+      ...filteredTasks.map(t => t._id)
+    ]);
+    
+    // Filter dependencies map to only include dependencies between filtered items
+    const filtered: typeof dependenciesMap = {};
+    
+    Object.entries(dependenciesMap).forEach(([taskId, deps]) => {
+      // Only include if the task/function is in filtered set
+      if (!filteredIds.has(taskId)) return;
+      
+      filtered[taskId] = {
+        dependencies: deps.dependencies.filter(dep => {
+          const targetId = typeof dep.depends_on_task_id === 'object' && dep.depends_on_task_id !== null
+            ? (dep.depends_on_task_id as any)?._id 
+            : dep.depends_on_task_id;
+          return targetId && filteredIds.has(targetId);
+        }),
+        dependents: deps.dependents.filter(dep => {
+          const sourceId = typeof dep.task_id === 'object' && dep.task_id !== null
+            ? (dep.task_id as any)?._id 
+            : dep.task_id;
+          return sourceId && filteredIds.has(sourceId);
+        })
+      };
+    });
+    
+    return filtered;
+  }, [dependenciesMap, filteredFunctions, filteredTasks, selectedFeature]);
 
   // Status overview from API
   const statusCounts = dashboardData?.statistics?.status || {};
@@ -231,8 +337,39 @@ export default function TaskDashboardPage() {
           </div>
         </div>
 
-        {/* Quick Navigation */}
-        <div className="flex justify-end">
+        {/* Quick Navigation and Feature Filter */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Feature Filter */}
+          {features.length > 0 && (
+            <div className="flex items-center gap-3">
+              <label htmlFor="feature-filter" className="text-sm font-medium text-gray-700">
+                Lọc theo Feature:
+              </label>
+              <select
+                id="feature-filter"
+                value={selectedFeature}
+                onChange={(e) => setSelectedFeature(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white text-sm font-medium text-gray-700 hover:border-gray-400 transition-colors"
+              >
+                <option value="all">Tất cả Features ({allFunctions.length} functions)</option>
+                {features.map((feature) => {
+                  const featureFunctionCount = allFunctions.filter(func => {
+                    const funcFeatureId = typeof func.feature_id === 'object' 
+                      ? func.feature_id?._id 
+                      : func.feature_id;
+                    return funcFeatureId === feature._id;
+                  }).length;
+                  
+                  return (
+                    <option key={feature._id} value={feature._id}>
+                      {feature.title} ({featureFunctionCount} functions)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+          
           <QuickNav selectedProject={selectedProject} />
         </div>
 
@@ -253,9 +390,21 @@ export default function TaskDashboardPage() {
 
         {/* Gantt Chart - Full Width */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm mb-6 overflow-hidden">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Gantt Chart & Dependencies</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Gantt Chart & Dependencies</h2>
+            {selectedFeature !== 'all' && (
+              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                {filteredFunctions.length} function(s) • {filteredTasks.length} task(s)
+              </span>
+            )}
+          </div>
           <div className="h-[600px] w-full max-w-full overflow-hidden">
-            <DHtmlxGanttChart tasks={tasks as any} dependencies={dependenciesMap as any} onTaskClick={openComments} />
+            <DHtmlxGanttChart 
+              tasks={filteredTasks as any} 
+              functions={filteredFunctions as any} 
+              dependencies={filteredDependencies as any} 
+              onTaskClick={openComments} 
+            />
           </div>
         </div>
 
