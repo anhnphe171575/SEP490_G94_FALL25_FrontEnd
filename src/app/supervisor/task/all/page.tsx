@@ -106,12 +106,24 @@ export default function AllTasksPage() {
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="max-w-[1400px] mx-auto">
-          {/* Header + QuickNav */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Tất cả công việc</h1>
-              <p className="text-gray-600">Danh sách công việc của project</p>
+          {/* Header */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 p-8 shadow-xl mb-6">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-medium mb-3">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                All Tasks
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Tất cả công việc</h1>
+              <p className="text-blue-100">Danh sách công việc của project</p>
             </div>
+          </div>
+
+          {/* Quick Navigation */}
+          <div className="flex justify-end mb-4">
             <QuickNav selectedProject={projectId} />
           </div>
 
