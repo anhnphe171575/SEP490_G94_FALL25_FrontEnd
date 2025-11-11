@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-   "test": "echo \"No tests to run\" && exit 0"
-
+    "test": "echo \"No tests to run\" && exit 0"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

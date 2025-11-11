@@ -28,9 +28,9 @@ type Contributor = {
   };
   total_tasks: number;
   breakdown: Array<{
-    task_type_id: string;
-    task_type_name: string;
-    task_type_value: number;
+    priority_id: string;
+    priority_name: string;
+    priority_value: string;
     count: number;
   }>;
 };
@@ -117,6 +117,7 @@ export default function ContributorPage() {
       
       const contributionRes = await axiosInstance.get(`/api/tasks/dashboard/contribution?${contributionParams.toString()}`);
       setContributionData(contributionRes.data);
+      console.log("contributionRes.data", contributionRes.data)
 
       // Fetch statistics
       const statsParams = new URLSearchParams();
@@ -124,6 +125,7 @@ export default function ContributorPage() {
       
       const statsRes = await axiosInstance.get(`/api/tasks/statistics?${statsParams.toString()}`);
       setStatistics(statsRes.data);
+      console.log(statsRes.data)
     } catch (e: unknown) {
       const error = e as { response?: { data?: { message?: string } } };
       setError(error?.response?.data?.message || 'Không thể tải dữ liệu');
@@ -135,45 +137,49 @@ export default function ContributorPage() {
   // Get top contributors
   const topContributors = contributionData?.contributors?.slice(0, 5) || [];
   
-  // Get task type stats
-  const getTaskTypeStats = () => {
-    if (!contributionData?.contributors) return { Simple: 0, Medium: 0, Complex: 0 };
+  // Get priority stats
+  const getPriorityStats = () => {
+    if (!contributionData?.contributors) return { Low: 0, Medium: 0, High: 0, 'Very High': 0 };
     const stats: { [key: string]: number } = {};
     contributionData.contributors.forEach(contributor => {
       contributor.breakdown.forEach(item => {
-        const name = item.task_type_name || 'Unknown';
+        const name = item.priority_name || 'Unknown';
         stats[name] = (stats[name] || 0) + item.count;
       });
     });
     return stats;
   };
 
-  const taskTypeStats = getTaskTypeStats();
+  const priorityStats = getPriorityStats();
 
   // Prepare chart data
   const comparisonData = contributionData?.contributors?.slice(0, 10).map((c) => {
-    const simple = c.breakdown.find(b => b.task_type_name?.toLowerCase().includes('simple'))?.count || 0;
-    const medium = c.breakdown.find(b => b.task_type_name?.toLowerCase().includes('medium'))?.count || 0;
-    const complex = c.breakdown.find(b => b.task_type_name?.toLowerCase().includes('complex'))?.count || 0;
+    const low = c.breakdown.find(b => b.priority_name?.toLowerCase().includes('low'))?.count || 0;
+    const medium = c.breakdown.find(b => b.priority_name?.toLowerCase().includes('medium'))?.count || 0;
+    const high = c.breakdown.find(b => b.priority_name?.toLowerCase() === 'high')?.count || 0;
+    const veryHigh = c.breakdown.find(b => b.priority_name?.toLowerCase().includes('very high'))?.count || 0;
     
     return {
       name: c.user?.full_name?.split(' ').pop() || 'N/A',
-      Simple: simple,
+      Low: low,
       Medium: medium,
-      Complex: complex,
+      High: high,
+      'Very High': veryHigh,
     };
   }) || [];
 
   const summaryData = [
-    { name: "Simple", value: taskTypeStats['Simple'] || 0, color: "#22c55e" },
-    { name: "Medium", value: taskTypeStats['Medium'] || 0, color: "#f59e0b" },
-    { name: "Complex", value: taskTypeStats['Complex'] || 0, color: "#ef4444" },
+    { name: "Low", value: priorityStats['Low'] || 0, color: "#22c55e" },
+    { name: "Medium", value: priorityStats['Medium'] || 0, color: "#f59e0b" },
+    { name: "High", value: priorityStats['High'] || 0, color: "#ef4444" },
+    { name: "Very High", value: priorityStats['Very High'] || 0, color: "#dc2626" },
   ].filter(item => item.value > 0);
 
   const COLORS = {
-    simple: "#22c55e",
+    low: "#22c55e",
     medium: "#f59e0b",
-    complex: "#ef4444",
+    high: "#ef4444",
+    veryHigh: "#dc2626",
   };
 
   if (loading) {
@@ -227,12 +233,23 @@ export default function ContributorPage() {
       <main className="p-4 md:p-6 md:ml-64">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Thống kê Đóng góp 📊</h1>
-              <p className="text-gray-600">Theo dõi và phân tích đóng góp của các thành viên trong dự án</p>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 p-8 shadow-xl mb-6">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-32 -mb-32"></div>
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-medium mb-3">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Contributor Statistics
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Thống kê Đóng góp 📊</h1>
+              <p className="text-cyan-100">Theo dõi và phân tích đóng góp của các thành viên trong dự án</p>
             </div>
-            {/* Quick Nav */}
+          </div>
+
+          {/* Quick Navigation */}
+          <div className="flex justify-end">
             <QuickNav selectedProject={selectedProject} />
           </div>
         </div>
@@ -240,12 +257,13 @@ export default function ContributorPage() {
     
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg p-6 text-white">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Tổng Task */}
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-blue-200 text-sm">Tổng Task</p>
-                <p className="text-3xl font-bold">{statistics?.statistics?.total || 0}</p>
+                <p className="text-blue-200 text-sm mb-1">Tổng Task</p>
+                <p className="text-4xl font-bold">{statistics?.statistics?.total || 0}</p>
               </div>
               <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -256,34 +274,46 @@ export default function ContributorPage() {
             </p>
           </div>
 
-          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-lg p-6 text-white">
+          {/* Low Priority Tasks */}
+          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-green-200 text-sm">Simple Tasks</p>
-                <p className="text-3xl font-bold">{summaryData.find(s => s.name === 'Simple')?.value || 0}</p>
+                <p className="text-green-200 text-sm mb-1">Low Priority</p>
+                <p className="text-4xl font-bold">{summaryData.find(s => s.name === 'Low')?.value || 0}</p>
               </div>
+              <svg className="w-8 h-8 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
             </div>
-            <p className="text-sm text-green-200">Công việc đơn giản</p>
+            <p className="text-sm text-green-200">Ưu tiên thấp</p>
           </div>
 
-          <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-lg p-6 text-white">
+          {/* Medium Priority Tasks */}
+          <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-amber-200 text-sm">Medium Tasks</p>
-                <p className="text-3xl font-bold">{summaryData.find(s => s.name === 'Medium')?.value || 0}</p>
+                <p className="text-amber-200 text-sm mb-1">Medium Priority</p>
+                <p className="text-4xl font-bold">{summaryData.find(s => s.name === 'Medium')?.value || 0}</p>
               </div>
+              <svg className="w-8 h-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
             </div>
-            <p className="text-sm text-amber-200">Công việc trung bình</p>
+            <p className="text-sm text-amber-200">Ưu tiên trung bình</p>
           </div>
 
-          <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-lg p-6 text-white">
+          {/* High Priority Tasks */}
+          <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-red-200 text-sm">Complex Tasks</p>
-                <p className="text-3xl font-bold">{summaryData.find(s => s.name === 'Complex')?.value || 0}</p>
+                <p className="text-red-200 text-sm mb-1">High Priority</p>
+                <p className="text-4xl font-bold">{summaryData.find(s => s.name === 'High')?.value || 0}</p>
               </div>
+              <svg className="w-8 h-8 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
-            <p className="text-sm text-red-200">Công việc phức tạp</p>
+            <p className="text-sm text-red-200">Ưu tiên cao</p>
           </div>
         </div>
 
@@ -292,7 +322,7 @@ export default function ContributorPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Comparison Chart */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Phân bố Task theo Thành viên</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Phân bố Priority theo Thành viên</h2>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={comparisonData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -303,17 +333,18 @@ export default function ContributorPage() {
                     labelStyle={{ color: "#0f172a" }}
                   />
                   <Legend />
-                  <Bar dataKey="Simple" fill={COLORS.simple} name="Simple" />
+                  <Bar dataKey="Low" fill={COLORS.low} name="Low" />
                   <Bar dataKey="Medium" fill={COLORS.medium} name="Medium" />
-                  <Bar dataKey="Complex" fill={COLORS.complex} name="Complex" />
+                  <Bar dataKey="High" fill={COLORS.high} name="High" />
+                  <Bar dataKey="Very High" fill={COLORS.veryHigh} name="Very High" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Task Distribution Pie Chart */}
+            {/* Priority Distribution Pie Chart */}
             {summaryData.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Tỷ lệ Task</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Tỷ lệ Priority</h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -347,17 +378,18 @@ export default function ContributorPage() {
           {contributionData?.contributors && contributionData.contributors.length > 0 ? (
             <div className="space-y-4">
               {contributionData.contributors.map((contributor, index) => {
-                const simpleCount = contributor.breakdown.find(b => 
-                  b.task_type_name?.toLowerCase().includes('simple') || 
-                  b.task_type_value === 1
+                const lowCount = contributor.breakdown.find(b => 
+                  b.priority_name?.toLowerCase().includes('low')
                 )?.count || 0;
                 const mediumCount = contributor.breakdown.find(b => 
-                  b.task_type_name?.toLowerCase().includes('medium') || 
-                  b.task_type_value === 2
+                  b.priority_name?.toLowerCase().includes('medium') && 
+                  !b.priority_name?.toLowerCase().includes('very')
                 )?.count || 0;
-                const complexCount = contributor.breakdown.find(b => 
-                  b.task_type_name?.toLowerCase().includes('complex') || 
-                  b.task_type_value >= 3
+                const highCount = contributor.breakdown.find(b => 
+                  b.priority_name?.toLowerCase() === 'high'
+                )?.count || 0;
+                const veryHighCount = contributor.breakdown.find(b => 
+                  b.priority_name?.toLowerCase().includes('very high')
                 )?.count || 0;
 
                 return (
@@ -371,7 +403,7 @@ export default function ContributorPage() {
                       router.push(`/supervisor/contributor/detail?${params.toString()}`);
                     }}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                       {/* Member Info */}
                       <div className="flex items-center gap-3">
                         <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
@@ -383,19 +415,23 @@ export default function ContributorPage() {
                         </div>
                       </div>
 
-                      {/* Task Counts */}
-                      <div className="flex gap-2">
-                        <div className="flex-1 bg-green-50 rounded p-3 border border-green-200">
-                          <p className="text-xs text-gray-500">Simple</p>
-                          <p className="text-xl font-bold text-green-600">{simpleCount}</p>
+                      {/* Priority Counts */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-green-50 rounded p-3 border border-green-200">
+                          <p className="text-xs text-gray-500">Low</p>
+                          <p className="text-xl font-bold text-green-600">{lowCount}</p>
                         </div>
-                        <div className="flex-1 bg-amber-50 rounded p-3 border border-amber-200">
+                        <div className="bg-amber-50 rounded p-3 border border-amber-200">
                           <p className="text-xs text-gray-500">Medium</p>
                           <p className="text-xl font-bold text-amber-600">{mediumCount}</p>
                         </div>
-                        <div className="flex-1 bg-red-50 rounded p-3 border border-red-200">
-                          <p className="text-xs text-gray-500">Complex</p>
-                          <p className="text-xl font-bold text-red-600">{complexCount}</p>
+                        <div className="bg-red-50 rounded p-3 border border-red-200">
+                          <p className="text-xs text-gray-500">High</p>
+                          <p className="text-xl font-bold text-red-600">{highCount}</p>
+                        </div>
+                        <div className="bg-red-50 rounded p-3 border border-red-300">
+                          <p className="text-xs text-gray-500">Very High</p>
+                          <p className="text-lg font-bold text-red-700">{veryHighCount}</p>
                         </div>
                       </div>
 
@@ -404,8 +440,6 @@ export default function ContributorPage() {
                         <p className="text-xs text-gray-500">Tổng Task</p>
                         <p className="text-2xl font-bold text-blue-600">{contributor.total_tasks}</p>
                       </div>
-
-                      
                     </div>
                   </div>
                 );

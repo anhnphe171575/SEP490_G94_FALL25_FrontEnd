@@ -23,14 +23,14 @@ import {
   FormControl,
   InputLabel,
   Tooltip,
+  Badge,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
+import BugReportIcon from "@mui/icons-material/BugReport";
 import axiosInstance from "../../../ultis/axios";
 
 interface TaskDetailsSubtasksProps {
@@ -66,6 +66,9 @@ export default function TaskDetailsSubtasks({
   
   // Load team members if not provided
   const [localTeamMembers, setLocalTeamMembers] = useState<any[]>(teamMembers);
+  
+  // Bug counts for each subtask
+  const [bugCounts, setBugCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (teamMembers.length > 0) {
@@ -92,8 +95,36 @@ export default function TaskDetailsSubtasks({
   useEffect(() => {
     if (taskId) {
       loadSubtasks();
+      loadBugCounts();
     }
   }, [taskId]);
+  
+  const loadBugCounts = async () => {
+    if (!projectId) return;
+    try {
+      const response = await axiosInstance.get(`/api/defects`, {
+        params: { project_id: projectId }
+      });
+      const bugs = response.data.defects || [];
+      
+      // Count bugs for each subtask
+      const counts: Record<string, number> = {};
+      bugs.forEach((bug: any) => {
+        if (bug.task_id?._id) {
+          counts[bug.task_id._id] = (counts[bug.task_id._id] || 0) + 1;
+        }
+        if (bug.affected_tasks) {
+          bug.affected_tasks.forEach((task: any) => {
+            counts[task._id] = (counts[task._id] || 0) + 1;
+          });
+        }
+      });
+      
+      setBugCounts(counts);
+    } catch (error) {
+      console.error('Error loading bug counts:', error);
+    }
+  };
 
   const loadSubtasks = async () => {
     if (!taskId) return;
@@ -117,16 +148,6 @@ export default function TaskDetailsSubtasks({
       await loadSubtasks();
     } catch (error: any) {
       console.error("Error creating subtask:", error);
-    }
-  };
-
-  const toggleSubtaskStatus = async (subtask: any) => {
-    try {
-      const newStatus = subtask.status === 'Completed' ? 'Pending' : 'Completed';
-      await axiosInstance.patch(`/api/tasks/${subtask._id}`, { status: newStatus });
-      await loadSubtasks();
-    } catch (error: any) {
-      console.error("Error updating subtask:", error);
     }
   };
 
@@ -509,25 +530,6 @@ export default function TaskDetailsSubtasks({
                   width: '100%',
                   gap: 2
                 }}>
-                  {/* Checkbox */}
-              <IconButton 
-                onClick={() => toggleSubtaskStatus(subtask)}
-                    size="small"
-                    sx={{ 
-                      p: 0,
-                      color: subtask.status === 'Completed' ? '#10b981' : '#d1d5db',
-                      '&:hover': { 
-                        bgcolor: subtask.status === 'Completed' ? '#dcfce7' : '#f3f4f6' 
-                      }
-                    }}
-              >
-                {subtask.status === 'Completed' ? (
-                      <CheckCircleIcon fontSize="small" />
-                ) : (
-                      <RadioButtonUncheckedIcon fontSize="small" />
-                )}
-              </IconButton>
-
                   {/* Title with Assignee */}
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Stack direction="row" spacing={1.5} alignItems="center">
@@ -591,6 +593,31 @@ export default function TaskDetailsSubtasks({
                         ) : null;
                       })()}
 
+                      {/* Bug Count Badge - Mini */}
+                      {bugCounts[subtask._id] > 0 && (
+                        <Tooltip title={`${bugCounts[subtask._id]} bug(s) reported`} arrow>
+                          <Badge
+                            badgeContent={bugCounts[subtask._id]}
+                            color="error"
+                            sx={{
+                              '& .MuiBadge-badge': {
+                                fontSize: '9px',
+                                height: '16px',
+                                minWidth: '16px',
+                                padding: '0 4px',
+                              }
+                            }}
+                          >
+                            <BugReportIcon 
+                              sx={{ 
+                                fontSize: '16px',
+                                color: '#ef4444'
+                              }} 
+                            />
+                          </Badge>
+                        </Tooltip>
+                      )}
+
                       {/* Estimate Badge - Mini */}
                     {subtask.estimate > 0 && (
                         <Typography 
@@ -605,8 +632,8 @@ export default function TaskDetailsSubtasks({
                             flexShrink: 0,
                           }}
                         >
-                          {subtask.estimate}h
-                        </Typography>
+                        {subtask.estimate}h
+                      </Typography>
                     )}
                   </Stack>
                   </Box>

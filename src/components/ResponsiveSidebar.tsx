@@ -8,42 +8,6 @@ import { io, Socket } from "socket.io-client";
 
 const navItems = [
   {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M8 21v-4a2 2 0 012-2h4a2 2 0 012 2v4"
-        />
-      </svg>
-    ),
-  },
-
-  { 
-    href: "/supervisor/dashboard", 
-    label: "Giảng viên", 
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10a2 2 0 002 2h12a2 2 0 002-2V9" />
-      </svg>
-    )
-  },
-  {
     href: "/projects",
     label: "Dự án",
     icon: (
@@ -62,7 +26,6 @@ const navItems = [
       </svg>
     ),
   },
-
   { 
     href: "/notifications", 
     label: "Thông báo", 
@@ -119,26 +82,7 @@ const navItems = [
         />
       </svg>
     ),
-  },
-  {
-    href: "/defect",
-    label: "Lỗi",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M12 4v16m8-8H4"
-        />
-      </svg>
-    ),
-  },
+  }
 ];
 
 let socket: Socket | null = null;
