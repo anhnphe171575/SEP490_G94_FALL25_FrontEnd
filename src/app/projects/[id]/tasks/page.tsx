@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
@@ -2192,9 +2192,8 @@ export default function ProjectTasksPage() {
                       });
                       
                       return (
-                        <>
+                        <Fragment key={t._id}>
                         <Box 
-                          key={t._id} 
                           sx={{ 
                             px: 3, 
                             py: 1.25, 
@@ -3190,7 +3189,7 @@ export default function ProjectTasksPage() {
                           </Box>
                         );
                         })}
-                      </>
+                      </Fragment>
                       );
                     })}
 
