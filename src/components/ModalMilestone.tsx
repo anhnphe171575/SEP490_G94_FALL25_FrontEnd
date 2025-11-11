@@ -22,6 +22,7 @@ import {
   Breadcrumbs,
   Link,
   Tooltip,
+  Autocomplete,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
@@ -41,7 +42,7 @@ import Menu from "@mui/material/Menu";
 import MilestoneProgressDetail from "./MilestoneProgressDetail";
 import { toast } from "sonner";
 
-type Update = { _id: string; content: string; createdAt: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
+type Update = { _id: string; content: string; createdAt: string; updatedAt?: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
 type ActivityLog = { _id: string; action: string; createdAt: string; metadata?: any; created_by?: { full_name?: string; email?: string; avatar?: string } };
 type FileDoc = { _id: string; title: string; file_url: string; createdAt: string };
 type MilestoneProgress = {
@@ -83,11 +84,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [tags, setTags] = useState<string>("");
-  const [priorityId, setPriorityId] = useState("");
-  const [statusId, setStatusId] = useState("");
-  const [priorities, setPriorities] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
@@ -112,34 +110,54 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     (async () => {
       setLoading(true);
       try {
-        const [m, u, f, a, p, priorityRes, statusRes] = await Promise.all([
+        const [m, u, f, a, p] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/comments`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/files`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`),
-          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } })),
-          axiosInstance.get('/api/setting').then(res => res.data.filter((s: any) => s.type_id === 1)).catch(() => []),
-          axiosInstance.get('/api/setting').then(res => res.data.filter((s: any) => s.type_id === 2)).catch(() => [])
+          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } }))
         ]);
         const md = m.data || {};
         setTitle(md.title || "");
         setDescription(md.description || "");
         setStartDate(md.start_date ? md.start_date.substring(0,10) : "");
         setDeadline(md.deadline ? md.deadline.substring(0,10) : "");
-        setTags(Array.isArray(md.tags) ? md.tags.join(', ') : "");
-        setPriorityId(md.priority_id?._id || md.priority_id || "");
-        setStatusId(md.status_id?._id || md.status_id || "");
-        setPriorities(priorityRes);
-        setStatuses(statusRes);
+        setTags(Array.isArray(md.tags) ? md.tags : []);
         setUpdates(Array.isArray(u.data) ? u.data : []);
         setFiles(Array.isArray(f.data) ? f.data : []);
         setActivity(Array.isArray(a.data) ? a.data : []);
         setProgress(p.data?.progress || null);
+        
+        // Load available tags from all milestones
+        await loadProjectTags();
       } finally {
         setLoading(false);
       }
     })();
   }, [open, projectId, milestoneId]);
+
+  const loadProjectTags = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
+      const milestones = response.data || [];
+      
+      // Extract all unique tags from all milestones
+      const tagsSet = new Set<string>();
+      milestones.forEach((m: any) => {
+        if (m.tags && Array.isArray(m.tags)) {
+          m.tags.forEach((tag: string) => {
+            if (tag && tag.trim()) {
+              tagsSet.add(tag.trim());
+            }
+          });
+        }
+      });
+      
+      setAvailableTags(Array.from(tagsSet).sort());
+    } catch (error) {
+      console.error('Error loading project tags:', error);
+    }
+  };
 
   const submitUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,9 +245,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     return '#3b82f6';
   };
 
-  const currentStatus = statuses.find(s => s._id === statusId);
-  const currentPriority = priorities.find(p => p._id === priorityId);
-
   return (
     <Drawer
       anchor="right"
@@ -312,18 +327,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
         {/* Milestone Title & Quick Info */}
         <Box sx={{ px: 3, py: 2.5 }}>
           <Stack direction="row" spacing={2} alignItems="flex-start">
-            {/* Checkbox */}
-            <IconButton 
-              size="small" 
-              sx={{ 
-                mt: 0.5,
-                color: currentStatus?.name?.toLowerCase().includes('completed') ? '#10b981' : '#d1d5db',
-                '&:hover': { color: '#10b981' }
-              }}
-            >
-              <CheckCircleIcon sx={{ fontSize: 24 }} />
-            </IconButton>
-
             {/* Title - Editable */}
             <Box sx={{ flex: 1 }}>
               <Typography 
@@ -340,39 +343,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-                {/* Status */}
-                {currentStatus && (
-                  <Chip 
-                    label={currentStatus.name} 
-              size="small" 
-                    sx={{ 
-                      height: 24,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      bgcolor: `${getStatusColor(currentStatus.name)}15`,
-                      color: getStatusColor(currentStatus.name),
-                      border: `1px solid ${getStatusColor(currentStatus.name)}40`,
-                    }}
-                  />
-                )}
-
-                {/* Priority */}
-                {currentPriority && (
-                  <Chip 
-                    icon={<FlagIcon sx={{ fontSize: 14 }} />}
-                    label={currentPriority.name} 
-              size="small" 
-                    sx={{ 
-                      height: 24,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      bgcolor: `${getPriorityColor(currentPriority.name)}15`,
-                      color: getPriorityColor(currentPriority.name),
-                      border: `1px solid ${getPriorityColor(currentPriority.name)}40`,
-                    }}
-                  />
-                )}
-
                 {/* Date Range */}
                 {(startDate || deadline) && (
                   <Stack direction="row" spacing={0.5} alignItems="center">
@@ -384,10 +354,10 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 )}
 
                 {/* Tags */}
-                {tags && tags.split(',').filter(Boolean).map((tag, idx) => (
+                {tags && tags.length > 0 && tags.map((tag, idx) => (
                   <Chip 
                     key={idx}
-                    label={tag.trim()} 
+                    label={tag} 
               size="small"
                     sx={{ 
                       height: 22,
@@ -858,46 +828,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               />
           </Box>
 
-            {/* Status */}
-            <Box>
-              <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                STATUS
-              </Typography>
-              <FormControl fullWidth size="small">
-                <Select 
-                  value={statusId} 
-                  onChange={(e)=>setStatusId(e.target.value)}
-                  displayEmpty
-                  sx={{ fontSize: '14px' }}
-                >
-                  <MenuItem value="">— None —</MenuItem>
-                  {statuses.map((s) => (
-                    <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-        </Box>
-
-            {/* Priority */}
-            <Box>
-              <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                PRIORITY
-              </Typography>
-              <FormControl fullWidth size="small">
-                <Select 
-                  value={priorityId} 
-                  onChange={(e)=>setPriorityId(e.target.value)}
-                  displayEmpty
-                  sx={{ fontSize: '14px' }}
-                >
-                  <MenuItem value="">— None —</MenuItem>
-                  {priorities.map((p) => (
-                    <MenuItem key={p._id} value={p._id}>{p.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
             <Divider />
 
             {/* Start Date */}
@@ -968,16 +898,90 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
                 TAGS
               </Typography>
-              <TextField 
-                value={tags} 
-                onChange={(e)=>setTags(e.target.value)} 
-                fullWidth 
-                size="small" 
-                placeholder="tag1, tag2, tag3"
-                helperText="Comma separated"
+              <Autocomplete
+                multiple
+                freeSolo
+                size="small"
+                options={availableTags}
+                value={tags}
+                onChange={async (_, newValue) => {
+                  try {
+                    // Remove duplicates and trim
+                    const uniqueTags = Array.from(new Set(newValue.map(tag => tag.trim()).filter(Boolean)));
+                    setTags(uniqueTags);
+                    
+                    // Auto-save tags
+                    await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, {
+                      tags: uniqueTags
+                    });
+                    
+                    // Reload available tags
+                    await loadProjectTags();
+                    
+                    // Refresh activity logs
+                    const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
+                    setActivity(Array.isArray(a.data) ? a.data : []);
+                    
+                    toast.success('Tags updated');
+                  } catch (error: any) {
+                    toast.error('Failed to update tags', {
+                      description: error?.response?.data?.message || error?.message,
+                    });
+                  }
+                }}
+                filterOptions={(options, params) => {
+                  const filtered = options.filter(option => {
+                    // Filter out already selected tags
+                    const isAlreadySelected = tags.includes(option);
+                    // Filter by input value
+                    const matchesInput = option.toLowerCase().includes(params.inputValue.toLowerCase());
+                    return !isAlreadySelected && matchesInput;
+                  });
+                  
+                  // Add "Create new" option if input doesn't match any existing tag
+                  const inputValue = params.inputValue.trim();
+                  if (inputValue !== '' && !options.includes(inputValue) && !tags.includes(inputValue)) {
+                    filtered.push(inputValue);
+                  }
+                  
+                  return filtered;
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip
+                      label={option}
+                      {...getTagProps({ index })}
+                      size="small"
+                      sx={{
+                        bgcolor: '#f3f4f6',
+                        color: '#374151',
+                        fontSize: '12px',
+                        height: 24,
+                        '& .MuiChip-deleteIcon': {
+                          fontSize: 16,
+                          color: '#6b7280',
+                          '&:hover': {
+                            color: '#374151',
+                          }
+                        }
+                      }}
+                    />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder={tags.length === 0 ? "Add tags..." : ""}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        fontSize: '14px',
+                      }
+                    }}
+                  />
+                )}
                 sx={{
-                  '& .MuiOutlinedInput-root': {
-                    fontSize: '14px',
+                  '& .MuiAutocomplete-tag': {
+                    margin: '2px',
                   }
                 }}
               />
@@ -1024,11 +1028,9 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                   await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { 
                     title, 
                     description, 
-                    priority_id: priorityId || undefined,
-                    status_id: statusId || undefined,
                     start_date: startDate ? new Date(startDate).toISOString() : undefined, 
                     deadline: deadline ? new Date(deadline).toISOString() : undefined,
-                    tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                    tags: tags
                   });
                   // Refresh activity logs to show the update
                   const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);

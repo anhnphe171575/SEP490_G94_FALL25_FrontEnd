@@ -36,7 +36,6 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
     start_date: task?.start_date ? new Date(task.start_date).toISOString().split('T')[0] : '',
     deadline: task?.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
     estimate: task?.estimate || 0,
-    progress: task?.progress || 0,
   });
 
   const handleSave = async () => {
@@ -59,7 +58,6 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
       start_date: task?.start_date ? new Date(task.start_date).toISOString().split('T')[0] : '',
       deadline: task?.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
       estimate: task?.estimate || 0,
-      progress: task?.progress || 0,
     });
     setEditing(false);
   };
@@ -192,77 +190,19 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
         </Typography>
         
         <Stack spacing={2}>
-          {/* Progress Bar */}
+          {/* Time Tracking */}
           <Box sx={{ 
             p: 2,
             bgcolor: '#fafbfc',
             borderRadius: 2,
             border: '1px solid #e8e9eb',
           }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-              <Typography fontSize="13px" fontWeight={600} color="text.secondary">
-                Progress
-              </Typography>
-              <Typography fontSize="13px" fontWeight={700} color="#7b68ee">
-                {task?.progress || 0}%
-              </Typography>
-            </Stack>
-            <Box sx={{ 
-              height: 8, 
-              bgcolor: '#e8e9eb', 
-              borderRadius: 4,
-              overflow: 'hidden'
-            }}>
-              <Box sx={{ 
-                height: '100%', 
-                width: `${task?.progress || 0}%`, 
-                bgcolor: '#7b68ee',
-                transition: 'width 0.3s ease',
-                borderRadius: 4,
-              }} />
-            </Box>
-          </Box>
-
-          {/* Time Tracking */}
-          <Box sx={{ 
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 2
-          }}>
-            <Box sx={{ 
-              p: 2,
-              bgcolor: '#fafbfc',
-              borderRadius: 2,
-              border: '1px solid #e8e9eb',
-            }}>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Estimated Time
-              </Typography>
-              <Typography fontSize="20px" fontWeight={700} color="text.primary">
-                {task?.estimate || 0}h
-              </Typography>
-            </Box>
-
-            <Box sx={{ 
-              p: 2,
-              bgcolor: '#fafbfc',
-              borderRadius: 2,
-              border: '1px solid #e8e9eb',
-            }}>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Time Spent
-              </Typography>
-              <Stack direction="row" alignItems="baseline" spacing={0.5}>
-                <Typography fontSize="20px" fontWeight={700} color="text.primary">
-                  {task?.actual || 0}h
-                </Typography>
-                {task?.estimate > 0 && (
-                  <Typography fontSize="11px" color={task?.actual > task?.estimate ? 'error' : 'success.main'}>
-                    ({task?.actual > task?.estimate ? '+' : ''}{((task?.actual || 0) - task?.estimate).toFixed(1)}h)
-                  </Typography>
-                )}
-              </Stack>
-            </Box>
+            <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+              Estimated Time
+            </Typography>
+            <Typography fontSize="20px" fontWeight={700} color="text.primary">
+              {task?.estimate || 0}h
+            </Typography>
           </Box>
 
           {/* Dates */}

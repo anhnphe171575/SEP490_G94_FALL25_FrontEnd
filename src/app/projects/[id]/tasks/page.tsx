@@ -100,7 +100,6 @@ type Task = {
   assigner_id?: string | { _id: string; full_name?: string; name?: string; email?: string };
   start_date?: string;
   deadline?: string;
-  progress?: number;
   estimate?: number;
   actual?: number;
   parent_task_id?: string;
@@ -955,47 +954,6 @@ export default function ProjectTasksPage() {
               </Typography>
             </Stack>
           </Box>
-
-          {/* ClickUp-style Stats */}
-          {stats && (
-            <Box sx={{ px: 3, py: 2, display: 'flex', gap: 2, borderBottom: '1px solid #e8e9eb', bgcolor: 'white' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#f8f9fb' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  Total:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px' }}>
-                  {stats.total}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#f0f5ff' }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  In Progress:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px', color: '#3b82f6' }}>
-                  {stats.by_status ? Object.entries(stats.by_status).find(([k]) => k.toLowerCase().includes('progress'))?.[1] || 0 : 0}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#f0fdf4' }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  Completed:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px', color: '#22c55e' }}>
-                  {stats.by_status ? Object.entries(stats.by_status).find(([k]) => k.toLowerCase().includes('completed') || k.toLowerCase().includes('done'))?.[1] || 0 : 0}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#fef2f2' }}>
-                <FlagIcon sx={{ fontSize: 14, color: '#ef4444' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  High Priority:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px', color: '#ef4444' }}>
-                  {stats.by_priority ? Object.entries(stats.by_priority).find(([k]) => k.toLowerCase().includes('high') || k.toLowerCase().includes('critical'))?.[1] || 0 : 0}
-                </Typography>
-              </Box>
-            </Box>
-          )}
 
           {/* ClickUp-style View Toolbar */}
           <Box 
@@ -2225,7 +2183,7 @@ export default function ProjectTasksPage() {
                 display: 'grid !important', 
                 gridTemplateColumns: { 
                   xs: '50px minmax(200px, 1fr) 120px 110px', 
-                  md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                  md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px' 
                 }, 
                 columnGap: 2, 
                 color: '#6b7280', 
@@ -2245,7 +2203,6 @@ export default function ProjectTasksPage() {
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Status</Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Priority</Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Dependencies</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Progress</Box>
               </Box>
 
               {/* Groups */}
@@ -2326,7 +2283,7 @@ export default function ProjectTasksPage() {
                             display: 'grid !important', 
                             gridTemplateColumns: { 
                               xs: '50px minmax(200px, 1fr) 120px 110px', 
-                              md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                              md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px' 
                             }, 
                             columnGap: 2, 
                             alignItems: 'center', 
@@ -2480,7 +2437,7 @@ export default function ProjectTasksPage() {
                                   </Typography>
                                 </Tooltip>
                                 
-                                {/* Subtask counter badge - Jira/ClickUp style with progress */}
+                                {/* Subtask counter badge - Jira/ClickUp style */}
                                 {/* Only show for parent tasks (not subtasks themselves) */}
                                 {taskSubtasks[t._id]?.length > 0 && !t.parent_task_id && (() => {
                                   const completedCount = taskSubtasks[t._id].filter((st: any) => {
@@ -2488,11 +2445,10 @@ export default function ProjectTasksPage() {
                                     return stName === 'Completed' || stName === 'Done';
                                   }).length;
                                   const totalCount = taskSubtasks[t._id].length;
-                                  const subtaskProgress = Math.round((completedCount / totalCount) * 100);
                                   const allCompleted = completedCount === totalCount;
                                   
                                   return (
-                                    <Tooltip title={`${completedCount} of ${totalCount} subtasks completed (${subtaskProgress}%)`}>
+                                    <Tooltip title={`${completedCount} of ${totalCount} subtasks completed`}>
                                       <Box sx={{ 
                                         display: 'flex', 
                                         alignItems: 'center',
@@ -2526,22 +2482,6 @@ export default function ProjectTasksPage() {
                                         }}>
                                           {completedCount}/{totalCount}
                                         </Typography>
-                                        {/* Mini progress bar */}
-                                        <Box sx={{
-                                          width: 32,
-                                          height: 4,
-                                          bgcolor: expandedTasks.has(t._id) ? '#c4b5fd' : '#e5e7eb',
-                                          borderRadius: 2,
-                                          overflow: 'hidden',
-                                          flexShrink: 0,
-                                        }}>
-                                          <Box sx={{
-                                            width: `${subtaskProgress}%`,
-                                            height: '100%',
-                                            bgcolor: allCompleted ? '#10b981' : '#7b68ee',
-                                            transition: 'width 0.3s ease',
-                                          }} />
-                                        </Box>
                                       </Box>
                                     </Tooltip>
                                   );
@@ -2993,34 +2933,6 @@ export default function ProjectTasksPage() {
                             )}
                           </Box>
 
-                          {/* Progress - inline edit with slider */}
-                          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                            <Tooltip title={`${t.progress || 0}% completed`}>
-                              <Box 
-                                sx={{ 
-                                  width: 50,
-                                  height: 6,
-                                  bgcolor: '#e5e7eb',
-                                  borderRadius: 3,
-                                  overflow: 'hidden',
-                                  cursor: 'pointer',
-                                  '&:hover': {
-                                    height: 8,
-                                  },
-                                  transition: 'height 0.2s ease'
-                                }}
-                              >
-                                <Box 
-                                  sx={{ 
-                                    width: `${t.progress || 0}%`,
-                                    height: '100%',
-                                    bgcolor: t.progress === 100 ? '#22c55e' : '#7b68ee',
-                                    transition: 'width 0.3s ease',
-                                  }}
-                                />
-                              </Box>
-                            </Tooltip>
-                          </Box>
                         </Box>
 
                         {/* Subtasks - rendered below parent task with indentation */}
@@ -3040,7 +2952,7 @@ export default function ProjectTasksPage() {
                               display: 'grid !important', 
                               gridTemplateColumns: { 
                                 xs: '50px minmax(200px, 1fr) 120px 110px', 
-                                md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                                md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px' 
                               }, 
                               columnGap: 2, 
                               alignItems: 'center', 
@@ -3319,30 +3231,6 @@ export default function ProjectTasksPage() {
                             {/* Dependencies - empty */}
                             <Box sx={{ display: { xs: 'none', md: 'flex' } }} />
 
-                            {/* Progress */}
-                            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center' }}>
-                              {subtask.progress !== undefined && subtask.progress > 0 ? (
-                                <Tooltip title={`${subtask.progress}% complete`}>
-                                <Box sx={{ 
-                                    width: 48,
-                                    height: 7,
-                                  bgcolor: '#e5e7eb',
-                                    borderRadius: 4,
-                                    overflow: 'hidden',
-                                    position: 'relative',
-                                }}>
-                                  <Box sx={{ 
-                                    width: `${subtask.progress}%`,
-                                    height: '100%',
-                                      bgcolor: isSubtaskCompleted ? '#10b981' : '#7b68ee',
-                                      transition: 'all 0.3s ease',
-                                  }} />
-                        </Box>
-                                </Tooltip>
-                              ) : (
-                                <Typography fontSize="11px" color="#d1d5db">—</Typography>
-                              )}
-                            </Box>
                           </Box>
                         );
                         })}
@@ -3585,33 +3473,6 @@ export default function ProjectTasksPage() {
                                 )}
                               </Stack>
 
-                              {/* Meta Info Row 2 - Progress */}
-                              {task.progress !== undefined && task.progress > 0 && (
-                                <Box sx={{ mb: 1.5 }}>
-                                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                                    <Typography fontSize="10px" fontWeight={600} color="text.secondary">
-                                      Progress
-                                    </Typography>
-                                    <Typography fontSize="10px" fontWeight={700} color="#7b68ee">
-                                      {task.progress}%
-                                    </Typography>
-                                  </Stack>
-                                  <Box sx={{ 
-                                    height: 6, 
-                                    bgcolor: '#e8e9eb', 
-                                    borderRadius: 3,
-                                    overflow: 'hidden'
-                                  }}>
-                                    <Box sx={{ 
-                                      width: `${task.progress}%`, 
-                                      height: '100%', 
-                                      bgcolor: task.progress === 100 ? '#22c55e' : '#7b68ee',
-                                      transition: 'width 0.3s ease',
-                                      borderRadius: 3
-                                    }} />
-                                  </Box>
-                                </Box>
-                              )}
 
                               {/* Bottom Row - Assignee & Indicators */}
                               <Stack direction="row" alignItems="center" justifyContent="space-between">

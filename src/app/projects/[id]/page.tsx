@@ -45,8 +45,6 @@ type Milestone = {
   start_date?: string;
   deadline?: string;
   description?: string;
-  priority_id?: { _id: string; name: string; value: string };
-  status_id?: { _id: string; name: string; value: string };
   tags?: string[];
   created_by?: User;
   last_updated_by?: User;
@@ -1448,22 +1446,6 @@ function MilestonesList({
                 </Box>
 
                 <Box display="flex" flexWrap="wrap" gap={3} mb={2}>
-                  {milestone.status_id && (
-                    <Chip 
-                      label={milestone.status_id.name} 
-                      size="small" 
-                      color="primary"
-                      sx={{ fontWeight: 500 }}
-                    />
-                  )}
-                  {milestone.priority_id && (
-                    <Chip 
-                      label={milestone.priority_id.name} 
-                      size="small" 
-                      variant="outlined"
-                      sx={{ fontWeight: 500 }}
-                    />
-                  )}
                   <Box display="flex" alignItems="center" gap={1}>
                     <CalendarTodayIcon fontSize="small" color="action" />
                     <Typography variant="caption" color="text.secondary">

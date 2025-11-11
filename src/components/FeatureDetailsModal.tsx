@@ -19,6 +19,7 @@ import {
   FormControl,
   Divider,
   Autocomplete,
+  Checkbox,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
@@ -65,6 +66,8 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
   const [allStatuses, setAllStatuses] = useState<any[]>([]);
   const [allPriorities, setAllPriorities] = useState<any[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
+  const [featureMilestoneIds, setFeatureMilestoneIds] = useState<string[]>([]);
 
   const tabMap = ['overview', 'functions', 'development', 'comments', 'activity'];
 
@@ -81,6 +84,8 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setAllPriorities(PRIORITY_OPTIONS);
       if (projectId) {
         loadProjectTags();
+        loadMilestones();
+        loadFeatureMilestones();
       }
     }
   }, [open, featureId, projectId]);
@@ -105,6 +110,26 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setAvailableTags(Array.from(tagsSet).sort());
     } catch (error) {
       console.error('Error loading project tags:', error);
+    }
+  };
+
+  const loadMilestones = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
+      setMilestones(response.data || []);
+    } catch (error) {
+      console.error('Error loading milestones:', error);
+    }
+  };
+
+  const loadFeatureMilestones = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/features/${featureId}/milestones`);
+      const uniqueIds = Array.isArray(response.data) ? [...new Set(response.data)] : [];
+      setFeatureMilestoneIds(uniqueIds);
+    } catch (error) {
+      console.error('Error loading feature milestones:', error);
+      setFeatureMilestoneIds([]);
     }
   };
 
@@ -563,6 +588,109 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   }
                 }}
               />
+            </Box>
+
+            <Divider />
+
+            {/* Milestones */}
+            <Box>
+              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                Milestones
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  multiple
+                  value={featureMilestoneIds}
+                  onChange={async (e) => {
+                    const newMilestoneIds = e.target.value as string[];
+                    try {
+                      // Remove all old links
+                      await axiosInstance.delete(`/api/features/${featureId}/milestones`).catch(() => null);
+                      
+                      // Add new links
+                      if (newMilestoneIds.length > 0) {
+                        await axiosInstance.post(`/api/features/${featureId}/milestones`, {
+                          milestone_ids: newMilestoneIds
+                        });
+                      }
+                      
+                      setFeatureMilestoneIds(newMilestoneIds);
+                      
+                      // Notify parent to refresh
+                      if (onUpdate) {
+                        await onUpdate();
+                      }
+                    } catch (error) {
+                      console.error('Error updating milestones:', error);
+                    }
+                  }}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(selected as string[]).map((id) => {
+                        const m = milestones.find(m => m._id === id);
+                        return (
+                          <Chip 
+                            key={id} 
+                            label={m?.title || id} 
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '11px',
+                              bgcolor: '#e0e7ff',
+                              color: '#4f46e5',
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })}
+                      {(selected as string[]).length === 0 && (
+                        <Typography fontSize="13px" color="text.secondary">
+                          No milestones
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                  displayEmpty
+                  sx={{
+                    fontSize: '13px',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e8e9eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#7b68ee',
+                    }
+                  }}
+                >
+                  {milestones.length === 0 ? (
+                    <MenuItem disabled>No milestones available</MenuItem>
+                  ) : (
+                    milestones.map((m) => (
+                      <MenuItem key={m._id} value={m._id}>
+                        <Checkbox 
+                          checked={featureMilestoneIds.includes(m._id)}
+                          size="small"
+                          sx={{ mr: 1 }}
+                        />
+                        <Box sx={{ flex: 1 }}>
+                          <Typography fontSize="13px" fontWeight={600}>
+                            {m.title}
+                          </Typography>
+                          {(m.start_date || m.deadline) && (
+                            <Typography fontSize="11px" color="text.secondary">
+                              {m.start_date ? new Date(m.start_date).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }) : '—'} → {m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }) : '—'}
+                            </Typography>
+                          )}
+                        </Box>
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+              {featureMilestoneIds.length > 0 && (
+                <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5 }}>
+                  💡 Feature is linked to {featureMilestoneIds.length} milestone{featureMilestoneIds.length > 1 ? 's' : ''}
+                </Typography>
+              )}
             </Box>
 
             <Divider />

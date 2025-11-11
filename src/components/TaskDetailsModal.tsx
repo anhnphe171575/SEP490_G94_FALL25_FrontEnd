@@ -11,7 +11,6 @@ import {
   Divider,
   Chip,
   Stack,
-  LinearProgress,
   Avatar,
   Tooltip,
   TextField,
@@ -40,7 +39,6 @@ import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
 import TaskDetailsSubtasks from "./TaskDetails/TaskDetailsSubtasks";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
-import TaskDetailsTimeLogs from "./TaskDetails/TaskDetailsTimeLogs";
 import TaskDetailsComments from "./TaskDetails/TaskDetailsComments";
 import TaskDetailsAttachments from "./TaskDetails/TaskDetailsAttachments";
 import TaskDetailsActivity from "./TaskDetails/TaskDetailsActivity";
@@ -62,7 +60,6 @@ type Task = {
   deadline?: string;
   estimate?: number;
   actual?: number;
-  progress?: number;
   parent_task_id?: string;
   tags?: string[];
   time_tracking?: {
@@ -115,12 +112,12 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   // Get tab name from index (handles dynamic tabs for subtask)
   const getTabContent = (index: number) => {
     if (isSubtask) {
-      // For subtasks: Overview, Bugs, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'bugs', 'time', 'comments', 'files', 'activity'];
+      // For subtasks: Overview, Bugs, Comments, Files, Activity
+      const tabMap = ['overview', 'bugs', 'comments', 'files', 'activity'];
       return tabMap[index];
     } else {
-      // For tasks: Overview, Subtasks, Dependencies, Bugs, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'subtasks', 'dependencies', 'bugs', 'time', 'comments', 'files', 'activity'];
+      // For tasks: Overview, Subtasks, Dependencies, Bugs, Comments, Files, Activity
+      const tabMap = ['overview', 'subtasks', 'dependencies', 'bugs', 'comments', 'files', 'activity'];
       return tabMap[index];
     }
   };
@@ -214,39 +211,63 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
     }
   };
 
-  const handleTaskUpdate = async (updates: any, forceUpdate = false) => {
+  const handleTaskUpdate = async (updates: any, forceUpdate = false, skipParentRefresh = false) => {
     try {
-      // Optimistic update - update local state immediately
-      setTask(prev => prev ? { ...prev, ...updates } : prev);
-      
       // Send request to server
       await axiosInstance.patch(`/api/tasks/${taskId}`, {
         ...updates,
         force_update: forceUpdate
       });
       
-      // Reload to get populated data from server
+      // Silently reload task data in background without showing loading state
       const response = await axiosInstance.get(`/api/tasks/${taskId}`);
       setTask(response.data);
       
-      if (onUpdate) onUpdate();
+      // Temporarily disable parent refresh to prevent page reload
+      // TODO: Re-enable selectively for status/priority changes only
+      // if (!skipParentRefresh && onUpdate) {
+      //   onUpdate();
+      // }
     } catch (error: any) {
       console.error("Error updating task:", error);
       
-      // Check if error is due to dependency violation
-      if (error?.response?.status === 400 && error?.response?.data?.violations) {
-        const violations = error.response.data.violations;
-        const canForce = error.response.data.can_force || false;
+      // Check if error is due to validation failure (dependency or date validation)
+      if (error?.response?.status === 400) {
+        const responseData = error.response.data;
         
-        // Show dependency violation dialog
-        setDependencyViolations(violations);
-        setCanForceUpdate(canForce);
-        setPendingUpdate(updates);
-        setDependencyViolationOpen(true);
+        // Handle dependency violations
+        if (responseData.violations) {
+          const violations = responseData.violations;
+          const canForce = responseData.can_force || false;
+          
+          // Show dependency violation dialog
+          setDependencyViolations(violations);
+          setCanForceUpdate(canForce);
+          setPendingUpdate(updates);
+          setDependencyViolationOpen(true);
+          
+          // Reload to restore correct state
+          await loadTaskDetails();
+          return; // Don't throw error, let user decide
+        }
         
-        // Reload to restore correct state
-        await loadTaskDetails();
-        return; // Don't throw error, let user decide
+        // Handle date validation errors
+        if (responseData.errors && responseData.message === 'Date validation failed') {
+          const canForce = responseData.can_force || false;
+          
+          // Show validation errors in dependency violation dialog (reuse same UI)
+          setDependencyViolations(responseData.errors.map((err: string) => ({
+            message: err,
+            type: 'date_validation'
+          })));
+          setCanForceUpdate(canForce);
+          setPendingUpdate(updates);
+          setDependencyViolationOpen(true);
+          
+          // Reload to restore correct state
+          await loadTaskDetails();
+          return;
+        }
       }
       
       // Reload on other errors to restore correct state
@@ -455,28 +476,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   </Stack>
                 )}
 
-                {/* Progress */}
-                {task?.progress !== undefined && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ 
-                      width: 60, 
-                      height: 6, 
-                      bgcolor: '#e5e7eb', 
-                      borderRadius: 3,
-                      overflow: 'hidden'
-                    }}>
-                      <Box sx={{ 
-                        width: `${task.progress}%`, 
-                        height: '100%', 
-                        bgcolor: '#7b68ee',
-                        transition: 'width 0.3s'
-                      }} />
-                    </Box>
-                    <Typography fontSize="12px" fontWeight={600} color="text.secondary">
-                      {task.progress}%
-                    </Typography>
-                  </Box>
-                )}
               </Stack>
             </Box>
           </Stack>
@@ -513,7 +512,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             {!isSubtask && <Tab label="Subtasks" />}
             {!isSubtask && <Tab label="Dependencies" />}
             <Tab label="Bugs" />
-            <Tab label="Time" />
             <Tab label="Comments" />
             <Tab label="Files" />
             <Tab label="Activity" />
@@ -540,14 +538,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             </Box>
           ) : (
             <>
-              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
-              {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
-              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
-              {getTabContent(currentTab) === 'bugs' && taskId && <TaskDetailsBugs taskId={taskId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'time' && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
-              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments taskId={taskId} />}
-              {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments taskId={taskId} />}
-              {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity taskId={taskId} />}
+              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={handleTaskUpdate} />}
+              {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks key={task?.updatedAt || task?._id} taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
+              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
+              {getTabContent(currentTab) === 'bugs' && taskId && <TaskDetailsBugs key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments key={task?.updatedAt || task?._id} taskId={taskId} />}
+              {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments key={task?.updatedAt || task?._id} taskId={taskId} />}
+              {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity key={task?.updatedAt || task?._id} taskId={taskId} />}
             </>
           )}
         </Box>
@@ -1009,63 +1006,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 }}
               />
             </Box>
-
-            {/* Time Spent & Progress - Hide for Subtasks */}
-            {!isSubtask && (
-              <>
-            <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Time Spent
-              </Typography>
-              <Box sx={{ 
-                p: 1.5,
-                bgcolor: '#fafbfc',
-                borderRadius: 1,
-                border: '1px solid #e8e9eb'
-              }}>
-                <Typography fontSize="16px" fontWeight={700} color="text.primary">
-                  {task?.actual ? `${task.actual}h` : '0h'}
-                </Typography>
-                {task?.estimate && task.estimate > 0 && (
-                  <Typography fontSize="11px" color={(task?.actual || 0) > task.estimate ? 'error.main' : 'success.main'}>
-                    {(task?.actual || 0) > task.estimate ? 'Over' : 'Under'} by {Math.abs((task?.actual || 0) - task.estimate).toFixed(1)}h
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-
-            <Divider />
-
-            {/* Progress */}
-            <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
-                Progress: {task?.progress || 0}%
-              </Typography>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={task?.progress || 0}
-                onChange={async (e) => {
-                  try {
-                    await handleTaskUpdate({ progress: Number(e.target.value) });
-                  } catch (error) {
-                    console.error('Error updating progress:', error);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  height: '6px',
-                  borderRadius: '3px',
-                  outline: 'none',
-                  background: `linear-gradient(to right, #7b68ee 0%, #7b68ee ${task?.progress || 0}%, #e8e9eb ${task?.progress || 0}%, #e8e9eb 100%)`,
-                  cursor: 'pointer',
-                }}
-              />
-            </Box>
-              </>
-            )}
 
             <Divider />
 
