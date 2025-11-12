@@ -234,7 +234,6 @@ export default function FunctionDetailsTasks({
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '60px' }}>STT</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Task</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Progress</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: 80 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -287,27 +286,6 @@ export default function FunctionDetailsTasks({
                       border: `1px solid ${getStatusColor(resolveStatusName(task.status))}40`,
                     }}
                   />
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ 
-                      width: 60, 
-                      height: 6, 
-                      bgcolor: '#e5e7eb', 
-                      borderRadius: 3,
-                      overflow: 'hidden'
-                    }}>
-                      <Box sx={{ 
-                        width: `${task.progress || 0}%`, 
-                        height: '100%', 
-                        bgcolor: '#7b68ee',
-                        transition: 'width 0.3s'
-                      }} />
-                    </Box>
-                    <Typography fontSize="12px" fontWeight={600} color="text.secondary">
-                      {task.progress || 0}%
-                    </Typography>
-                  </Box>
                 </TableCell>
                 <TableCell>
                   <Button

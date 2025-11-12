@@ -78,7 +78,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
       await loadAttachments();
     } catch (error: any) {
       console.error("Error uploading file:", error);
-      alert("Failed to upload file. Make sure backend supports file uploads.");
+      alert("Không thể tải lên tệp. Đảm bảo backend hỗ trợ tải lên tệp.");
     }
   };
 
@@ -100,7 +100,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
   };
 
   const deleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Delete this attachment?')) return;
+    if (!confirm('Xóa tệp đính kèm này?')) return;
     
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/attachments/${attachmentId}`);
@@ -144,10 +144,10 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
           </Box>
           <Box>
             <Typography variant="h6" fontWeight={700}>
-              Attachments
+              Tệp đính kèm
             </Typography>
             <Typography fontSize="12px" color="text.secondary">
-              {attachments.length} {attachments.length === 1 ? 'file' : 'files'}
+              {attachments.length} {attachments.length === 1 ? 'tệp' : 'tệp'}
             </Typography>
           </Box>
         </Stack>
@@ -170,7 +170,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               }
             }}
           >
-            Upload File
+            Tải lên tệp
             <input
               type="file"
               hidden
@@ -193,7 +193,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               }
             }}
           >
-            Add Link
+            Thêm liên kết
           </Button>
         </Stack>
       </Box>
@@ -201,7 +201,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
       {/* Attachments List */}
       {loading ? (
         <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary">Loading attachments...</Typography>
+          <Typography color="text.secondary">Đang tải tệp đính kèm...</Typography>
         </Box>
       ) : attachments.length === 0 ? (
         <Box sx={{ 
@@ -213,10 +213,10 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
         }}>
           <CloudUploadIcon sx={{ fontSize: 64, color: '#d1d5db', mb: 2 }} />
           <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-            No attachments yet
+            Chưa có tệp đính kèm nào
           </Typography>
           <Typography fontSize="12px" color="text.secondary" sx={{ mb: 3 }}>
-            Upload files or add links to keep everything organized
+            Tải lên tệp hoặc thêm liên kết để giữ mọi thứ được tổ chức
           </Typography>
           <Stack direction="row" spacing={1} justifyContent="center">
             <Button
@@ -226,7 +226,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               startIcon={<CloudUploadIcon />}
               sx={{ textTransform: 'none', fontWeight: 600 }}
             >
-              Upload File
+              Tải lên tệp
               <input type="file" hidden onChange={handleFileUpload} />
             </Button>
             <Button
@@ -236,7 +236,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               onClick={() => setOpenLinkDialog(true)}
               sx={{ textTransform: 'none', fontWeight: 600 }}
             >
-              Add Link
+              Thêm liên kết
             </Button>
           </Stack>
         </Box>
@@ -334,7 +334,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
                 {/* Actions */}
                 <Stack direction="row" spacing={0.5}>
                   {attachment.file_url && (
-                    <Tooltip title="Download">
+                    <Tooltip title="Tải xuống">
                       <IconButton
                         size="small"
                         component="a"
@@ -372,7 +372,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
         fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>Add Link</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Thêm liên kết</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 2 }}>
             <TextField
@@ -383,11 +383,11 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               placeholder="https://..."
             />
             <TextField
-              label="Description"
+              label="Mô tả"
               fullWidth
               value={linkForm.description}
               onChange={(e) => setLinkForm({ ...linkForm, description: e.target.value })}
-              placeholder="Optional description"
+              placeholder="Mô tả tùy chọn"
             />
           </Stack>
         </DialogContent>
@@ -399,7 +399,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
             }}
             sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
           >
-            Cancel
+            Hủy
           </Button>
           <Button
             variant="contained"
@@ -412,7 +412,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               '&:hover': { bgcolor: '#6952d6' }
             }}
           >
-            Add Link
+            Thêm liên kết
           </Button>
         </DialogActions>
       </Dialog>

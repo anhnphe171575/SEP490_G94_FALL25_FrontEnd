@@ -33,7 +33,6 @@ import FeatureDetailsOverview from "./FeatureDetails/FeatureDetailsOverview";
 import FeatureDetailsFunctions from "./FeatureDetails/FeatureDetailsFunctions";
 import FeatureDetailsComments from "./FeatureDetails/FeatureDetailsComments";
 import FeatureDetailsActivity from "./FeatureDetails/FeatureDetailsActivity";
-import FeatureDetailsDevelopment from "./FeatureDetails/FeatureDetailsDevelopment";
 
 type Feature = {
   _id: string;
@@ -69,7 +68,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
   const [milestones, setMilestones] = useState<any[]>([]);
   const [featureMilestoneIds, setFeatureMilestoneIds] = useState<string[]>([]);
 
-  const tabMap = ['overview', 'functions', 'development', 'comments', 'activity'];
+  const tabMap = ['overview', 'functions', 'comments', 'activity'];
 
   const getTabContent = (index: number) => {
     return tabMap[index];
@@ -79,8 +78,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
     if (open && featureId) {
       setCurrentTab(0);
       loadFeatureDetails();
-      // Load constants instead of API call
-      setAllStatuses(STATUS_OPTIONS);
+      // Feature model uses enum: ["To Do", "Doing", "Done"]
+      setAllStatuses([
+        { _id: "To Do", name: "To Do", value: "to-do" },
+        { _id: "Doing", name: "Doing", value: "doing" },
+        { _id: "Done", name: "Done", value: "done" },
+      ]);
       setAllPriorities(PRIORITY_OPTIONS);
       if (projectId) {
         loadProjectTags();
@@ -233,7 +236,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 padding: 0
               }}
             >
-              Features
+              Tính năng
             </Link>
             <Typography 
               fontSize="13px" 
@@ -246,7 +249,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 whiteSpace: 'nowrap'
               }}
             >
-              {feature?.title || 'Feature Details'}
+              {feature?.title || 'Chi tiết tính năng'}
             </Typography>
           </Breadcrumbs>
 
@@ -379,11 +382,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               }
             }}
           >
-            <Tab label="Overview" />
-            <Tab label="Functions" />
-            <Tab label="Development" />
-            <Tab label="Comments" />
-            <Tab label="Activity" />
+            <Tab label="Tổng quan" />
+            <Tab label="Chức năng" />
+            <Tab label="Bình luận" />
+            <Tab label="Hoạt động" />
           </Tabs>
         </Box>
       </Box>
@@ -403,13 +405,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
         }}>
           {loading ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography>Loading...</Typography>
+              <Typography>Đang tải...</Typography>
             </Box>
           ) : (
             <>
               {getTabContent(currentTab) === 'overview' && feature && <FeatureDetailsOverview feature={feature} onUpdate={handleFeatureUpdate} projectId={projectId} />}
               {getTabContent(currentTab) === 'functions' && featureId && projectId && <FeatureDetailsFunctions featureId={featureId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'development' && featureId && projectId && <FeatureDetailsDevelopment featureId={featureId} projectId={projectId} />}
               {getTabContent(currentTab) === 'comments' && featureId && <FeatureDetailsComments featureId={featureId} />}
               {getTabContent(currentTab) === 'activity' && featureId && <FeatureDetailsActivity featureId={featureId} />}
             </>
@@ -429,14 +430,14 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             fontWeight={700} 
             sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
           >
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Status */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Status
+                Trạng thái
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -451,7 +452,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   displayEmpty
                   renderValue={(value) => {
                     const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Select status';
+                    return statusObj?.name || 'Chọn trạng thái';
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -474,7 +475,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Priority */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Priority
+                Ưu tiên
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -488,7 +489,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'No priority';
+                    if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -508,7 +509,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     }
                   }}
                 >
-                  <MenuItem value="">No Priority</MenuItem>
+                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -595,7 +596,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Milestones */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Milestones
+                Cột mốc
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -645,7 +646,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       })}
                       {(selected as string[]).length === 0 && (
                         <Typography fontSize="13px" color="text.secondary">
-                          No milestones
+                          Chưa có cột mốc
                         </Typography>
                       )}
                     </Box>
@@ -662,7 +663,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   }}
                 >
                   {milestones.length === 0 ? (
-                    <MenuItem disabled>No milestones available</MenuItem>
+                    <MenuItem disabled>Chưa có cột mốc nào</MenuItem>
                   ) : (
                     milestones.map((m) => (
                       <MenuItem key={m._id} value={m._id}>
@@ -688,7 +689,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               </FormControl>
               {featureMilestoneIds.length > 0 && (
                 <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5 }}>
-                  💡 Feature is linked to {featureMilestoneIds.length} milestone{featureMilestoneIds.length > 1 ? 's' : ''}
+                  💡 Tính năng được liên kết với {featureMilestoneIds.length} cột mốc
                 </Typography>
               )}
             </Box>
@@ -698,7 +699,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Tags */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Tags
+                Nhãn
               </Typography>
               <Autocomplete
                 multiple
@@ -775,7 +776,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       />
                       {!availableTags.includes(option) && (
                         <Typography fontSize="11px" color="text.secondary">
-                          (Create new)
+                          (Tạo mới)
                         </Typography>
                       )}
                     </Box>
@@ -784,7 +785,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    placeholder="Add tags..."
+                    placeholder="Thêm nhãn..."
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         fontSize: '13px',

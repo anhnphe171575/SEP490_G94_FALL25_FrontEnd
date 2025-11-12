@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar"; // Import ResponsiveSidebar để sử dụng cho sidebar
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab } from "@mui/material";
+import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -113,6 +113,7 @@ export default function ProjectDetailPage() {
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
 
   useEffect(() => {
     if (!projectId) return;
@@ -513,7 +514,7 @@ export default function ProjectDetailPage() {
             <ProjectBreadcrumb 
               projectId={projectId}
               items={[
-                { label: 'Milestones', icon: <FlagIcon sx={{ fontSize: 16 }} /> }
+                { label: 'Cột mốc', icon: <FlagIcon sx={{ fontSize: 16 }} /> }
               ]}
             />
             
@@ -549,15 +550,68 @@ export default function ProjectDetailPage() {
                   </Box>
                   <Box>
                     <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                      Milestones
+                      Cột mốc
                     </Typography>
                     <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                      Quản lý các milestone trong dự án
+                      Quản lý các cột mốc trong dự án
                     </Typography>
                   </Box>
                 </Box>
 
                 <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                  {/* Quick Navigation like other screens */}
+                  <Button
+                    variant="outlined"
+                    onClick={() => router.push(`/projects/${projectId}/features`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Tính năng
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => router.push(`/projects/${projectId}/functions`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Chức năng
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => router.push(`/projects/${projectId}/tasks`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Công việc
+                  </Button>
+                  <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                   <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -579,7 +633,7 @@ export default function ProjectDetailPage() {
                       transition: 'all 0.2s ease',
                     }}
                   >
-                Thêm Milestone
+                Thêm cột mốc
               </Button>
                 </Stack>
               </Box>
@@ -595,8 +649,39 @@ export default function ProjectDetailPage() {
                 flexWrap: 'wrap',
               }}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                  <TextField
+                    placeholder="Tìm kiếm cột mốc..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    size="small"
+                    sx={{ 
+                      width: 250,
+                      '& .MuiOutlinedInput-root': { 
+                        fontSize: '13px',
+                        borderRadius: 2,
+                        bgcolor: '#f8f9fb',
+                        height: 36,
+                        '& fieldset': { borderColor: 'transparent' },
+                        '&:hover': { 
+                          bgcolor: '#f3f4f6',
+                          '& fieldset': { borderColor: '#e8e9eb' }
+                        },
+                        '&.Mui-focused': { 
+                          bgcolor: 'white',
+                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                        }
+                      } 
+                    }}
+                    InputProps={{ 
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                        </InputAdornment>
+                      ) 
+                    }}
+                  />
                   <Badge 
-                    badgeContent={showAdvancedFilters ? 1 : 0}
+                    badgeContent={[dateRangeFilter.enabled, searchTerm].filter(Boolean).length || 0}
                     color="primary"
                     sx={{
                       '& .MuiBadge-badge': {
@@ -635,19 +720,19 @@ export default function ProjectDetailPage() {
                         transition: 'all 0.2s ease',
                       }}
                     >
-                      Quick Nav
+                      Bộ lọc
               </Button>
                   </Badge>
                 </Stack>
 
                 <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                  Showing: {getFilteredMilestones().length} milestones
+                  Hiển thị: {getFilteredMilestones().length} cột mốc
                 </Typography>
               </Box>
             </Box>
           </Box>
 
-          {/* Quick Navigation Popover */}
+          {/* Filters Popover (aligned with other screens) */}
           <Popover
             open={Boolean(filterAnchorEl)}
             anchorEl={filterAnchorEl}
@@ -664,132 +749,57 @@ export default function ProjectDetailPage() {
               paper: {
                 sx: {
                   mt: 1.5,
-                  width: 300,
-                  borderRadius: 3,
+                  width: 400,
+                  maxHeight: 500,
+                  borderRadius: 4,
                   boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
                   overflow: 'hidden',
                   background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }
               }
             }}
           >
-            <Box sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: '#2d3748' }}>
-                Quick Navigation
+            <Box sx={{ 
+              px: 3.5,
+              pt: 3,
+              pb: 2.5,
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              position: 'relative'
+            }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white' }}>
+                Bộ lọc cột mốc
               </Typography>
-              <Stack spacing={1}>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/features`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  ⭐ Features
+            </Box>
+            <Box sx={{ px: 3.5, py: 3 }}>
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={2}>
+                  <TextField
+                    type="date"
+                    size="small"
+                    label="Từ ngày"
+                    value={dateRangeFilter.startDate}
+                    onChange={(e) => setDateRangeFilter((prev) => ({ ...prev, startDate: e.target.value, enabled: true }))}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  <TextField
+                    type="date"
+                    size="small"
+                    label="Đến ngày"
+                    value={dateRangeFilter.endDate}
+                    onChange={(e) => setDateRangeFilter((prev) => ({ ...prev, endDate: e.target.value, enabled: true }))}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Stack>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  <Button size="small" variant="outlined" onClick={() => setDateRangeFilter({ startDate: '', endDate: '', enabled: false })}>
+                    Đặt lại
               </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/functions`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  🔧 Functions
+                  <Button size="small" variant="contained" onClick={() => setFilterAnchorEl(null)}>
+                    Áp dụng
               </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/tasks`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  ✅ Tasks
-                </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/team`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  👥 Team
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/documents`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  📄 Documents
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/defect`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  🐛 Defects
-                </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/monitoring`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  📊 Monitoring
-                </Button>
+                </Box>
               </Stack>
             </Box>
           </Popover>
@@ -830,7 +840,7 @@ export default function ProjectDetailPage() {
                       {selectedMilestones.size}
                     </Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      Milestone{selectedMilestones.size !== 1 ? 's' : ''} selected
+                      {selectedMilestones.size} cột mốc đã chọn
                     </Typography>
                   </Box>
 
@@ -842,7 +852,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Duplicate
+                      Nhân bản
                     </Typography>
                   </Button>
 
@@ -854,7 +864,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Export
+                      Xuất
                     </Typography>
                   </Button>
 
@@ -866,7 +876,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Archive
+                      Lưu trữ
                     </Typography>
                   </Button>
 
@@ -878,7 +888,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Delete
+                      Xóa
                     </Typography>
                   </Button>
 
@@ -965,21 +975,100 @@ export default function ProjectDetailPage() {
 
                   {/* Tab Content */}
                   {viewTab === 'list' && (
-                    <MilestonesList
-                      milestones={getFilteredMilestones()}
+                    <Paper variant="outlined" sx={{ borderRadius: 3 }}>
+                      <Table size="small" sx={{ '& td, & th': { borderColor: 'var(--border)' } }}>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ width: 60 }}>STT</TableCell>
+                            <TableCell>Tiêu đề</TableCell>
+                            <TableCell>Bắt đầu - Hết hạn</TableCell>
+                            <TableCell>Tiến độ</TableCell>
+                            <TableCell sx={{ width: 120 }}>Thao tác</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {getFilteredMilestones().map((m, idx) => (
+                            <TableRow key={m._id} hover>
+                              <TableCell>
+                                <Box
+                                  sx={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'white',
+                                    fontWeight: 700,
+                                    fontSize: '14px',
+                                    boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)'
+                                  }}
+                                >
+                                  {idx + 1}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>
+                                {m.title}
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {m.start_date ? new Date(m.start_date).toLocaleDateString('vi-VN') : '—'} {m.deadline ? `→ ${new Date(m.deadline).toLocaleDateString('vi-VN')}` : ''}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                {m.progress ? (
+                                  <Stack spacing={0.5}>
+                                    <LinearProgress variant="determinate" value={m.progress.overall} sx={{ height: 8, borderRadius: 4 }} />
+                                    <Typography variant="caption" color="text.secondary">{m.progress.overall}%</Typography>
+                                  </Stack>
+                                ) : (
+                                  <Typography variant="caption" color="text.secondary">—</Typography>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Stack direction="row" spacing={0.5}>
+                                  <Tooltip title="Chỉnh sửa milestone">
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMilestoneModal({ open: true, milestoneId: m._id });
+                                      }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Paper>
+                  )}
+                  {milestoneModal.open && milestoneModal.milestoneId && (
+                    <ModalMilestone
+                      open={milestoneModal.open}
+                      onClose={() => setMilestoneModal({ open: false })}
                       projectId={projectId}
-                      searchTerm={searchTerm}
-                      highlightText={highlightText}
-                      selectedMilestones={selectedMilestones}
-                      setSelectedMilestones={setSelectedMilestones}
-                      statusFilter={statusFilter}
-                      setStatusFilter={setStatusFilter}
-                      dateRangeFilter={dateRangeFilter}
-                      setDateRangeFilter={setDateRangeFilter}
-                      showAdvancedFilters={showAdvancedFilters}
-                      setShowAdvancedFilters={setShowAdvancedFilters}
-                      getFilteredMilestones={getFilteredMilestones}
-                      setSearchTerm={setSearchTerm}
+                      milestoneId={milestoneModal.milestoneId}
+                      onUpdate={async () => {
+                        try {
+                          const [milestoneRes, progressRes] = await Promise.all([
+                            axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneModal.milestoneId}`),
+                            axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneModal.milestoneId}/progress`).catch(() => ({ data: { progress: null } }))
+                          ]);
+                          const updatedMilestone = { ...milestoneRes.data, progress: progressRes.data?.progress || null };
+                          setMilestones((prev) =>
+                            prev
+                              ? prev.map((ms) => (ms._id === milestoneModal.milestoneId ? updatedMilestone : ms))
+                              : prev
+                          );
+                        } catch (e) {
+                          console.error('Failed to refresh milestone:', e);
+                        }
+                      }}
                     />
                   )}
 
@@ -1020,15 +1109,15 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
             size="small"
             sx={{ minWidth: 140 }}
           >
-            <MenuItem value="Days">Days</MenuItem>
-            <MenuItem value="Weeks">Weeks</MenuItem>
-            <MenuItem value="Months">Months</MenuItem>
-            <MenuItem value="Quarters">Quarters</MenuItem>
+            <MenuItem value="Days">Ngày</MenuItem>
+            <MenuItem value="Weeks">Tuần</MenuItem>
+            <MenuItem value="Months">Tháng</MenuItem>
+            <MenuItem value="Quarters">Quý</MenuItem>
           </MUISelect>
           <FormControlLabel
             className="ml-2"
             control={<MUICheckbox size="small" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} />}
-            label={<Typography variant="body2">Auto Fit</Typography>}
+            label={<Typography variant="body2">Tự động điều chỉnh</Typography>}
           />
         </div>
       </div>
@@ -1175,167 +1264,7 @@ function MilestonesList({
   return (
     <Card sx={{ mt: 4 }}>
       <CardContent>
-        {/* Search and Filter Bar */}
-        <Box sx={{ mb: 3 }}>
-          <Stack spacing={2}>
-            {/* Main Search Row */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-              <Tooltip title="Ctrl+K để focus, Esc để xóa">
-                <TextField
-                  fullWidth
-                  placeholder="Tìm kiếm milestone hoặc feature... (Ctrl+K)"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
-                    endAdornment: searchTerm && (
-                      <InputAdornment position="end">
-                        <Button
-                          size="small"
-                          onClick={() => setSearchTerm("")}
-                          sx={{ minWidth: 'auto', p: 0.5 }}
-                        >
-                          <ClearIcon fontSize="small" />
-                        </Button>
-                      </InputAdornment>
-                    ),
-                  }}
-                  size="small"
-                />
-              </Tooltip>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FilterListIcon />}
-                endIcon={showAdvancedFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                sx={{ minWidth: 'auto' }}
-              >
-                <Typography variant="body2">Bộ lọc</Typography>
-              </Button>
-            </Stack>
-
-            {/* Advanced Filters */}
-            <Collapse in={showAdvancedFilters}>
-              <Box sx={{ pt: 2 }}>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={3}>
-                  {/* Status Filter */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                      <FilterListIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Trạng thái
-                    </Typography>
-                    <Stack direction="row" spacing={2} flexWrap="wrap">
-                      {['Planned', 'In Progress', 'Completed', 'Overdue'].map(status => (
-                        <FormControlLabel
-                          key={status}
-                          control={
-                            <MUICheckbox
-                              size="small"
-                              checked={statusFilter[status] !== false}
-                              onChange={(e) => setStatusFilter((prev: Record<string, boolean>) => ({ ...prev, [status]: e.target.checked }))}
-                            />
-                          }
-                          label={status}
-                          sx={{ minWidth: 'auto' }}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-
-                  {/* Date Range Filter */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                      <DateRangeIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Khoảng thời gian
-                    </Typography>
-                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                      <FormControlLabel
-                        control={
-                          <MUICheckbox
-                            size="small"
-                            checked={dateRangeFilter.enabled}
-                            onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, enabled: e.target.checked }))}
-                          />
-                        }
-                        label="Bật lọc theo ngày"
-                      />
-                      <TextField
-                        type="date"
-                        size="small"
-                        label="Từ ngày"
-                        value={dateRangeFilter.startDate}
-                        onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, startDate: e.target.value }))}
-                        disabled={!dateRangeFilter.enabled}
-                        sx={{ minWidth: 150 }}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                      <TextField
-                        type="date"
-                        size="small"
-                        label="Đến ngày"
-                        value={dateRangeFilter.endDate}
-                        onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, endDate: e.target.value }))}
-                        disabled={!dateRangeFilter.enabled}
-                        sx={{ minWidth: 150 }}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                    </Stack>
-                  </Box>
-
-                  {/* Filter Actions */}
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => {
-                        setStatusFilter({ Planned: true, 'In Progress': true, Completed: true, Overdue: true });
-                        setDateRangeFilter({ startDate: '', endDate: '', enabled: false });
-                      }}
-                    >
-                      Reset
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={() => setShowAdvancedFilters(false)}
-                    >
-                      Áp dụng
-                    </Button>
-                  </Box>
-                </Stack>
-              </Box>
-            </Collapse>
-
-            {/* Search Results Summary */}
-            {(searchTerm || showAdvancedFilters) && (
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                <Typography variant="body2" color="text.secondary">
-                  Kết quả: {getFilteredMilestones().length} milestone{getFilteredMilestones().length !== 1 ? 's' : ''}
-                </Typography>
-                {(searchTerm || dateRangeFilter.enabled || Object.values(statusFilter).some(v => !v)) && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => {
-                      setSearchTerm("");
-                      setStatusFilter({ Planned: true, 'In Progress': true, Completed: true, Overdue: true });
-                      setDateRangeFilter({ startDate: '', endDate: '', enabled: false });
-                    }}
-                    startIcon={<ClearIcon />}
-                  >
-                    Xóa tất cả bộ lọc
-                  </Button>
-                )}
-              </Stack>
-            )}
-          </Stack>
-        </Box>
+        {/* Top-level toolbar now contains search & filters; removed duplicate in list */}
 
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Box>
