@@ -80,7 +80,18 @@ axiosInstance.interceptors.response.use(
     }
     
     if (error.response?.status === 500) {
-      console.error('Server Error:', error.response.data);
+      // Log error với thông tin chi tiết hơn
+      const errorData = error.response.data;
+      const errorMessage = errorData?.message || errorData?.error || 'Internal Server Error';
+      const errorUrl = error.config?.url || 'Unknown URL';
+      
+      console.error('Server Error (500):', {
+        url: errorUrl,
+        message: errorMessage,
+        data: errorData,
+        status: error.response.status,
+        statusText: error.response.statusText
+      });
     }
     
     return Promise.reject(error);
