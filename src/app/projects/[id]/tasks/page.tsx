@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState, Fragment } from "react";
 import React, { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
@@ -175,6 +174,19 @@ export default function ProjectTasksPage() {
     is_mandatory: true,
     notes: ''
   });
+  
+  // Date conflict dialog state
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [conflictViolation, setConflictViolation] = useState<any>(null);
+  const [currentTaskForDependency, setCurrentTaskForDependency] = useState<any>(null);
+  const [pendingDependencyData, setPendingDependencyData] = useState<{
+    taskId: string;
+    dependsOnTaskId: string;
+    type: string;
+    lagDays: number;
+    isMandatory: boolean;
+    notes: string;
+  } | null>(null);
 
   // calendar view state
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -483,7 +495,30 @@ export default function ProjectTasksPage() {
       setOpenDialog(false);
       await loadAll();
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể lưu task");
+      const errorData = e?.response?.data || {};
+      
+      // Check if it's a date validation error
+      if (e?.response?.status === 400 && (errorData.type === 'date_validation' || errorData.errors)) {
+        // Convert errors to violations format for dialog
+        const violations = (errorData.errors || []).map((err: string) => ({
+          message: err,
+          type: 'date_validation',
+          is_mandatory: true
+        }));
+        
+        if (violations.length > 0) {
+          setDependencyViolationDialog({
+            open: true,
+            violations: violations,
+            taskId: editing?._id || '',
+            newStatus: ''
+          });
+          return;
+        }
+      }
+      
+      // Show regular error message
+      setError(errorData.message || "Không thể lưu task");
     }
   };
 
@@ -530,6 +565,15 @@ export default function ProjectTasksPage() {
     }
   };
 
+  const loadCurrentTaskForDependency = async (taskId: string) => {
+    try {
+      const response = await axiosInstance.get(`/api/tasks/${taskId}`);
+      setCurrentTaskForDependency(response.data);
+    } catch (error: any) {
+      console.error("Error loading current task:", error);
+    }
+  };
+
   const addDependency = async (taskId: string, dependsOnTaskId: string, type: string = 'FS', lagDays: number = 0, isMandatory: boolean = true, notes: string = '') => {
     try {
       const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
@@ -537,15 +581,62 @@ export default function ProjectTasksPage() {
         dependency_type: type,
         lag_days: lagDays,
         is_mandatory: isMandatory,
-        notes: notes
+        notes: notes,
+        strict_validation: isMandatory // Enable strict validation for mandatory dependencies
       });
       
-      // Check for warning (non-blocking)
-      if (response.data.warning) {
-        const warning = response.data.warning;
-        console.warn('Dependency created with warning:', warning.message);
+      // Check for warnings (non-blocking)
+      const warnings = response.data.warnings || [];
+      const statusWarning = response.data.status_warning;
+      const dateWarning = response.data.warning;
+      
+      // Check if there's a date warning that should show the conflict dialog
+      const dateWarningInWarnings = warnings.find((w: any) => w.type === 'date_violation' && (w.current_start_date || w.current_deadline));
+      const violationToShow = dateWarningInWarnings || (dateWarning && dateWarning.current_start_date ? dateWarning : null);
+      
+      if (violationToShow && (violationToShow.current_start_date || violationToShow.required_start_date)) {
+        // Show conflict dialog for date violations (both mandatory and optional)
+        // Load current task info
+        await loadCurrentTaskForDependency(taskId);
+        
+        // Store pending dependency data (dependency already created for optional, but we want to show dialog)
+        setPendingDependencyData({
+          taskId,
+          dependsOnTaskId,
+          type,
+          lagDays,
+          isMandatory,
+          notes
+        });
+        
+        // Show conflict dialog
+        setConflictViolation(violationToShow);
+        setShowConflictDialog(true);
+        
+        // Don't clear form yet - wait for user action
+        // Don't reload dependencies yet - wait for user to decide
+        return;
       }
       
+      // Handle other warnings (status warnings, etc.) with alert
+      if (warnings.length > 0) {
+        // Filter out date warnings (already handled above)
+        const otherWarnings = warnings.filter((w: any) => !(w.type === 'date_violation' && (w.current_start_date || w.current_deadline)));
+        
+        if (otherWarnings.length > 0) {
+          let warningMessage = '⚠️ Dependency created with warnings:\n\n';
+          otherWarnings.forEach((w: any, index: number) => {
+            warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
+          });
+          alert(warningMessage);
+        }
+      } else if (statusWarning) {
+        const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
+        alert(confirmMessage);
+      }
+      
+      setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+      setError(null);
       await loadTaskDependencies(taskId);
     } catch (error: any) {
       const errorData = error?.response?.data;
@@ -637,6 +728,103 @@ export default function ProjectTasksPage() {
       } else {
         setError(errorData?.message || 'Không thể tạo dependency');
       }
+    }
+  };
+
+  const handleAutoFixDependency = async () => {
+    if (!pendingDependencyData) return;
+    
+    try {
+      setShowConflictDialog(false);
+      setError(null);
+      
+      // For optional dependencies, the dependency might already be created
+      // For mandatory dependencies, we need to create it first (if it wasn't created due to strict validation)
+      let dependencyExists = false;
+      
+      if (pendingDependencyData.isMandatory) {
+        // STEP 1: Create dependency first (without strict validation)
+        console.log('➕ Step 1: Creating dependency...');
+        try {
+          const retryResponse = await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/dependencies`, {
+            depends_on_task_id: pendingDependencyData.dependsOnTaskId,
+            dependency_type: pendingDependencyData.type,
+            lag_days: pendingDependencyData.lagDays,
+            is_mandatory: pendingDependencyData.isMandatory,
+            notes: pendingDependencyData.notes,
+            strict_validation: false
+          });
+          console.log('✅ Dependency created:', retryResponse.data);
+        } catch (createError: any) {
+          // If dependency already exists, that's OK
+          if (createError?.response?.status === 400 && createError?.response?.data?.message?.includes('đã tồn tại')) {
+            console.log('ℹ️ Dependency already exists, skipping creation');
+            dependencyExists = true;
+          } else {
+            throw createError;
+          }
+        }
+      } else {
+        // For optional, dependency should already be created
+        dependencyExists = true;
+        console.log('ℹ️ Optional dependency already created, proceeding to date adjustment');
+      }
+      
+      // STEP 2: Auto-adjust dates based on the dependency
+      console.log('🔧 Step 2: Auto-adjusting dates for task:', pendingDependencyData.taskId);
+      try {
+        const adjustResponse = await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/auto-adjust-dates`, {
+          preserve_duration: true
+        });
+        console.log('✅ Auto-adjust response:', adjustResponse.data);
+        
+        if (adjustResponse.data.success) {
+          console.log('✅ Dates adjusted successfully!');
+          console.log('Old dates:', adjustResponse.data.task?.old_dates);
+          console.log('New dates:', adjustResponse.data.task?.new_dates);
+        } else {
+          console.warn('⚠️ No adjustments made:', adjustResponse.data.message);
+          // For optional dependencies, this is OK - dependency was created without date adjustment
+          if (!pendingDependencyData.isMandatory) {
+            console.log('ℹ️ Optional dependency exists. Date adjustment not needed or failed, but dependency is OK.');
+          }
+        }
+      } catch (adjustError: any) {
+        // If auto-adjust fails, it's OK for optional dependencies
+        if (!pendingDependencyData.isMandatory) {
+          console.log('ℹ️ Optional dependency exists. Date adjustment failed but dependency is OK.');
+        } else {
+          throw adjustError; // Re-throw for mandatory dependencies
+        }
+      }
+      
+      setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+      setPendingDependencyData(null);
+      setConflictViolation(null);
+      
+      // STEP 3: Reload everything to show changes
+      console.log('🔄 Step 3: Reloading data...');
+      await loadTaskDependencies(pendingDependencyData.taskId);
+      await loadCurrentTaskForDependency(pendingDependencyData.taskId);
+      await loadAll();
+      console.log('✅ All done!');
+    } catch (fixError: any) {
+      console.error('❌ Auto-fix error:', fixError);
+      console.error('Error details:', fixError?.response?.data);
+      setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+      setShowConflictDialog(true); // Show dialog again on error
+    }
+  };
+
+  const handleManualEditDependency = () => {
+    // Close conflict dialog but keep add form open so user can edit dates
+    setShowConflictDialog(false);
+    setError('⚠️ Vui lòng chỉnh sửa ngày tháng của task trong tab Overview trước khi thêm dependency này. Sau đó thử lại.');
+    setPendingDependencyData(null);
+    setConflictViolation(null);
+    // For optional dependencies, dependency is already created, so reload dependencies
+    if (pendingDependencyData && !pendingDependencyData.isMandatory) {
+      loadTaskDependencies(pendingDependencyData.taskId);
     }
   };
 
@@ -778,16 +966,6 @@ export default function ProjectTasksPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               {/* Breadcrumb & Title */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton 
-                  onClick={() => router.back()}
-                  size="small"
-                  sx={{ 
-                    color: '#49516f',
-                    '&:hover': { bgcolor: '#f3f4f6' }
-                  }}
-                >
-                  <ArrowBackIcon fontSize="small" />
-              </IconButton>
                 <Typography 
                   variant="h5" 
                   sx={{ 
@@ -889,27 +1067,7 @@ export default function ProjectTasksPage() {
             </Alert>
           )}
 
-          {/* Quick Tips & Stats */}
-          <Box sx={{ 
-            bgcolor: '#f0f5ff', 
-            px: 3, 
-            py: 1.5, 
-            borderBottom: '1px solid #dbeafe',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 1
-          }}>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
-                Hiển thị: {filteredSorted.length}
-                {filteredSorted.length !== tasks.length ? ` / ${tasks.length}` : ''} công việc
-              </Typography>
-              <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
-                Thành viên: {teamMembers.length}
-              </Typography>
-            </Stack>
-          </Box>
+        
 
           {/* ClickUp-style View Toolbar */}
           <Box 
@@ -2119,7 +2277,7 @@ export default function ProjectTasksPage() {
                 display: 'grid !important', 
                 gridTemplateColumns: { 
                   xs: '50px minmax(200px, 1fr) 120px 110px', 
-                  md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px' 
+                  md: '50px minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
                 }, 
                 columnGap: 2, 
                 color: '#6b7280', 
@@ -2134,11 +2292,11 @@ export default function ProjectTasksPage() {
                 <Box>STT</Box>
                 <Box>Tên công việc</Box>
                 <Box>Người thực hiện</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Người giao</Box>
                 <Box>Hạn chót</Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Trạng thái</Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Ưu tiên</Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>Phụ thuộc</Box>
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Thao tác</Box>
               </Box>
 
               {/* Groups */}
@@ -2220,7 +2378,7 @@ export default function ProjectTasksPage() {
                             display: 'grid !important', 
                             gridTemplateColumns: { 
                               xs: '50px minmax(200px, 1fr) 120px 110px', 
-                              md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px' 
+                              md: '50px minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
                             }, 
                             columnGap: 2, 
                             alignItems: 'center', 
@@ -2529,29 +2687,6 @@ export default function ProjectTasksPage() {
                             </Select>
                           </Box>
 
-                          {/* Assigner (người giao task) */}
-                          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                            {assignerName ? (
-                              <Tooltip title={`Assigned by: ${assignerName}`}>
-                                <Avatar 
-                                  sx={{ 
-                                    width: 28, 
-                                    height: 28, 
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    bgcolor: '#64748b',
-                                  }}
-                                >
-                                  {assignerInitials}
-                                </Avatar>
-                              </Tooltip>
-                            ) : (
-                              <Avatar sx={{ width: 28, height: 28, bgcolor: '#e5e7eb', color: '#9ca3af' }}>
-                                <PersonIcon sx={{ fontSize: 16 }} />
-                              </Avatar>
-                            )}
-                          </Box>
-
                           {/* Due date - inline edit */}
                           <Box onClick={(e) => e.stopPropagation()}>
                             <TextField
@@ -2592,25 +2727,72 @@ export default function ProjectTasksPage() {
                               onChange={async (e) => {
                                 e.stopPropagation();
                               const newStatusId = e.target.value;
+                              // Get status name from STATUS_OPTIONS if it's an ID
+                              const statusObj = allStatuses.find(s => s._id === newStatusId);
+                              const statusToSend = statusObj?.name || statusObj?._id || newStatusId;
+                              
+                              console.log('Changing status:', { newStatusId, statusToSend, currentStatus: t.status });
+                              
                                 try {
                                   await axiosInstance.patch(`/api/tasks/${t._id}`, {
-                                  status: newStatusId
+                                  status: statusToSend
                                   });
                                   await loadAll();
                                 } catch (error: any) {
                                   console.error('Error updating status:', error);
+                                  console.log('Error response:', error?.response);
+                                  console.log('Error response data:', error?.response?.data);
+                                  console.log('Error status code:', error?.response?.status);
                                   
                                   // Check if it's a dependency violation error
-                                  if (error?.response?.data?.violations) {
+                                  if (error?.response?.status === 400) {
+                                    const responseData = error?.response?.data || {};
+                                    
+                                    // Check for violations array (dependency violations)
+                                    if (responseData.violations && Array.isArray(responseData.violations) && responseData.violations.length > 0) {
+                                      console.log('✅ Setting dependency violation dialog with violations:', responseData.violations);
                                     setDependencyViolationDialog({
                                       open: true,
-                                      violations: error.response.data.violations,
+                                        violations: responseData.violations,
                                       taskId: t._id,
-                                    newStatus: newStatusId
-                                    });
-                                  } else {
-                                    setError(error?.response?.data?.message || 'Không thể cập nhật status');
+                                        newStatus: statusToSend
+                                      });
+                                      return; // Don't show error message if showing dialog
+                                    }
+                                    
+                                    // Check for errors array that might contain dependency errors
+                                    if (responseData.errors && Array.isArray(responseData.errors)) {
+                                      // Check if any error mentions dependency
+                                      const dependencyErrors = responseData.errors.filter((err: string) => 
+                                        err.toLowerCase().includes('dependency') || 
+                                        err.toLowerCase().includes('cannot complete') ||
+                                        err.toLowerCase().includes('cannot start')
+                                      );
+                                      
+                                      if (dependencyErrors.length > 0) {
+                                        // Convert errors to violations format
+                                        const violations = dependencyErrors.map((err: string) => ({
+                                          message: err,
+                                          type: 'FS', // Default type
+                                          is_mandatory: true
+                                        }));
+                                        
+                                        console.log('✅ Converting errors to violations:', violations);
+                                        setDependencyViolationDialog({
+                                          open: true,
+                                          violations: violations,
+                                          taskId: t._id,
+                                          newStatus: statusToSend
+                                        });
+                                        return;
+                                      }
+                                    }
                                   }
+                                  
+                                  // Show regular error message
+                                  console.log('❌ No violations found, showing error message');
+                                  console.log('Response data keys:', Object.keys(error?.response?.data || {}));
+                                  setError(error?.response?.data?.message || 'Không thể cập nhật status');
                                 }
                               }}
                               size="small"
@@ -2801,6 +2983,38 @@ export default function ProjectTasksPage() {
                                 <LinkIcon sx={{ fontSize: 16 }} />
                               </IconButton>
                             )}
+                          </Box>
+
+                          {/* Action buttons */}
+                          <Box 
+                            sx={{ 
+                              display: { xs: 'none', md: 'flex' }, 
+                              alignItems: 'center', 
+                              gap: 0.5,
+                              justifyContent: 'flex-end'
+                            }} 
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Tooltip title="Xóa task">
+                              <IconButton
+                                size="small"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Bạn có chắc muốn xóa task "${t.title}"?`)) {
+                                    await deleteTask(t._id);
+                                  }
+                                }}
+                                sx={{ 
+                                  color: '#ef4444',
+                                  '&:hover': { 
+                                    color: '#dc2626',
+                                    bgcolor: '#fef2f2' 
+                                  }
+                                }}
+                              >
+                                <DeleteIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
 
                         </Box>
@@ -3688,34 +3902,6 @@ export default function ProjectTasksPage() {
                   </FormControl>
                       
                       <FormControl fullWidth>
-                        <InputLabel>Milestone</InputLabel>
-                        <Select 
-                          value={form.milestone_id} 
-                          label="Milestone" 
-                          onChange={(e) => setForm({ ...form, milestone_id: e.target.value })}
-                          sx={{ 
-                            bgcolor: 'white',
-                            borderRadius: 2 
-                          }}
-                        >
-                      <MenuItem value=""><em>Không chọn</em></MenuItem>
-                          {milestones.map((m) => (
-                            <MenuItem key={m.id} value={m.id}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <Box sx={{ 
-                                  width: 8, 
-                                  height: 8, 
-                                  borderRadius: '50%', 
-                                  bgcolor: '#f59e0b' 
-                                }} />
-                                <Typography fontSize="14px" fontWeight={500}>{m.title}</Typography>
-                              </Box>
-                            </MenuItem>
-                          ))}
-                    </Select>
-                  </FormControl>
-                      
-                      <FormControl fullWidth>
                         <InputLabel>Chức năng</InputLabel>
                   <Select 
                     value={form.function_id} 
@@ -3742,22 +3928,7 @@ export default function ProjectTasksPage() {
                             </MenuItem>
                           ))}
                   </Select>
-                  {!form.feature_id && (
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              mt: 1, 
-                              ml: 1.5,
-                              color: '#9ca3af',
-                              fontSize: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            ⓘ Vui lòng chọn Feature trước
-                    </Typography>
-                  )}
+                
                 </FormControl>
                     </Stack>
                 </Box>
@@ -3882,7 +4053,7 @@ export default function ProjectTasksPage() {
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                       <Chip 
-                        label={violation.type}
+                        label={violation.type || violation.dependency_type || 'FS'}
                         size="small"
                         sx={{ 
                           height: 20,
@@ -3893,10 +4064,10 @@ export default function ProjectTasksPage() {
                         }}
                       />
                       <Typography variant="caption" fontWeight={600} color="text.secondary">
-                        {violation.type === 'FS' && 'Hoàn thành trước - Bắt đầu (FS)'}
-                        {violation.type === 'FF' && 'Hoàn thành đồng thời (FF)'}
-                        {violation.type === 'SS' && 'Bắt đầu song song (SS)'}
-                        {violation.type === 'SF' && 'Bắt đầu - Hoàn thành (SF)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'FS' && 'Hoàn thành trước - Bắt đầu (FS)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'FF' && 'Hoàn thành đồng thời (FF)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'SS' && 'Bắt đầu song song (SS)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'SF' && 'Bắt đầu - Hoàn thành (SF)'}
                       </Typography>
                     </Box>
                     <Typography variant="body2" sx={{ mt: 1 }}>
@@ -4147,17 +4318,17 @@ export default function ProjectTasksPage() {
                   )}
 
                   {/* Add new dependency form */}
-                  <Box sx={{ mt: 2, p: 2.5, bgcolor: '#f8f9fb', borderRadius: 2, border: '1px dashed #d1d5db' }}>
-                    <Typography variant="body2" fontWeight={600} sx={{ mb: 2, color: '#6b7280' }}>
-                      Thêm phụ thuộc mới
+                  <Box sx={{ mt: 2, p: 3, bgcolor: '#f8f9fb', borderRadius: 2, border: '2px dashed #7b68ee' }}>
+                    <Typography fontSize="14px" fontWeight={700} sx={{ mb: 2, color: '#7b68ee' }}>
+                      Thêm Phụ thuộc (Công việc này phụ thuộc vào)
                     </Typography>
                     <Stack spacing={2}>
-                      {/* Row 1: Task Selection */}
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Chọn công việc</InputLabel>
+                      {/* Task Selection */}
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Công việc phải hoàn thành trước</InputLabel>
                         <Select
                           value={dependencyForm.depends_on_task_id}
-                          label="Chọn công việc"
+                          label="Công việc phải hoàn thành trước"
                           onChange={(e) => setDependencyForm({ ...dependencyForm, depends_on_task_id: e.target.value })}
                         >
                           {tasks
@@ -4165,11 +4336,11 @@ export default function ProjectTasksPage() {
                             .map(task => (
                               <MenuItem key={task._id} value={task._id}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography fontSize="14px">{task.title}</Typography>
+                                  <Typography fontSize="13px">{task.title}</Typography>
                                   <Chip 
                                     label={typeof task.status === 'object' ? (task.status as any)?.name : task.status} 
-                                    size="small" 
-                                    sx={{ height: 18, fontSize: '10px' }} 
+                                    size="small"
+                                    sx={{ height: 18, fontSize: '10px' }}
                                   />
                                 </Box>
                               </MenuItem>
@@ -4177,74 +4348,96 @@ export default function ProjectTasksPage() {
                         </Select>
                       </FormControl>
 
-                      {/* Row 2: Dependency Type and Lag */}
-                      <Stack direction="row" spacing={1.5}>
-                        <FormControl size="small" sx={{ flex: 2 }}>
-                          <InputLabel>Loại phụ thuộc</InputLabel>
+                      {/* Dependency Type & Lag */}
+                      <Stack direction="row" spacing={2}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Loại</InputLabel>
                           <Select
                             value={dependencyForm.dependency_type}
-                            label="Loại phụ thuộc"
+                            label="Loại"
                             onChange={(e) => setDependencyForm({ ...dependencyForm, dependency_type: e.target.value })}
                           >
                             <MenuItem value="FS">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Finish-to-Start (FS)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Công việc trước phải hoàn thành trước khi công việc sau bắt đầu
+                                <Typography fontSize="13px" fontWeight={600}>FS - Hoàn thành - Bắt đầu</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Công việc trước phải hoàn thành trước
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="FF">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Finish-to-Finish (FF)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Cả hai công việc phải hoàn thành cùng lúc
+                                <Typography fontSize="13px" fontWeight={600}>FF - Hoàn thành - Hoàn thành</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Cả hai phải hoàn thành cùng lúc
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="SS">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Start-to-Start (SS)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Cả hai công việc phải bắt đầu cùng lúc
+                                <Typography fontSize="13px" fontWeight={600}>SS - Bắt đầu - Bắt đầu</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Cả hai phải bắt đầu cùng lúc
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="SF">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Start-to-Finish (SF)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Công việc trước phải bắt đầu trước khi công việc sau hoàn thành
+                                <Typography fontSize="13px" fontWeight={600}>SF - Bắt đầu - Hoàn thành</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Công việc trước phải bắt đầu trước
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="relates_to">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Related To</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Simple reference link (no constraint)
+                                <Typography fontSize="13px" fontWeight={600}>Liên quan đến</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Chỉ tham chiếu (không ràng buộc)
                                 </Typography>
                               </Box>
                             </MenuItem>
                           </Select>
                         </FormControl>
 
-                        <TextField
-                          size="small"
-                          label="Độ trễ (ngày)"
-                          type="number"
-                          value={dependencyForm.lag_days}
-                          onChange={(e) => setDependencyForm({ ...dependencyForm, lag_days: parseInt(e.target.value) || 0 })}
-                          sx={{ flex: 1 }}
-                          inputProps={{ min: -30, max: 30 }}
-                          helperText={
-                            dependencyForm.lag_days > 0 
-                              ? `+${dependencyForm.lag_days} ngày trễ` 
-                              : dependencyForm.lag_days < 0 
-                                ? `${dependencyForm.lag_days} ngày sớm` 
-                                : 'Không có độ trễ'
-                          }
-                        />
+                        <Box sx={{ width: 200 }}>
+                          <TextField
+                            label="Lag/Lead (ngày)"
+                            type="number"
+                            size="small"
+                            value={dependencyForm.lag_days}
+                            onChange={(e) => setDependencyForm({ ...dependencyForm, lag_days: parseInt(e.target.value) || 0 })}
+                            fullWidth
+                            inputProps={{ min: -30, max: 30 }}
+                            helperText={
+                              dependencyForm.lag_days > 0 
+                                ? `⏱️ Lag: +${dependencyForm.lag_days} ngày (công việc sau sẽ bắt đầu SAU ${dependencyForm.lag_days} ngày)` 
+                                : dependencyForm.lag_days < 0 
+                                  ? `⚡ Lead: ${Math.abs(dependencyForm.lag_days)} ngày (công việc sau có thể bắt đầu TRƯỚC ${Math.abs(dependencyForm.lag_days)} ngày)` 
+                                  : 'Không có lag/lead (bắt đầu ngay sau khi điều kiện đáp ứng)'
+                            }
+                            sx={{
+                              '& .MuiFormHelperText-root': {
+                                fontSize: '10px',
+                                mt: 0.5,
+                                lineHeight: 1.3
+                              }
+                            }}
+                          />
+                          <Box sx={{ mt: 1, p: 1.5, bgcolor: '#f0f9ff', borderRadius: 1, border: '1px solid #bae6fd' }}>
+                            <Typography fontSize="10px" fontWeight={600} color="#0284c7" sx={{ mb: 0.5 }}>
+                              💡 Giải thích:
+                            </Typography>
+                            <Typography fontSize="10px" color="#0369a1" component="div">
+                              <Box component="span" sx={{ display: 'block', mb: 0.5 }}>
+                                • <strong>Lag (số dương):</strong> Độ trễ - công việc sau phải đợi thêm X ngày sau khi điều kiện đáp ứng
+                              </Box>
+                              <Box component="span" sx={{ display: 'block' }}>
+                                • <strong>Lead (số âm):</strong> Độ sớm - công việc sau có thể bắt đầu sớm X ngày trước khi điều kiện đáp ứng
+                              </Box>
+                            </Typography>
+                          </Box>
+                        </Box>
                       </Stack>
 
                       {/* Is Mandatory Toggle Switch */}
@@ -4298,39 +4491,48 @@ export default function ProjectTasksPage() {
                         rows={2}
                         value={dependencyForm.notes}
                         onChange={(e) => setDependencyForm({ ...dependencyForm, notes: e.target.value })}
-                        placeholder="Explain why this dependency exists..."
-                        helperText="Provide context for team members"
+                        placeholder="Giải thích lý do phụ thuộc này tồn tại..."
+                        helperText="Cung cấp ngữ cảnh cho các thành viên trong nhóm"
                       />
 
-                      {/* Submit Button */}
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        disabled={!dependencyForm.depends_on_task_id}
-                        onClick={async () => {
-                          if (dependencyTaskId && dependencyForm.depends_on_task_id) {
-                            await addDependency(
-                              dependencyTaskId, 
-                              dependencyForm.depends_on_task_id, 
-                              dependencyForm.dependency_type,
-                              dependencyForm.lag_days,
-                              dependencyForm.is_mandatory,
-                              dependencyForm.notes
-                            );
+                      {/* Action Buttons */}
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button
+                          size="small"
+                          onClick={() => {
                             setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
-                          }
-                        }}
-                        sx={{
-                          bgcolor: '#7b68ee',
-                          textTransform: 'none',
-                          fontWeight: 600,
-                          py: 1,
-                          '&:hover': { bgcolor: '#6952d6' }
-                        }}
-                      >
-                        <AddIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                        Thêm phụ thuộc
-                      </Button>
+                          }}
+                          sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
+                        >
+                          Hủy
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          disabled={!dependencyForm.depends_on_task_id}
+                          onClick={async () => {
+                            if (dependencyTaskId && dependencyForm.depends_on_task_id) {
+                              await addDependency(
+                                dependencyTaskId, 
+                                dependencyForm.depends_on_task_id, 
+                                dependencyForm.dependency_type,
+                                dependencyForm.lag_days,
+                                dependencyForm.is_mandatory,
+                                dependencyForm.notes
+                              );
+                              setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+                            }
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            bgcolor: '#7b68ee',
+                            '&:hover': { bgcolor: '#6952d6' }
+                          }}
+                        >
+                          Thêm Phụ thuộc
+                        </Button>
+                      </Stack>
                     </Stack>
                   </Box>
                 </Box>

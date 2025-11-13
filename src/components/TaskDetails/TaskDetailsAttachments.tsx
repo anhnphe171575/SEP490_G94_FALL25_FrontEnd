@@ -21,6 +21,7 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
+  Tooltip,
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import LinkIcon from "@mui/icons-material/Link";
@@ -88,6 +89,14 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   // Validate file
@@ -159,15 +168,50 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
       formData.append('file', file);
       formData.append('description', file.name);
 
-    try {
-      await axiosInstance.post(`/api/tasks/${taskId}/attachments`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      await loadAttachments();
-    } catch (error: any) {
-      console.error("Error uploading file:", error);
-      alert("Không thể tải lên tệp. Đảm bảo backend hỗ trợ tải lên tệp.");
+      try {
+        await axiosInstance.post(`/api/tasks/${taskId}/attachments`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: {
+            fileName: file.name,
+            progress: 100,
+            status: 'success'
+          }
+        }));
+        
+        await loadAttachments();
+      } catch (error: any) {
+        console.error("Error uploading file:", error);
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: {
+            fileName: file.name,
+            progress: 0,
+            status: 'error',
+            error: error?.response?.data?.message || 'Failed to upload file'
+          }
+        }));
+      }
     }
+
+    setUploading(false);
+  };
+
+  const handleDragIn = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setDragActive(true);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleDragOut = (e: React.DragEvent) => {
@@ -187,6 +231,12 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFileUpload(e.dataTransfer.files);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileUpload(e.target.files);
     }
   };
 
@@ -334,14 +384,6 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
     if (ext === 'pdf') return <PictureAsPdfIcon />;
     if (['doc', 'docx', 'txt'].includes(ext || '')) return <DescriptionIcon />;
     return <InsertDriveFileIcon />;
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   return (
@@ -562,7 +604,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               sx={{ textTransform: 'none', fontWeight: 600 }}
             >
               Tải lên tệp
-              <input type="file" hidden onChange={handleFileUpload} />
+              <input type="file" hidden multiple onChange={handleInputChange} />
             </Button>
             <Button
               size="small"
@@ -741,17 +783,18 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
                           <DownloadIcon sx={{ fontSize: 18 }} />
                         )}
                       </IconButton>
-                    )}
-                    <IconButton
-                      size="small"
-                      onClick={() => deleteAttachment(attachment._id)}
-                      sx={{ 
-                        color: '#9ca3af'
-                      }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </Stack>
+                    </Tooltip>
+                  )}
+                  <IconButton
+                    size="small"
+                    onClick={() => deleteAttachment(attachment._id)}
+                    sx={{ 
+                      color: '#9ca3af'
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Stack>
                 </Stack>
               </Paper>
             );

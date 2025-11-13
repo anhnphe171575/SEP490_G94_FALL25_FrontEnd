@@ -80,7 +80,7 @@ export default function LoginPage() {
       
       // Redirect based on role
       if (userRole === 4) {
-        router.replace("/dashboard-supervisor");
+        router.replace("/supervisor/projects");
       } else {
         router.replace("/dashboard");
       }
@@ -113,7 +113,7 @@ export default function LoginPage() {
     } 
     // ✅ Hoặc fallback theo role
     else if (user?.role === 4) {
-      router.replace("/supervisor/dashboard");
+      router.replace("/supervisor/projects");
     } else {
       router.replace("/dashboard");
     }

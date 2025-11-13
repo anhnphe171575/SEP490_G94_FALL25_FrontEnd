@@ -479,7 +479,7 @@ export default function ProjectFunctionsPage() {
                 </Button>
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}/functions`)}
+                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
                   sx={{
                     textTransform: 'none',
                     fontSize: '13px',
@@ -492,7 +492,7 @@ export default function ProjectFunctionsPage() {
                     }
                   }}
                 >
-                  Chức năng
+                  Công việc
                 </Button>
                 
                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />

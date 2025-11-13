@@ -463,7 +463,7 @@ export default function ProjectFeaturesPage() {
                 </Button>
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}/features`)}
+                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
                   sx={{
                     textTransform: 'none',
                     fontSize: '13px',
@@ -476,7 +476,7 @@ export default function ProjectFeaturesPage() {
                     }
                   }}
                 >
-                  Tính năng
+                  Công Việc
                 </Button>
                 <Button
                   variant="outlined"
@@ -833,37 +833,7 @@ export default function ProjectFeaturesPage() {
           ) : (
             <Stack spacing={3}>
               {/* View Tabs */}
-              <Paper variant="outlined" sx={{ borderRadius: 3 }}>
-                <Tabs 
-                  value={viewTab} 
-                  onChange={(e, newValue) => setViewTab(newValue)}
-                  sx={{
-                    borderBottom: '1px solid #e2e8f0',
-                    px: 2,
-                    '& .MuiTab-root': {
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      minHeight: 48,
-                      color: '#6b7280',
-                      '&.Mui-selected': {
-                        color: '#7b68ee',
-                      }
-                    },
-                    '& .MuiTabs-indicator': {
-                      backgroundColor: '#7b68ee',
-                      height: 3,
-                      borderRadius: '3px 3px 0 0',
-                    }
-                  }}
-                >
-                  <Tab label="📋 Dạng bảng" value="table" />
-                </Tabs>
-
-                {/* Table View - see below */}
-
-                {/* Gantt View removed */}
-              </Paper>
+            
 
               {/* Table View Content */}
               {viewTab === 'table' && (
@@ -872,21 +842,13 @@ export default function ProjectFeaturesPage() {
                 <Table size="small" sx={{ minWidth: 1400, '& td, & th': { borderColor: 'var(--border)' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ width: 44 }}>
-                        <Checkbox 
-                          size="small" 
-                          checked={selectedFeatureIds.length === features.length && features.length > 0}
-                          indeterminate={selectedFeatureIds.length > 0 && selectedFeatureIds.length < features.length}
-                          onChange={handleToggleAllFeatures}
-                        />
-                      </TableCell>
+                     
                       <TableCell sx={{ width: 60 }}>STT</TableCell>
                       <TableCell>Tiêu đề</TableCell>
                       <TableCell>Trạng thái</TableCell>
                       <TableCell>Ưu tiên</TableCell>
                       <TableCell sx={{ minWidth: 200 }}>Cột mốc</TableCell>
                       <TableCell>Bắt đầu - Hết hạn</TableCell>
-                      <TableCell>Mô tả</TableCell>
                       <TableCell>Thao tác</TableCell>
                     </TableRow>
                   </TableHead>
@@ -923,13 +885,7 @@ export default function ProjectFeaturesPage() {
                       );
                       return (
                         <TableRow key={f._id || idx} hover>
-                          <TableCell>
-                            <Checkbox 
-                              size="small" 
-                              checked={selectedFeatureIds.includes(f._id as string)}
-                              onChange={() => handleToggleFeatureSelection(f._id as string)}
-                            />
-                          </TableCell>
+                         
                           <TableCell 
                             sx={{ 
                               fontWeight: 600, 
@@ -972,7 +928,18 @@ export default function ProjectFeaturesPage() {
                                 onBlur={() => saveEditRow(f._id as string)}
                               />
                             ) : (
-                              f.title
+                              <Tooltip title={f.title || ''}>
+                                <Typography
+                                  sx={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: 100
+                                  }}
+                                >
+                                  <b>{f.title || '...'}</b>
+                                </Typography>
+                              </Tooltip>
                             )}
                           </TableCell>
                           
@@ -1124,20 +1091,7 @@ export default function ProjectFeaturesPage() {
                             </Stack>
                           </TableCell>
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'description')}>
-                            {editingId === f._id && editingField === 'description' ? (
-                              <TextField
-                                size="small"
-                                value={editDraft.description || ''}
-                                onChange={(e) => setEditDraft(s => ({ ...s, description: e.target.value }))}
-                                fullWidth onBlur={() => saveEditRow(f._id as string)}
-                              />
-                            ) : (
-                              <Typography variant="body2" sx={{ opacity: .9, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {f.description || '—'}
-                              </Typography>
-                            )}
-                          </TableCell>
+                
                           
                           <TableCell>
                             <Stack direction="row" spacing={0.5}>

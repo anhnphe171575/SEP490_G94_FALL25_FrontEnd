@@ -9,7 +9,7 @@ import NotificationToast from "./NotificationToast";
 
 const navItems = [
   {
-    href: "/projects",
+    href: "/dashboard",
     label: "Dự án",
     icon: (
       <svg

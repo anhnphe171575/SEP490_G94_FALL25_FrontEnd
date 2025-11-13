@@ -23,11 +23,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import DateRangeIcon from "@mui/icons-material/DateRange";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import ListIcon from "@mui/icons-material/List";
 import FlagIcon from "@mui/icons-material/Flag";
 import TuneIcon from "@mui/icons-material/Tune";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
@@ -944,10 +940,9 @@ export default function ProjectDetailPage() {
               ) : (
                 <>
                   {/* Tabs */}
-                  <Paper variant="outlined" sx={{ borderRadius: 3, mb: 3 }}>
                     <Tabs 
-                      value={viewTab} 
-                      onChange={(e, newValue) => setViewTab(newValue)}
+                      value={viewTab === 'list' ? 0 : 1} 
+                      onChange={(e, newValue) => setViewTab(newValue === 0 ? 'list' : 'timeline')}
                       sx={{
                         borderBottom: '1px solid #e2e8f0',
                         px: 2,
@@ -968,10 +963,35 @@ export default function ProjectDetailPage() {
                         }
                       }}
                     >
-                      <Tab label="📋 Danh sách" value="list" />
-                      <Tab label="📊 Timeline" value="timeline" />
+                      <Tab
+                        icon={<ListIcon fontSize="small" />}
+                        iconPosition="start"
+                        label="Danh sách"
+                        value={0}
+                        sx={{
+                          minHeight: 48,
+                          '&.Mui-selected': {
+                            color: '#7b68ee',
+                          }
+                        }}
+                      />
+                      <Tab
+                        icon={
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        }
+                        iconPosition="start"
+                        label="Gantt"
+                        value={1}
+                        sx={{
+                          minHeight: 48,
+                          '&.Mui-selected': {
+                            color: '#7b68ee',
+                          }
+                        }}
+                      />
                     </Tabs>
-                  </Paper>
 
                   {/* Tab Content */}
                   {viewTab === 'list' && (
@@ -982,7 +1002,6 @@ export default function ProjectDetailPage() {
                             <TableCell sx={{ width: 60 }}>STT</TableCell>
                             <TableCell>Tiêu đề</TableCell>
                             <TableCell>Bắt đầu - Hết hạn</TableCell>
-                            <TableCell>Tiến độ</TableCell>
                             <TableCell sx={{ width: 120 }}>Thao tác</TableCell>
                           </TableRow>
                         </TableHead>
@@ -1015,16 +1034,6 @@ export default function ProjectDetailPage() {
                                 <Typography variant="caption" color="text.secondary">
                                   {m.start_date ? new Date(m.start_date).toLocaleDateString('vi-VN') : '—'} {m.deadline ? `→ ${new Date(m.deadline).toLocaleDateString('vi-VN')}` : ''}
                                 </Typography>
-                              </TableCell>
-                              <TableCell>
-                                {m.progress ? (
-                                  <Stack spacing={0.5}>
-                                    <LinearProgress variant="determinate" value={m.progress.overall} sx={{ height: 8, borderRadius: 4 }} />
-                                    <Typography variant="caption" color="text.secondary">{m.progress.overall}%</Typography>
-                                  </Stack>
-                                ) : (
-                                  <Typography variant="caption" color="text.secondary">—</Typography>
-                                )}
                               </TableCell>
                               <TableCell>
                                 <Stack direction="row" spacing={0.5}>
@@ -1391,24 +1400,6 @@ function MilestonesList({
                   )}
                 </Box>
 
-                {milestone.progress && (
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                      <Typography variant="caption" color="text.secondary">
-                        Tiến độ tổng thể
-                      </Typography>
-                      <Typography variant="caption" fontWeight={600}>
-                        {milestone.progress.overall}%
-                      </Typography>
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={milestone.progress.overall}
-                      color={getProgressColor(milestone.progress.overall)}
-                      sx={{ height: 8, borderRadius: 4 }}
-                    />
-                  </Box>
-                )}
               </Paper>
             ))}
           </Stack>

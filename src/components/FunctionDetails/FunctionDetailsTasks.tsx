@@ -70,13 +70,27 @@ export default function FunctionDetailsTasks({
     if (!projectId) return;
     try {
       const response = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
-      const allMembers = [
-        ...(response.data.leaders || []),
-        ...(response.data.members || [])
-      ];
-      setTeamMembers(allMembers);
+      console.log('Team members response:', response.data);
+      
+      // API trả về { team_members: { leaders: [], members: [] } }
+      const teamData = response.data?.team_members;
+      if (teamData) {
+        const allMembers = [
+          ...(teamData.leaders || []),
+          ...(teamData.members || [])
+        ];
+        setTeamMembers(allMembers);
+      } else {
+        // Fallback: nếu không có team_members, thử lấy trực tiếp từ response.data
+        const allMembers = [
+          ...(response.data?.leaders || []),
+          ...(response.data?.members || [])
+        ];
+        setTeamMembers(allMembers);
+      }
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     }
   };
 
@@ -372,11 +386,15 @@ export default function FunctionDetailsTasks({
                 <MenuItem value="">
                   <em>Unassigned</em>
                 </MenuItem>
-                {teamMembers.map((member) => (
-                  <MenuItem key={member._id} value={member._id}>
-                    {member.name || member.email}
-                  </MenuItem>
-                ))}
+                {teamMembers.map((member, idx) => {
+                  const userId = member.user_id?._id || member._id;
+                  const userName = member.user_id?.full_name || member.full_name || member.name || member.email || 'Unknown';
+                  return (
+                    <MenuItem key={userId || idx} value={userId}>
+                      {userName}
+                    </MenuItem>
+                  );
+                })}
               </Select>
             </FormControl>
             <TextField
