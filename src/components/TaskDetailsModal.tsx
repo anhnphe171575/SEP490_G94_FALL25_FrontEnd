@@ -11,7 +11,6 @@ import {
   Divider,
   Chip,
   Stack,
-  LinearProgress,
   Avatar,
   Tooltip,
   TextField,
@@ -33,18 +32,14 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import BugReportIcon from "@mui/icons-material/BugReport";
 import axiosInstance from "../../ultis/axios";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
-import TaskDetailsSubtasks from "./TaskDetails/TaskDetailsSubtasks";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
-import TaskDetailsTimeLogs from "./TaskDetails/TaskDetailsTimeLogs";
 import TaskDetailsComments from "./TaskDetails/TaskDetailsComments";
 import TaskDetailsAttachments from "./TaskDetails/TaskDetailsAttachments";
 import TaskDetailsActivity from "./TaskDetails/TaskDetailsActivity";
-import TaskDetailsBugs from "./TaskDetails/TaskDetailsBugs";
 import DependencyViolationDialog from "./DependencyViolationDialog";
 
 type Task = {
@@ -62,7 +57,6 @@ type Task = {
   deadline?: string;
   estimate?: number;
   actual?: number;
-  progress?: number;
   parent_task_id?: string;
   tags?: string[];
   time_tracking?: {
@@ -79,10 +73,9 @@ interface TaskDetailsModalProps {
   projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
-  onTaskChange?: (newTaskId: string) => void; // Callback to switch to another task
 }
 
-export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate, onTaskChange }: TaskDetailsModalProps) {
+export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate }: TaskDetailsModalProps) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -101,28 +94,11 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   // Dependencies state
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [hasMandatoryDependencies, setHasMandatoryDependencies] = useState(false);
-  
-  // Check if this is a subtask
-  const isSubtask = !!task?.parent_task_id;
 
-  // Handle subtask click - switch to view that subtask
-  const handleSubtaskClick = (subtaskId: string) => {
-    if (onTaskChange) {
-      onTaskChange(subtaskId);
-    }
-  };
-
-  // Get tab name from index (handles dynamic tabs for subtask)
+  // Get tab name from index
   const getTabContent = (index: number) => {
-    if (isSubtask) {
-      // For subtasks: Overview, Bugs, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'bugs', 'time', 'comments', 'files', 'activity'];
-      return tabMap[index];
-    } else {
-      // For tasks: Overview, Subtasks, Dependencies, Bugs, Time, Comments, Files, Activity
-      const tabMap = ['overview', 'subtasks', 'dependencies', 'bugs', 'time', 'comments', 'files', 'activity'];
-      return tabMap[index];
-    }
+    const tabMap = ['overview', 'dependencies', 'comments', 'files', 'activity'];
+    return tabMap[index];
   };
 
   useEffect(() => {
@@ -214,39 +190,63 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
     }
   };
 
-  const handleTaskUpdate = async (updates: any, forceUpdate = false) => {
+  const handleTaskUpdate = async (updates: any, forceUpdate = false, skipParentRefresh = false) => {
     try {
-      // Optimistic update - update local state immediately
-      setTask(prev => prev ? { ...prev, ...updates } : prev);
-      
       // Send request to server
       await axiosInstance.patch(`/api/tasks/${taskId}`, {
         ...updates,
         force_update: forceUpdate
       });
       
-      // Reload to get populated data from server
+      // Silently reload task data in background without showing loading state
       const response = await axiosInstance.get(`/api/tasks/${taskId}`);
       setTask(response.data);
       
-      if (onUpdate) onUpdate();
+      // Temporarily disable parent refresh to prevent page reload
+      // TODO: Re-enable selectively for status/priority changes only
+      // if (!skipParentRefresh && onUpdate) {
+      //   onUpdate();
+      // }
     } catch (error: any) {
       console.error("Error updating task:", error);
       
-      // Check if error is due to dependency violation
-      if (error?.response?.status === 400 && error?.response?.data?.violations) {
-        const violations = error.response.data.violations;
-        const canForce = error.response.data.can_force || false;
+      // Check if error is due to validation failure (dependency or date validation)
+      if (error?.response?.status === 400) {
+        const responseData = error.response.data;
         
-        // Show dependency violation dialog
-        setDependencyViolations(violations);
-        setCanForceUpdate(canForce);
-        setPendingUpdate(updates);
-        setDependencyViolationOpen(true);
+        // Handle dependency violations
+        if (responseData.violations) {
+          const violations = responseData.violations;
+          const canForce = responseData.can_force || false;
+          
+          // Show dependency violation dialog
+          setDependencyViolations(violations);
+          setCanForceUpdate(canForce);
+          setPendingUpdate(updates);
+          setDependencyViolationOpen(true);
+          
+          // Reload to restore correct state
+          await loadTaskDetails();
+          return; // Don't throw error, let user decide
+        }
         
-        // Reload to restore correct state
-        await loadTaskDetails();
-        return; // Don't throw error, let user decide
+        // Handle date validation errors
+        if (responseData.errors && responseData.message === 'Date validation failed') {
+          const canForce = responseData.can_force || false;
+          
+          // Show validation errors in dependency violation dialog (reuse same UI)
+          setDependencyViolations(responseData.errors.map((err: string) => ({
+            message: err,
+            type: 'date_validation'
+          })));
+          setCanForceUpdate(canForce);
+          setPendingUpdate(updates);
+          setDependencyViolationOpen(true);
+          
+          // Reload to restore correct state
+          await loadTaskDetails();
+          return;
+        }
       }
       
       // Reload on other errors to restore correct state
@@ -331,7 +331,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 padding: 0
               }}
             >
-              {task?.function_id && typeof task.function_id === 'object' ? task.function_id.title : 'Tasks'}
+              {task?.function_id && typeof task.function_id === 'object' ? task.function_id.title : 'Công việc'}
             </Link>
             <Typography 
               fontSize="13px" 
@@ -344,7 +344,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 whiteSpace: 'nowrap'
               }}
             >
-              {task?.title || 'Task Details'}
+              {task?.title || 'Chi tiết công việc'}
             </Typography>
           </Breadcrumbs>
 
@@ -387,7 +387,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }
                 }}
               >
-                {task?.title || 'Loading...'}
+                {task?.title || 'Đang tải...'}
               </Typography>
 
               {/* Meta Info Row */}
@@ -455,28 +455,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   </Stack>
                 )}
 
-                {/* Progress */}
-                {task?.progress !== undefined && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ 
-                      width: 60, 
-                      height: 6, 
-                      bgcolor: '#e5e7eb', 
-                      borderRadius: 3,
-                      overflow: 'hidden'
-                    }}>
-                      <Box sx={{ 
-                        width: `${task.progress}%`, 
-                        height: '100%', 
-                        bgcolor: '#7b68ee',
-                        transition: 'width 0.3s'
-                      }} />
-                    </Box>
-                    <Typography fontSize="12px" fontWeight={600} color="text.secondary">
-                      {task.progress}%
-                    </Typography>
-                  </Box>
-                )}
               </Stack>
             </Box>
           </Stack>
@@ -509,14 +487,11 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               }
             }}
           >
-            <Tab label="Overview" />
-            {!isSubtask && <Tab label="Subtasks" />}
-            {!isSubtask && <Tab label="Dependencies" />}
-            <Tab label="Bugs" />
-            <Tab label="Time" />
-            <Tab label="Comments" />
-            <Tab label="Files" />
-            <Tab label="Activity" />
+            <Tab label="Tổng quan" />
+            <Tab label="Phụ thuộc" />
+            <Tab label="Bình luận" />
+            <Tab label="Tệp đính kèm" />
+            <Tab label="Hoạt động" />
           </Tabs>
         </Box>
       </Box>
@@ -536,18 +511,15 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
         }}>
           {loading ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography>Loading...</Typography>
+              <Typography>Đang tải...</Typography>
             </Box>
           ) : (
             <>
-              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview task={task} onUpdate={handleTaskUpdate} />}
-              {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
-              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
-              {getTabContent(currentTab) === 'bugs' && taskId && <TaskDetailsBugs taskId={taskId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'time' && <TaskDetailsTimeLogs taskId={taskId} task={task} onUpdate={loadTaskDetails} />}
-              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments taskId={taskId} />}
-              {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments taskId={taskId} />}
-              {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity taskId={taskId} />}
+              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={handleTaskUpdate} />}
+              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
+              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments key={task?.updatedAt || task?._id} taskId={taskId} />}
+              {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments key={task?.updatedAt || task?._id} taskId={taskId} />}
+              {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity key={task?.updatedAt || task?._id} taskId={taskId} />}
             </>
           )}
         </Box>
@@ -565,14 +537,14 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             fontWeight={700} 
             sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
           >
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Status */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Status
+                Trạng thái
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -587,7 +559,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   displayEmpty
                   renderValue={(value) => {
                     const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Select status';
+                    return statusObj?.name || 'Chọn trạng thái';
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -610,7 +582,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             {/* Priority */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Priority
+                Ưu tiên
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -624,7 +596,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'No priority';
+                    if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -644,7 +616,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     }
                   }}
                 >
-                  <MenuItem value="">No Priority</MenuItem>
+                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -660,15 +632,14 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </FormControl>
             </Box>
 
-            {/* Feature (Read-only) & Function - Hide for Subtasks */}
-            {!isSubtask && (
-              <>
+            {/* Feature (Read-only) & Function */}
+            <>
             <Divider />
 
                 {/* Feature (Read-only, derived from Function) */}
                 <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Feature
+                Tính năng
               </Typography>
               <Box
                 sx={{
@@ -692,11 +663,11 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {task?.function_id?.feature_id?.title || 'No feature'}
+                  {task?.function_id?.feature_id?.title || 'Không có tính năng'}
                 </Typography>
               </Box>
               <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                Feature is determined by the selected function
+                Tính năng được xác định bởi chức năng đã chọn
               </Typography>
             </Box>
 
@@ -705,7 +676,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 {/* Function */}
                 <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Function
+                Chức năng
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -723,9 +694,9 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn function</em>;
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn chức năng</em>;
                     const selected = allFunctions.find((f: any) => f._id === value);
-                    const title = selected?.title || 'Unknown';
+                    const title = selected?.title || 'Không rõ';
                     return (
                       <Tooltip title={title} arrow placement="top">
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
@@ -787,12 +758,11 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
                 <Divider />
               </>
-            )}
 
             {/* Assignee */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Assignee
+                Người thực hiện
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -806,16 +776,16 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Unassigned</em>;
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chưa giao</em>;
                     
                     // Try to get from current task data first
-                    let name = 'Unknown';
+                    let name = 'Không rõ';
                     if (typeof task?.assignee_id === 'object' && task?.assignee_id) {
-                      name = task.assignee_id.full_name || task.assignee_id.email || 'Unknown';
+                      name = task.assignee_id.full_name || task.assignee_id.email || 'Không rõ';
                     } else {
                       // Fallback to team members
                       const selected = teamMembers.find((m: any) => m.user_id?._id === value);
-                      name = selected?.user_id?.full_name || selected?.user_id?.email || 'Unknown';
+                      name = selected?.user_id?.full_name || selected?.user_id?.email || 'Không rõ';
                     }
                     
                     return (
@@ -840,7 +810,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                 >
                   <MenuItem value="">
-                    <em>Unassigned</em>
+                    <em>Chưa giao</em>
                   </MenuItem>
                   {teamMembers.map((member: any) => (
                     <MenuItem key={member.user_id?._id} value={member.user_id?._id}>
@@ -865,14 +835,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             <Divider />
 
-            {/* Dates - Hide Start Date for Subtasks */}
-            {!isSubtask && (
+            {/* Dates */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Start Date
+                Ngày bắt đầu
                 {hasMandatoryDependencies && (
                   <Chip 
-                    label="⚠️ Constrained by dependencies" 
+                    label="⚠️ Bị ràng buộc bởi phụ thuộc" 
                     size="small" 
                     sx={{ 
                       ml: 1,
@@ -893,10 +862,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 onChange={async (e) => {
                   if (hasMandatoryDependencies) {
                     const confirm = window.confirm(
-                      '⚠️ This task has mandatory dependencies!\n\n' +
-                      'Changing the start date may violate dependency constraints.\n\n' +
-                      'Consider using "Auto-adjust dates" in the Dependencies tab instead.\n\n' +
-                      'Do you want to proceed anyway?'
+                      '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+                      'Thay đổi ngày bắt đầu có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+                      'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
+                      'Bạn có muốn tiếp tục không?'
                     );
                     if (!confirm) return;
                   }
@@ -920,14 +889,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 }}
               />
             </Box>
-            )}
 
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Due Date
+                Hạn chót
                 {hasMandatoryDependencies && (
                   <Chip 
-                    label="⚠️ Constrained by dependencies" 
+                    label="⚠️ Bị ràng buộc bởi phụ thuộc" 
                     size="small" 
                     sx={{ 
                       ml: 1,
@@ -948,10 +916,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 onChange={async (e) => {
                   if (hasMandatoryDependencies) {
                     const confirm = window.confirm(
-                      '⚠️ This task has mandatory dependencies!\n\n' +
-                      'Changing the deadline may violate dependency constraints.\n\n' +
-                      'Consider using "Auto-adjust dates" in the Dependencies tab instead.\n\n' +
-                      'Do you want to proceed anyway?'
+                      '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+                      'Thay đổi hạn chót có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+                      'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
+                      'Bạn có muốn tiếp tục không?'
                     );
                     if (!confirm) return;
                   }
@@ -978,10 +946,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             <Divider />
 
-            {/* Estimate only for Subtasks, both for Tasks */}
+            {/* Estimate */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Estimated Time (hours)
+                Thời gian ước tính (giờ)
               </Typography>
               <TextField
                 type="number"
@@ -1010,70 +978,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               />
             </Box>
 
-            {/* Time Spent & Progress - Hide for Subtasks */}
-            {!isSubtask && (
-              <>
-            <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Time Spent
-              </Typography>
-              <Box sx={{ 
-                p: 1.5,
-                bgcolor: '#fafbfc',
-                borderRadius: 1,
-                border: '1px solid #e8e9eb'
-              }}>
-                <Typography fontSize="16px" fontWeight={700} color="text.primary">
-                  {task?.actual ? `${task.actual}h` : '0h'}
-                </Typography>
-                {task?.estimate && task.estimate > 0 && (
-                  <Typography fontSize="11px" color={(task?.actual || 0) > task.estimate ? 'error.main' : 'success.main'}>
-                    {(task?.actual || 0) > task.estimate ? 'Over' : 'Under'} by {Math.abs((task?.actual || 0) - task.estimate).toFixed(1)}h
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-
-            <Divider />
-
-            {/* Progress */}
-            <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
-                Progress: {task?.progress || 0}%
-              </Typography>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={task?.progress || 0}
-                onChange={async (e) => {
-                  try {
-                    await handleTaskUpdate({ progress: Number(e.target.value) });
-                  } catch (error) {
-                    console.error('Error updating progress:', error);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  height: '6px',
-                  borderRadius: '3px',
-                  outline: 'none',
-                  background: `linear-gradient(to right, #7b68ee 0%, #7b68ee ${task?.progress || 0}%, #e8e9eb ${task?.progress || 0}%, #e8e9eb 100%)`,
-                  cursor: 'pointer',
-                }}
-              />
-            </Box>
-              </>
-            )}
-
             <Divider />
 
             {/* Tags */}
             {task?.tags && task.tags.length > 0 && (
               <Box>
                 <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                  Tags
+                  Nhãn
                 </Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
                   {task.tags.map((tag, i) => (

@@ -22,6 +22,7 @@ import {
   Breadcrumbs,
   Link,
   Tooltip,
+  Autocomplete,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
@@ -38,37 +39,14 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import Avatar from "@mui/material/Avatar";
 import Paper from "@mui/material/Paper";
 import Menu from "@mui/material/Menu";
-import MilestoneProgressDetail from "./MilestoneProgressDetail";
 import { toast } from "sonner";
 
-type Update = { _id: string; content: string; createdAt: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
+type Update = { _id: string; content: string; createdAt: string; updatedAt?: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
 type ActivityLog = { _id: string; action: string; createdAt: string; metadata?: any; created_by?: { full_name?: string; email?: string; avatar?: string } };
 type FileDoc = { _id: string; title: string; file_url: string; createdAt: string };
-type MilestoneProgress = {
-  overall: number;
-  by_feature: Array<{
-    feature_id: string;
-    feature_title: string;
-    task_count: number;
-    function_count: number;
-    completed_tasks: number;
-    completed_functions: number;
-    percentage: number;
-  }>;
-  by_task: {
-    total: number;
-    completed: number;
-    percentage: number;
-  };
-  by_function: {
-    total: number;
-    completed: number;
-    percentage: number;
-  };
-};
 
 export default function ModalMilestone({ open, onClose, projectId, milestoneId, onUpdate }: { open: boolean; onClose: () => void; projectId: string; milestoneId: string; onUpdate?: () => void; }) {
-  const [tab, setTab] = useState<"updates"|"files"|"activity"|"progress">("updates");
+  const [tab, setTab] = useState<"updates"|"activity">("updates");
   const [updates, setUpdates] = useState<Update[]>([]);
   const [files, setFiles] = useState<FileDoc[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
@@ -83,11 +61,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [tags, setTags] = useState<string>("");
-  const [priorityId, setPriorityId] = useState("");
-  const [statusId, setStatusId] = useState("");
-  const [priorities, setPriorities] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
@@ -96,7 +71,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const [fileVersion, setFileVersion] = useState("1.0");
   const [fileStatus, setFileStatus] = useState("Pending");
   const [fileDescription, setFileDescription] = useState("");
-  const [progress, setProgress] = useState<MilestoneProgress | null>(null);
 
   const toInputDate = (d: Date | null) => {
     if (!d) return "";
@@ -112,34 +86,50 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     (async () => {
       setLoading(true);
       try {
-        const [m, u, f, a, p, priorityRes, statusRes] = await Promise.all([
+        const [m, u, a] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/comments`),
-          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/files`),
-          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`),
-          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`).catch(() => ({ data: { progress: null } })),
-          axiosInstance.get('/api/setting').then(res => res.data.filter((s: any) => s.type_id === 1)).catch(() => []),
-          axiosInstance.get('/api/setting').then(res => res.data.filter((s: any) => s.type_id === 2)).catch(() => [])
+          axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`)
         ]);
         const md = m.data || {};
         setTitle(md.title || "");
         setDescription(md.description || "");
         setStartDate(md.start_date ? md.start_date.substring(0,10) : "");
         setDeadline(md.deadline ? md.deadline.substring(0,10) : "");
-        setTags(Array.isArray(md.tags) ? md.tags.join(', ') : "");
-        setPriorityId(md.priority_id?._id || md.priority_id || "");
-        setStatusId(md.status_id?._id || md.status_id || "");
-        setPriorities(priorityRes);
-        setStatuses(statusRes);
+        setTags(Array.isArray(md.tags) ? md.tags : []);
         setUpdates(Array.isArray(u.data) ? u.data : []);
-        setFiles(Array.isArray(f.data) ? f.data : []);
         setActivity(Array.isArray(a.data) ? a.data : []);
-        setProgress(p.data?.progress || null);
+        
+        // Load available tags from all milestones
+        await loadProjectTags();
       } finally {
         setLoading(false);
       }
     })();
   }, [open, projectId, milestoneId]);
+
+  const loadProjectTags = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
+      const milestones = response.data || [];
+      
+      // Extract all unique tags from all milestones
+      const tagsSet = new Set<string>();
+      milestones.forEach((m: any) => {
+        if (m.tags && Array.isArray(m.tags)) {
+          m.tags.forEach((tag: string) => {
+            if (tag && tag.trim()) {
+              tagsSet.add(tag.trim());
+            }
+          });
+        }
+      });
+      
+      setAvailableTags(Array.from(tagsSet).sort());
+    } catch (error) {
+      console.error('Error loading project tags:', error);
+    }
+  };
 
   const submitUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,14 +175,14 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   };
 
   const deleteComment = async (id: string) => {
-    if (!confirm('Delete this comment?')) return;
+    if (!confirm('Xóa bình luận này?')) return;
     try {
       await axiosInstance.delete(`/api/projects/${projectId}/milestones/${milestoneId}/comments/${id}`);
       setUpdates(prev => prev.filter(u => u._id !== id));
-      toast.success('Comment deleted');
+      toast.success('Đã xóa bình luận');
     } catch (error: any) {
-      toast.error('Failed to delete comment', {
-        description: error?.response?.data?.message || 'You do not have permission to delete this comment',
+      toast.error('Không thể xóa bình luận', {
+        description: error?.response?.data?.message || 'Bạn không có quyền xóa bình luận này',
       });
     }
   };
@@ -205,11 +195,11 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return commentDate.toLocaleDateString();
+    if (diffMins < 1) return 'vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    return commentDate.toLocaleDateString('vi-VN');
   };
 
   const getStatusColor = (statusName: string) => {
@@ -226,9 +216,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     if (key.includes('medium')) return '#f59e0b';
     return '#3b82f6';
   };
-
-  const currentStatus = statuses.find(s => s._id === statusId);
-  const currentPriority = priorities.find(p => p._id === priorityId);
 
   return (
     <Drawer
@@ -269,7 +256,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               fontSize="13px"
               sx={{ '&:hover': { color: '#7b68ee' } }}
             >
-              Milestones
+              Cột mốc
             </Link>
             <Typography 
               fontSize="13px" 
@@ -282,23 +269,23 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 whiteSpace: 'nowrap'
               }}
             >
-              {title || 'Milestone Details'}
+              {title || 'Chi tiết cột mốc'}
             </Typography>
           </Breadcrumbs>
 
           {/* Action Buttons */}
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Share">
+            <Tooltip title="Chia sẻ">
               <IconButton size="small" sx={{ color: '#6b7280' }}>
                 <ShareIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Watch">
+            <Tooltip title="Theo dõi">
               <IconButton size="small" sx={{ color: '#6b7280' }}>
                 <NotificationsIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
-            <Tooltip title="More actions">
+            <Tooltip title="Thêm thao tác">
               <IconButton size="small" sx={{ color: '#6b7280' }}>
                 <MoreVertIcon sx={{ fontSize: 18 }} />
               </IconButton>
@@ -312,18 +299,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
         {/* Milestone Title & Quick Info */}
         <Box sx={{ px: 3, py: 2.5 }}>
           <Stack direction="row" spacing={2} alignItems="flex-start">
-            {/* Checkbox */}
-            <IconButton 
-              size="small" 
-              sx={{ 
-                mt: 0.5,
-                color: currentStatus?.name?.toLowerCase().includes('completed') ? '#10b981' : '#d1d5db',
-                '&:hover': { color: '#10b981' }
-              }}
-            >
-              <CheckCircleIcon sx={{ fontSize: 24 }} />
-            </IconButton>
-
             {/* Title - Editable */}
             <Box sx={{ flex: 1 }}>
               <Typography 
@@ -335,44 +310,11 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                   lineHeight: 1.3,
                 }}
               >
-                {title || 'Loading...'}
+                {title || 'Đang tải...'}
             </Typography>
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-                {/* Status */}
-                {currentStatus && (
-                  <Chip 
-                    label={currentStatus.name} 
-              size="small" 
-                    sx={{ 
-                      height: 24,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      bgcolor: `${getStatusColor(currentStatus.name)}15`,
-                      color: getStatusColor(currentStatus.name),
-                      border: `1px solid ${getStatusColor(currentStatus.name)}40`,
-                    }}
-                  />
-                )}
-
-                {/* Priority */}
-                {currentPriority && (
-                  <Chip 
-                    icon={<FlagIcon sx={{ fontSize: 14 }} />}
-                    label={currentPriority.name} 
-              size="small" 
-                    sx={{ 
-                      height: 24,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      bgcolor: `${getPriorityColor(currentPriority.name)}15`,
-                      color: getPriorityColor(currentPriority.name),
-                      border: `1px solid ${getPriorityColor(currentPriority.name)}40`,
-                    }}
-                  />
-                )}
-
                 {/* Date Range */}
                 {(startDate || deadline) && (
                   <Stack direction="row" spacing={0.5} alignItems="center">
@@ -384,10 +326,10 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 )}
 
                 {/* Tags */}
-                {tags && tags.split(',').filter(Boolean).map((tag, idx) => (
+                {tags && tags.length > 0 && tags.map((tag, idx) => (
                   <Chip 
                     key={idx}
-                    label={tag.trim()} 
+                    label={tag} 
               size="small"
                     sx={{ 
                       height: 22,
@@ -429,10 +371,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               }
             }}
           >
-            <Tab value="updates" label={`Updates / ${updates.length}`} />
-            <Tab value="files" label={`Files / ${files.length}`} />
-            <Tab value="activity" label={`Activity / ${activity.length}`} />
-            <Tab value="progress" label="Progress" />
+            <Tab value="updates" label={`Bình luận / ${updates.length}`} />
+            <Tab value="activity" label={`Hoạt động / ${activity.length}`} />
           </Tabs>
         </Box>
       </Box>
@@ -473,10 +413,10 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                     </Box>
                     <Box>
                       <Typography variant="h6" fontWeight={700}>
-                        Comments
+                        Bình luận
             </Typography>
                       <Typography fontSize="12px" color="text.secondary">
-                        {updates.length} {updates.length === 1 ? 'comment' : 'comments'}
+                        {updates.length} {updates.length === 1 ? 'bình luận' : 'bình luận'}
               </Typography>
             </Box>
                   </Box>
@@ -501,7 +441,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                         fullWidth
                           multiline
                           rows={3}
-                          placeholder="Add a comment... (Use @ to mention someone)"
+                          placeholder="Thêm bình luận... (Sử dụng @ để đề cập ai đó)"
                           value={content}
                           onChange={(e) => setContent(e.target.value)}
                           sx={{
@@ -525,7 +465,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                             onClick={() => setContent("")}
                             sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
                           >
-                            Clear
+                            Xóa
                           </Button>
                       <Button
                         size="small"
@@ -540,7 +480,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                               '&:hover': { bgcolor: '#6952d6' }
                             }}
                           >
-                            Comment
+                            Bình luận
                       </Button>
                         </Stack>
                     </Box>
@@ -558,10 +498,10 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                     }}>
                       <ChatBubbleOutlineIcon sx={{ fontSize: 48, color: '#d1d5db', mb: 2 }} />
                       <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                        No comments yet
+                        Chưa có bình luận nào
                       </Typography>
                       <Typography fontSize="12px" color="text.secondary">
-                        Start the conversation by adding the first comment
+                        Bắt đầu cuộc trò chuyện bằng cách thêm bình luận đầu tiên
                       </Typography>
                   </Box>
                   ) : (
@@ -601,14 +541,14 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                               <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                                 <Stack direction="row" spacing={1.5} alignItems="center">
                                   <Typography fontSize="14px" fontWeight={700} color="text.primary">
-                                    {comment.user_id?.full_name || comment.user_id?.email || 'Unknown User'}
+                                    {comment.user_id?.full_name || comment.user_id?.email || 'Người dùng không xác định'}
             </Typography>
                                   <Typography fontSize="12px" color="text.secondary">
                                     {formatTimeAgo(comment.createdAt)}
                                   </Typography>
                                   {comment.updatedAt && comment.updatedAt !== comment.createdAt && (
                                     <Typography fontSize="11px" color="text.secondary" fontStyle="italic">
-                                      (edited)
+                                      (đã chỉnh sửa)
                                     </Typography> 
                                   )}
                                 </Stack>
@@ -655,7 +595,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                                       onClick={cancelEdit}
                                       sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
                                     >
-                                      Cancel
+                                      Hủy
                                     </Button>
                                     <Button
                                       size="small"
@@ -669,7 +609,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                                         '&:hover': { bgcolor: '#6952d6' }
                                       }}
                                     >
-                                      Save
+                                      Lưu
               </Button>
                                   </Stack>
             </Box>
@@ -713,7 +653,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                       sx={{ fontSize: '13px', gap: 1.5 }}
                     >
                       <EditIcon sx={{ fontSize: 16 }} />
-                      Edit
+                      Chỉnh sửa
                     </MenuItem>
                     <MenuItem
                       onClick={() => {
@@ -724,100 +664,20 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                       sx={{ fontSize: '13px', gap: 1.5, color: '#ef4444' }}
                     >
                       <DeleteIcon sx={{ fontSize: 16 }} />
-                      Delete
+                      Xóa
                     </MenuItem>
                   </Menu>
                     </Box>
                   )}
-                  {tab === 'files' && (
-                    <Box display="flex" flexDirection="column" gap={1.5}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography variant="subtitle2">Files</Typography>
-                        <Button variant="contained" size="small" onClick={()=>setShowUploader(v=>!v)}>
-                          {showUploader ? 'Close' : 'Add file'}
-                        </Button>
-                      </Box>
-                      {showUploader && (
-                        <Box sx={{ p: 2, borderRadius: 1.5, border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}>
-                          <Typography variant="subtitle2" gutterBottom>Upload a file</Typography>
-                          <Typography variant="caption" color="text.secondary">Max 20MB. Images and documents are supported.</Typography>
-                          <Box mt={1.5} display="grid" gridTemplateColumns="1fr 1fr" gap={2}>
-                            <TextField label="Title" value={fileTitle} onChange={(e)=>setFileTitle(e.target.value)} size="small" />
-                            <TextField label="Type" value={fileType} onChange={(e)=>setFileType(e.target.value)} size="small" />
-                            <TextField label="Version" value={fileVersion} onChange={(e)=>setFileVersion(e.target.value)} size="small" />
-                            <TextField label="Status" value={fileStatus} onChange={(e)=>setFileStatus(e.target.value)} size="small" />
-                            <TextField label="Description" value={fileDescription} onChange={(e)=>setFileDescription(e.target.value)} size="small" fullWidth multiline minRows={2} sx={{ gridColumn: '1 / span 2' }} />
-                          </Box>
-                          <Box mt={1.5} display="flex" alignItems="center" gap={1}>
-                            <Button variant="contained" component="label" disabled={uploading}>
-                              {uploading ? 'Uploading...' : 'Choose file'}
-                              <input hidden type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx" onChange={async (e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                setUploading(true);
-                                try {
-                                  const form = new FormData();
-                                  form.append('file', f);
-                                  if (fileTitle) form.append('title', fileTitle);
-                                  if (fileType) form.append('type', fileType);
-                                  if (fileVersion) form.append('version', fileVersion);
-                                  if (fileStatus) form.append('status', fileStatus);
-                                  if (fileDescription) form.append('description', fileDescription);
-                                  const res = await axiosInstance.post(`/api/projects/${projectId}/milestones/${milestoneId}/files`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
-                                  setFiles(prev => [res.data, ...prev]);
-                                  setFileTitle("");
-                                  setFileDescription("");
-                                  setShowUploader(false);
-                                  toast.success('Đã tải file lên thành công!', {
-                                    description: fileTitle || f.name,
-                                  });
-                                } catch (error: any) {
-                                  toast.error('Không thể tải file lên', {
-                                    description: error?.response?.data?.message || error?.message,
-                                  });
-                                } finally {
-                                  setUploading(false);
-                                  e.currentTarget.value = '';
-                                }
-                              }} />
-                            </Button>
-                            {uploading && <CircularProgress size={20} />}
-                            <Button variant="text" onClick={()=>setShowUploader(false)}>Cancel</Button>
-                          </Box>
-                        </Box>
-                      )}
-                      {files.length === 0 && <Typography variant="body2" color="text.secondary">No files</Typography>}
-                      {files.map(f => (
-                        <Box key={f._id} display="flex" alignItems="center" justifyContent="space-between" sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
-                          <Box>
-                            <Typography variant="body2" fontWeight={600} sx={{ display: 'block' }}>{f.title}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{new Date(f.createdAt).toLocaleString()}</Typography>
-                          </Box>
-                          <Button size="small" href={f.file_url} target="_blank" rel="noreferrer" variant="text">Open</Button>
-                        </Box>
-                      ))}
-                    </Box>
-                  )}
                   {tab === 'activity' && (
                     <Box display="flex" flexDirection="column" gap={1.5}>
-                      {activity.length === 0 && <Typography variant="body2" color="text.secondary">No activity</Typography>}
+                      {activity.length === 0 && <Typography variant="body2" color="text.secondary">Chưa có hoạt động nào</Typography>}
                       {activity.map(a => (
                         <Box key={a._id} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{new Date(a.createdAt).toLocaleString()} {a.created_by?.full_name ? `• ${a.created_by.full_name}` : ''}</Typography>
                           <Typography variant="body2" fontWeight={600} mt={0.5} sx={{ display: 'block' }}>{a.action}</Typography>
                         </Box>
                       ))}
-                    </Box>
-                  )}
-                  {tab === 'progress' && (
-                    <Box>
-                      {progress ? (
-                        <MilestoneProgressDetail milestoneTitle={title} progress={progress} />
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" align="center" py={4}>
-                          Không có dữ liệu tiến độ
-                        </Typography>
-                      )}
                     </Box>
                   )}
                 </>
@@ -833,14 +693,14 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
           overflow: 'auto',
         }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, color: '#1f2937' }}>
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Title */}
             <Box>
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                TITLE
+                TIÊU ĐỀ
               </Typography>
               <TextField 
                 value={title} 
@@ -849,7 +709,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 size="small" 
                 required
                 error={!title.trim()}
-                placeholder="Enter milestone title"
+                placeholder="Nhập tiêu đề cột mốc"
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '14px',
@@ -858,52 +718,12 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               />
           </Box>
 
-            {/* Status */}
-            <Box>
-              <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                STATUS
-              </Typography>
-              <FormControl fullWidth size="small">
-                <Select 
-                  value={statusId} 
-                  onChange={(e)=>setStatusId(e.target.value)}
-                  displayEmpty
-                  sx={{ fontSize: '14px' }}
-                >
-                  <MenuItem value="">— None —</MenuItem>
-                  {statuses.map((s) => (
-                    <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-        </Box>
-
-            {/* Priority */}
-            <Box>
-              <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                PRIORITY
-              </Typography>
-              <FormControl fullWidth size="small">
-                <Select 
-                  value={priorityId} 
-                  onChange={(e)=>setPriorityId(e.target.value)}
-                  displayEmpty
-                  sx={{ fontSize: '14px' }}
-                >
-                  <MenuItem value="">— None —</MenuItem>
-                  {priorities.map((p) => (
-                    <MenuItem key={p._id} value={p._id}>{p.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
             <Divider />
 
             {/* Start Date */}
             <Box>
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                START DATE
+                NGÀY BẮT ĐẦU
               </Typography>
               <TextField 
                 type="date" 
@@ -923,7 +743,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
             {/* Deadline */}
             <Box>
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                DEADLINE
+                HẠN CHÓT
               </Typography>
               <TextField 
                 type="date" 
@@ -945,7 +765,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
             {/* Description */}
             <Box>
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                DESCRIPTION
+                MÔ TẢ
               </Typography>
               <TextField 
                 value={description} 
@@ -954,7 +774,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 minRows={3} 
                 fullWidth 
                 size="small"
-                placeholder="Add description..."
+                placeholder="Thêm mô tả..."
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '14px',
@@ -966,18 +786,92 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
             {/* Tags */}
             <Box>
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                TAGS
+                NHÃN
               </Typography>
-              <TextField 
-                value={tags} 
-                onChange={(e)=>setTags(e.target.value)} 
-                fullWidth 
-                size="small" 
-                placeholder="tag1, tag2, tag3"
-                helperText="Comma separated"
+              <Autocomplete
+                multiple
+                freeSolo
+                size="small"
+                options={availableTags}
+                value={tags}
+                onChange={async (_, newValue) => {
+                  try {
+                    // Remove duplicates and trim
+                    const uniqueTags = Array.from(new Set(newValue.map(tag => tag.trim()).filter(Boolean)));
+                    setTags(uniqueTags);
+                    
+                    // Auto-save tags
+                    await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, {
+                      tags: uniqueTags
+                    });
+                    
+                    // Reload available tags
+                    await loadProjectTags();
+                    
+                    // Refresh activity logs
+                    const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
+                    setActivity(Array.isArray(a.data) ? a.data : []);
+                    
+                    toast.success('Đã cập nhật nhãn');
+                  } catch (error: any) {
+                    toast.error('Không thể cập nhật nhãn', {
+                      description: error?.response?.data?.message || error?.message,
+                    });
+                  }
+                }}
+                filterOptions={(options, params) => {
+                  const filtered = options.filter(option => {
+                    // Filter out already selected tags
+                    const isAlreadySelected = tags.includes(option);
+                    // Filter by input value
+                    const matchesInput = option.toLowerCase().includes(params.inputValue.toLowerCase());
+                    return !isAlreadySelected && matchesInput;
+                  });
+                  
+                  // Add "Create new" option if input doesn't match any existing tag
+                  const inputValue = params.inputValue.trim();
+                  if (inputValue !== '' && !options.includes(inputValue) && !tags.includes(inputValue)) {
+                    filtered.push(inputValue);
+                  }
+                  
+                  return filtered;
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip
+                      label={option}
+                      {...getTagProps({ index })}
+                      size="small"
+                      sx={{
+                        bgcolor: '#f3f4f6',
+                        color: '#374151',
+                        fontSize: '12px',
+                        height: 24,
+                        '& .MuiChip-deleteIcon': {
+                          fontSize: 16,
+                          color: '#6b7280',
+                          '&:hover': {
+                            color: '#374151',
+                          }
+                        }
+                      }}
+                    />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder={tags.length === 0 ? "Thêm nhãn..." : ""}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        fontSize: '14px',
+                      }
+                    }}
+                  />
+                )}
                 sx={{
-                  '& .MuiOutlinedInput-root': {
-                    fontSize: '14px',
+                  '& .MuiAutocomplete-tag': {
+                    margin: '2px',
                   }
                 }}
               />
@@ -985,26 +879,10 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
 
             <Divider />
 
-            {/* Files Count */}
-            <Box>
-              <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                FILES
-              </Typography>
-              <Chip 
-                label={`${files.length} file${files.length !== 1 ? 's' : ''}`} 
-                size="small"
-                sx={{ 
-                  bgcolor: '#f3f4f6',
-                  color: '#374151',
-                  fontWeight: 600,
-                }}
-              />
-            </Box>
-
             {/* Last Updated */}
             <Box>
               <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, mb: 0.5, display: 'block' }}>
-                LAST UPDATED
+                CẬP NHẬT LẦN CUỐI
               </Typography>
               <Typography variant="body2" sx={{ fontSize: '13px', color: '#6b7280' }}>
                 {activity[0]?.createdAt ? new Date(activity[0].createdAt).toLocaleString() : '—'}
@@ -1024,23 +902,21 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                   await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { 
                     title, 
                     description, 
-                    priority_id: priorityId || undefined,
-                    status_id: statusId || undefined,
                     start_date: startDate ? new Date(startDate).toISOString() : undefined, 
                     deadline: deadline ? new Date(deadline).toISOString() : undefined,
-                    tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                    tags: tags
                   });
                   // Refresh activity logs to show the update
                   const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
                   setActivity(Array.isArray(a.data) ? a.data : []);
-                  toast.success('Milestone updated successfully!', {
+                  toast.success('Đã cập nhật cột mốc thành công!', {
                     description: title,
                   });
                   // Notify parent to refresh data/charts
                   if (onUpdate) onUpdate();
                 } catch (error: any) {
-                  const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
-                  toast.error('Failed to update milestone', {
+                  const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi không xác định';
+                  toast.error('Không thể cập nhật cột mốc', {
                     description: errorMessage,
                   });
                 } finally { 
@@ -1054,7 +930,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 }
               }}
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </Stack>
         </Box>

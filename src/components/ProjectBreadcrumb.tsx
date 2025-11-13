@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { Box, Breadcrumbs, Link, Typography, Chip } from "@mui/material";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import HomeIcon from "@mui/icons-material/Home";
-import FolderIcon from "@mui/icons-material/Folder";
 import FlagIcon from "@mui/icons-material/Flag";
 import StarIcon from "@mui/icons-material/Star";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -36,11 +35,7 @@ export default function ProjectBreadcrumb({
       href: "/dashboard",
       icon: <HomeIcon sx={{ fontSize: 16 }} />,
     },
-    {
-      label: projectName,
-      href: `/projects/${projectId}`,
-      icon: <FolderIcon sx={{ fontSize: 16 }} />,
-    },
+   
   ];
 
   const allItems = [...defaultItems, ...items];

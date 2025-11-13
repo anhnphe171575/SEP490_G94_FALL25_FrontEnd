@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import axiosInstance from "../../ultis/axios";
 import { io, Socket } from "socket.io-client";
+import NotificationToast from "./NotificationToast";
 
 const navItems = [
   {
-    href: "/projects",
+    href: "/dashboard",
     label: "Dự án",
     icon: (
       <svg
@@ -607,6 +608,7 @@ export default function ResponsiveSidebar() {
           </div>
         </div>
       </aside>
+      <NotificationToast />
     </>
   );
 }

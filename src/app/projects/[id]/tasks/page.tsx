@@ -8,22 +8,14 @@ import TaskDetailsModal from "@/components/TaskDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import dynamic from 'next/dynamic';
 import './tasks.module.css';
-import { STATUS_OPTIONS, PRIORITY_OPTIONS, TASK_TYPE_OPTIONS } from "@/constants/settings";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS, TASK_TYPE_OPTIONS, normalizeStatusValue } from "@/constants/settings";
 
-const ClickUpGanttChart = dynamic(
-  () => import('@/components/ClickUpGanttChart'),
-  { ssr: false }
-);
 
 const DHtmlxGanttChart = dynamic(
   () => import('@/components/DHtmlxGanttChart'),
   { ssr: false }
 );
 
-const ProjectCICDView = dynamic(
-  () => import('@/components/ProjectCICDView'),
-  { ssr: false }
-);
 import {
   Alert,
   Box,
@@ -73,7 +65,6 @@ import SearchIcon from "@mui/icons-material/Search";
   import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
   import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
   import DashboardIcon from "@mui/icons-material/Dashboard";
-  import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -100,7 +91,6 @@ type Task = {
   assigner_id?: string | { _id: string; full_name?: string; name?: string; email?: string };
   start_date?: string;
   deadline?: string;
-  progress?: number;
   estimate?: number;
   actual?: number;
   parent_task_id?: string;
@@ -122,7 +112,7 @@ export default function ProjectTasksPage() {
   const featureIdFromUrl = searchParams.get('featureId');
   const functionIdFromUrl = searchParams.get('functionId');
 
-  const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt" | "cicd">("table");
+  const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt">("table");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -184,10 +174,19 @@ export default function ProjectTasksPage() {
     is_mandatory: true,
     notes: ''
   });
-
-  // subtasks
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-  const [taskSubtasks, setTaskSubtasks] = useState<Record<string, any[]>>({});
+  
+  // Date conflict dialog state
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [conflictViolation, setConflictViolation] = useState<any>(null);
+  const [currentTaskForDependency, setCurrentTaskForDependency] = useState<any>(null);
+  const [pendingDependencyData, setPendingDependencyData] = useState<{
+    taskId: string;
+    dependsOnTaskId: string;
+    type: string;
+    lagDays: number;
+    isMandatory: boolean;
+    notes: string;
+  } | null>(null);
 
   // calendar view state
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -413,26 +412,7 @@ export default function ProjectTasksPage() {
             ? raw.tasks
             : [];
 
-      // Separate parent tasks and subtasks
-      const parentTasks = normalized.filter(task => !task.parent_task_id);
-      const allSubtasks = normalized.filter(task => task.parent_task_id);
-      
-      // Group subtasks by parent task ID
-      const subtasksByParent: Record<string, Task[]> = {};
-      allSubtasks.forEach(subtask => {
-        if (subtask.parent_task_id) {
-          if (!subtasksByParent[subtask.parent_task_id]) {
-            subtasksByParent[subtask.parent_task_id] = [];
-          }
-          subtasksByParent[subtask.parent_task_id].push(subtask);
-        }
-      });
-      
-      // Update subtasks state
-      setTaskSubtasks(subtasksByParent);
-      
-      // Only show parent tasks in main list
-      setTasks(parentTasks);
+      setTasks(normalized);
       setStats(statsRes?.data || null);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tải danh sách tasks");
@@ -515,7 +495,30 @@ export default function ProjectTasksPage() {
       setOpenDialog(false);
       await loadAll();
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể lưu task");
+      const errorData = e?.response?.data || {};
+      
+      // Check if it's a date validation error
+      if (e?.response?.status === 400 && (errorData.type === 'date_validation' || errorData.errors)) {
+        // Convert errors to violations format for dialog
+        const violations = (errorData.errors || []).map((err: string) => ({
+          message: err,
+          type: 'date_validation',
+          is_mandatory: true
+        }));
+        
+        if (violations.length > 0) {
+          setDependencyViolationDialog({
+            open: true,
+            violations: violations,
+            taskId: editing?._id || '',
+            newStatus: ''
+          });
+          return;
+        }
+      }
+      
+      // Show regular error message
+      setError(errorData.message || "Không thể lưu task");
     }
   };
 
@@ -562,6 +565,15 @@ export default function ProjectTasksPage() {
     }
   };
 
+  const loadCurrentTaskForDependency = async (taskId: string) => {
+    try {
+      const response = await axiosInstance.get(`/api/tasks/${taskId}`);
+      setCurrentTaskForDependency(response.data);
+    } catch (error: any) {
+      console.error("Error loading current task:", error);
+    }
+  };
+
   const addDependency = async (taskId: string, dependsOnTaskId: string, type: string = 'FS', lagDays: number = 0, isMandatory: boolean = true, notes: string = '') => {
     try {
       const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
@@ -569,15 +581,62 @@ export default function ProjectTasksPage() {
         dependency_type: type,
         lag_days: lagDays,
         is_mandatory: isMandatory,
-        notes: notes
+        notes: notes,
+        strict_validation: isMandatory // Enable strict validation for mandatory dependencies
       });
       
-      // Check for warning (non-blocking)
-      if (response.data.warning) {
-        const warning = response.data.warning;
-        console.warn('Dependency created with warning:', warning.message);
+      // Check for warnings (non-blocking)
+      const warnings = response.data.warnings || [];
+      const statusWarning = response.data.status_warning;
+      const dateWarning = response.data.warning;
+      
+      // Check if there's a date warning that should show the conflict dialog
+      const dateWarningInWarnings = warnings.find((w: any) => w.type === 'date_violation' && (w.current_start_date || w.current_deadline));
+      const violationToShow = dateWarningInWarnings || (dateWarning && dateWarning.current_start_date ? dateWarning : null);
+      
+      if (violationToShow && (violationToShow.current_start_date || violationToShow.required_start_date)) {
+        // Show conflict dialog for date violations (both mandatory and optional)
+        // Load current task info
+        await loadCurrentTaskForDependency(taskId);
+        
+        // Store pending dependency data (dependency already created for optional, but we want to show dialog)
+        setPendingDependencyData({
+          taskId,
+          dependsOnTaskId,
+          type,
+          lagDays,
+          isMandatory,
+          notes
+        });
+        
+        // Show conflict dialog
+        setConflictViolation(violationToShow);
+        setShowConflictDialog(true);
+        
+        // Don't clear form yet - wait for user action
+        // Don't reload dependencies yet - wait for user to decide
+        return;
       }
       
+      // Handle other warnings (status warnings, etc.) with alert
+      if (warnings.length > 0) {
+        // Filter out date warnings (already handled above)
+        const otherWarnings = warnings.filter((w: any) => !(w.type === 'date_violation' && (w.current_start_date || w.current_deadline)));
+        
+        if (otherWarnings.length > 0) {
+          let warningMessage = '⚠️ Dependency created with warnings:\n\n';
+          otherWarnings.forEach((w: any, index: number) => {
+            warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
+          });
+          alert(warningMessage);
+        }
+      } else if (statusWarning) {
+        const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
+        alert(confirmMessage);
+      }
+      
+      setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+      setError(null);
       await loadTaskDependencies(taskId);
     } catch (error: any) {
       const errorData = error?.response?.data;
@@ -672,6 +731,103 @@ export default function ProjectTasksPage() {
     }
   };
 
+  const handleAutoFixDependency = async () => {
+    if (!pendingDependencyData) return;
+    
+    try {
+      setShowConflictDialog(false);
+      setError(null);
+      
+      // For optional dependencies, the dependency might already be created
+      // For mandatory dependencies, we need to create it first (if it wasn't created due to strict validation)
+      let dependencyExists = false;
+      
+      if (pendingDependencyData.isMandatory) {
+        // STEP 1: Create dependency first (without strict validation)
+        console.log('➕ Step 1: Creating dependency...');
+        try {
+          const retryResponse = await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/dependencies`, {
+            depends_on_task_id: pendingDependencyData.dependsOnTaskId,
+            dependency_type: pendingDependencyData.type,
+            lag_days: pendingDependencyData.lagDays,
+            is_mandatory: pendingDependencyData.isMandatory,
+            notes: pendingDependencyData.notes,
+            strict_validation: false
+          });
+          console.log('✅ Dependency created:', retryResponse.data);
+        } catch (createError: any) {
+          // If dependency already exists, that's OK
+          if (createError?.response?.status === 400 && createError?.response?.data?.message?.includes('đã tồn tại')) {
+            console.log('ℹ️ Dependency already exists, skipping creation');
+            dependencyExists = true;
+          } else {
+            throw createError;
+          }
+        }
+      } else {
+        // For optional, dependency should already be created
+        dependencyExists = true;
+        console.log('ℹ️ Optional dependency already created, proceeding to date adjustment');
+      }
+      
+      // STEP 2: Auto-adjust dates based on the dependency
+      console.log('🔧 Step 2: Auto-adjusting dates for task:', pendingDependencyData.taskId);
+      try {
+        const adjustResponse = await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/auto-adjust-dates`, {
+          preserve_duration: true
+        });
+        console.log('✅ Auto-adjust response:', adjustResponse.data);
+        
+        if (adjustResponse.data.success) {
+          console.log('✅ Dates adjusted successfully!');
+          console.log('Old dates:', adjustResponse.data.task?.old_dates);
+          console.log('New dates:', adjustResponse.data.task?.new_dates);
+        } else {
+          console.warn('⚠️ No adjustments made:', adjustResponse.data.message);
+          // For optional dependencies, this is OK - dependency was created without date adjustment
+          if (!pendingDependencyData.isMandatory) {
+            console.log('ℹ️ Optional dependency exists. Date adjustment not needed or failed, but dependency is OK.');
+          }
+        }
+      } catch (adjustError: any) {
+        // If auto-adjust fails, it's OK for optional dependencies
+        if (!pendingDependencyData.isMandatory) {
+          console.log('ℹ️ Optional dependency exists. Date adjustment failed but dependency is OK.');
+        } else {
+          throw adjustError; // Re-throw for mandatory dependencies
+        }
+      }
+      
+      setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+      setPendingDependencyData(null);
+      setConflictViolation(null);
+      
+      // STEP 3: Reload everything to show changes
+      console.log('🔄 Step 3: Reloading data...');
+      await loadTaskDependencies(pendingDependencyData.taskId);
+      await loadCurrentTaskForDependency(pendingDependencyData.taskId);
+      await loadAll();
+      console.log('✅ All done!');
+    } catch (fixError: any) {
+      console.error('❌ Auto-fix error:', fixError);
+      console.error('Error details:', fixError?.response?.data);
+      setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+      setShowConflictDialog(true); // Show dialog again on error
+    }
+  };
+
+  const handleManualEditDependency = () => {
+    // Close conflict dialog but keep add form open so user can edit dates
+    setShowConflictDialog(false);
+    setError('⚠️ Vui lòng chỉnh sửa ngày tháng của task trong tab Overview trước khi thêm dependency này. Sau đó thử lại.');
+    setPendingDependencyData(null);
+    setConflictViolation(null);
+    // For optional dependencies, dependency is already created, so reload dependencies
+    if (pendingDependencyData && !pendingDependencyData.isMandatory) {
+      loadTaskDependencies(pendingDependencyData.taskId);
+    }
+  };
+
   const removeDependency = async (taskId: string, dependencyId: string) => {
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/dependencies/${dependencyId}`);
@@ -679,33 +835,6 @@ export default function ProjectTasksPage() {
     } catch (error: any) {
       setError(error?.response?.data?.message || 'Không thể xóa dependency');
     }
-  };
-
-  // Load subtasks for a task
-  const loadSubtasks = async (taskId: string) => {
-    try {
-      const response = await axiosInstance.get(`/api/tasks/${taskId}/subtasks`);
-      setTaskSubtasks(prev => ({ ...prev, [taskId]: response.data }));
-    } catch (error) {
-      console.error('Error loading subtasks:', error);
-    }
-  };
-
-  // Toggle task expansion to show/hide subtasks
-  const toggleTaskExpansion = async (taskId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    const newExpanded = new Set(expandedTasks);
-    if (expandedTasks.has(taskId)) {
-      newExpanded.delete(taskId);
-    } else {
-      newExpanded.add(taskId);
-      // Load subtasks if not already loaded
-      if (!taskSubtasks[taskId]) {
-        await loadSubtasks(taskId);
-      }
-    }
-    setExpandedTasks(newExpanded);
   };
 
   // Use fetched filter options
@@ -733,14 +862,13 @@ export default function ProjectTasksPage() {
 
   const paged = filteredSorted;
 
-  const groupedByStatus = useMemo(() => {
-    const groups: Record<string, Task[]> = {};
-    (paged || []).forEach((t) => {
-      const key = typeof t.status === "object" ? (t.status as any)?.name || "No Status" : (t.status as any) || "No Status";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(t);
+  // Build a stable global index map for STT across groups (consistent with other screens)
+  const indexById = useMemo(() => {
+    const map = new Map<string, number>();
+    (paged || []).forEach((t, i) => {
+      map.set((t as any)._id as string, i);
     });
-    return groups;
+    return map;
   }, [paged]);
 
   const resolveName = (value: any, fallback = "-") => {
@@ -749,11 +877,25 @@ export default function ProjectTasksPage() {
     return String(value);
   };
 
+  const resolveStatusName = (value: any) => normalizeStatusValue(
+    typeof value === "object" ? value?.name : value
+  );
+
+  const groupedByStatus = useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    (paged || []).forEach((t) => {
+      const key = resolveStatusName(t.status);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }, [paged]);
+
   const getStatusColor = (name: string) => {
-    const key = (name || '').toLowerCase();
-    if (key.includes('completed') || key.includes('done')) return '#16a34a';
-    if (key.includes('progress') || key.includes('doing')) return '#f59e0b';
-    if (key.includes('overdue') || key.includes('blocked')) return '#ef4444';
+    const normalized = resolveStatusName(name);
+    if (normalized === 'Done') return '#16a34a';
+    if (normalized === 'Doing') return '#f59e0b';
+    if (normalized === 'To Do') return '#9ca3af';
     return '#9ca3af';
   };
 
@@ -786,7 +928,7 @@ export default function ProjectTasksPage() {
               }}
             />
             <Typography variant="h6" fontWeight={600} color="text.secondary">
-              Đang tải dữ liệu tasks...
+              Đang tải dữ liệu công việc...
             </Typography>
           </Box>
         </main>
@@ -804,7 +946,7 @@ export default function ProjectTasksPage() {
             <ProjectBreadcrumb 
               projectId={projectId}
               items={[
-                { label: 'Tasks', icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> }
+                { label: 'Công việc', icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> }
               ]}
             />
           </Box>
@@ -824,16 +966,6 @@ export default function ProjectTasksPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               {/* Breadcrumb & Title */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton 
-                  onClick={() => router.back()}
-                  size="small"
-                  sx={{ 
-                    color: '#49516f',
-                    '&:hover': { bgcolor: '#f3f4f6' }
-                  }}
-                >
-                  <ArrowBackIcon fontSize="small" />
-              </IconButton>
                 <Typography 
                   variant="h5" 
                   sx={{ 
@@ -842,7 +974,7 @@ export default function ProjectTasksPage() {
                     fontSize: '24px',
                   }}
                 >
-                  Tasks
+                  Công việc
                 </Typography>
               </Box>
 
@@ -864,7 +996,7 @@ export default function ProjectTasksPage() {
                     }
                   }}
                 >
-                  Milestones
+                  Milestone
                 </Button>
                 <Button
                   variant="outlined"
@@ -881,7 +1013,7 @@ export default function ProjectTasksPage() {
                     }
                   }}
                 >
-                  Features
+                  Tính năng
                 </Button>
                 <Button
                   variant="outlined"
@@ -898,7 +1030,7 @@ export default function ProjectTasksPage() {
                     }
                   }}
                 >
-                  Functions
+                  Chức năng
                 </Button>
                 
                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
@@ -923,7 +1055,7 @@ export default function ProjectTasksPage() {
                     },
                   }}
                 >
-                  New Task
+                  Tạo công việc
                 </Button>
             </Stack>
             </Box>
@@ -935,67 +1067,7 @@ export default function ProjectTasksPage() {
             </Alert>
           )}
 
-          {/* Quick Tips & Stats */}
-          <Box sx={{ 
-            bgcolor: '#f0f5ff', 
-            px: 3, 
-            py: 1.5, 
-            borderBottom: '1px solid #dbeafe',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 1
-          }}>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
-                Showing: {filteredSorted.length} {filteredSorted.length !== tasks.length && `of ${tasks.length}`} tasks
-              </Typography>
-              <Typography sx={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
-                Team: {teamMembers.length}
-              </Typography>
-            </Stack>
-          </Box>
-
-          {/* ClickUp-style Stats */}
-          {stats && (
-            <Box sx={{ px: 3, py: 2, display: 'flex', gap: 2, borderBottom: '1px solid #e8e9eb', bgcolor: 'white' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#f8f9fb' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  Total:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px' }}>
-                  {stats.total}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#f0f5ff' }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#3b82f6' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  In Progress:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px', color: '#3b82f6' }}>
-                  {stats.by_status ? Object.entries(stats.by_status).find(([k]) => k.toLowerCase().includes('progress'))?.[1] || 0 : 0}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#f0fdf4' }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  Completed:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px', color: '#22c55e' }}>
-                  {stats.by_status ? Object.entries(stats.by_status).find(([k]) => k.toLowerCase().includes('completed') || k.toLowerCase().includes('done'))?.[1] || 0 : 0}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 1.5, bgcolor: '#fef2f2' }}>
-                <FlagIcon sx={{ fontSize: 14, color: '#ef4444' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px' }}>
-                  High Priority:
-                </Typography>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: '13px', color: '#ef4444' }}>
-                  {stats.by_priority ? Object.entries(stats.by_priority).find(([k]) => k.toLowerCase().includes('high') || k.toLowerCase().includes('critical'))?.[1] || 0 : 0}
-                </Typography>
-              </Box>
-            </Box>
-          )}
+        
 
           {/* ClickUp-style View Toolbar */}
           <Box 
@@ -1049,7 +1121,7 @@ export default function ProjectTasksPage() {
                   }
                 }}
               >
-                List
+                Danh sách
               </Button>
               <Button
                 onClick={() => setView('kanban')}
@@ -1069,7 +1141,7 @@ export default function ProjectTasksPage() {
                   }
                 }}
               >
-                Board
+                Kanban
               </Button>
               <Button
                 onClick={() => setView('calendar')}
@@ -1089,7 +1161,7 @@ export default function ProjectTasksPage() {
                   }
                 }}
               >
-                Calendar
+                Lịch
               </Button>
               <Button
                 onClick={() => setView('gantt')}
@@ -1115,32 +1187,12 @@ export default function ProjectTasksPage() {
               >
                 Gantt
               </Button>
-              <Button
-                onClick={() => setView('cicd')}
-                startIcon={<RocketLaunchIcon fontSize="small" />}
-                sx={{
-                  minWidth: 'auto',
-                  px: 2,
-                  py: 0.75,
-                  color: view === 'cicd' ? '#7b68ee' : '#49516f',
-                  bgcolor: view === 'cicd' ? '#f3f0ff' : 'transparent',
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: 1.5,
-                  '&:hover': {
-                    bgcolor: view === 'cicd' ? '#f3f0ff' : '#f3f4f6',
-                  }
-                }}
-              >
-                CI/CD
-              </Button>
             </Stack>
 
             <Stack direction="row" spacing={1.5} alignItems="center">
               {/* Quick Search */}
               <TextField
-                placeholder="Quick search..."
+                placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 size="small"
@@ -1212,7 +1264,7 @@ export default function ProjectTasksPage() {
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  Filters
+                  Bộ lọc
                 </Button>
               </Badge>
             </Stack>
@@ -1252,8 +1304,8 @@ export default function ProjectTasksPage() {
                     }
                   }} />
                   <Typography variant="caption" sx={{ fontWeight: 700, color: '#7b68ee', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Active Filters
-                </Typography>
+                    Bộ lọc đang áp dụng
+                  </Typography>
                 </Box>
                 
                 {search && (
@@ -1302,7 +1354,7 @@ export default function ProjectTasksPage() {
                         ⚡
                       </Box>
                     }
-                    label={features.find(f => f.id === filterFeature)?.title || 'Feature'}
+                    label={features.find(f => f.id === filterFeature)?.title || 'Tính năng'}
                     size="small"
                     onDelete={() => {
                       setFilterFeature('all');
@@ -1351,7 +1403,7 @@ export default function ProjectTasksPage() {
                         🔧
                       </Box>
                     }
-                    label={functions.find(fn => fn._id === filterFunction)?.title || 'Function'}
+                    label={functions.find(fn => fn._id === filterFunction)?.title || 'Chức năng'}
                     size="small"
                     onDelete={() => setFilterFunction('all')}
                     sx={{
@@ -1431,7 +1483,7 @@ export default function ProjectTasksPage() {
                   <Chip
                     icon={<PersonIcon sx={{ fontSize: 16, color: '#7b68ee' }} />}
                     label={teamMembers.find(m => (m.user_id?._id || m._id) === filterAssignee)?.user_id?.full_name || 
-                           teamMembers.find(m => (m.user_id?._id || m._id) === filterAssignee)?.full_name || 'Assignee'}
+                           teamMembers.find(m => (m.user_id?._id || m._id) === filterAssignee)?.full_name || 'Người thực hiện'}
                     size="small"
                     onDelete={() => setFilterAssignee('all')}
                     sx={{
@@ -1461,7 +1513,7 @@ export default function ProjectTasksPage() {
                 )}
                 
               {filterStatus !== 'all' && (() => {
-                const statusName = allStatuses.find(s => s._id === filterStatus)?.name || 'Status';
+                const statusName = allStatuses.find(s => s._id === filterStatus)?.name || 'Trạng thái';
                 return (
                   <Chip
                   icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusColor(statusName), boxShadow: `0 0 0 2px ${getStatusColor(statusName)}20` }} />}
@@ -1495,8 +1547,8 @@ export default function ProjectTasksPage() {
                 );
               })()}
                 
-              {filterPriority !== 'all' && (() => {
-                const priorityName = allPriorities.find(p => p._id === filterPriority)?.name || 'Priority';
+                {filterPriority !== 'all' && (() => {
+                const priorityName = allPriorities.find(p => p._id === filterPriority)?.name || 'Ưu tiên';
                 return (
                   <Chip
                   icon={<FlagIcon sx={{ fontSize: 16, color: getPriorityColor(priorityName) === 'error' ? '#ef4444' : '#f59e0b' }} />}
@@ -1567,7 +1619,7 @@ export default function ProjectTasksPage() {
                     <Box sx={{ fontSize: '14px' }}>✕</Box>
                   }
                 >
-                  Clear all
+                  Xóa tất cả
                 </Button>
               </Stack>
             </Box>
@@ -1640,11 +1692,11 @@ export default function ProjectTasksPage() {
                       <TuneIcon sx={{ fontSize: 20, color: 'white' }} />
                     </Box>
                     <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white', letterSpacing: '-0.02em' }}>
-                      Advanced Filters
-                  </Typography>
+                      Bộ lọc nâng cao
+                    </Typography>
                   </Stack>
                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', ml: 6 }}>
-                    Customize your task view
+                    Tùy chỉnh cách hiển thị danh sách công việc
                   </Typography>
                 </Box>
                 <IconButton 
@@ -1698,15 +1750,15 @@ export default function ProjectTasksPage() {
                   <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
                     <PersonIcon sx={{ fontSize: 16, color: '#7b68ee' }} />
                     <Typography variant="caption" sx={{ fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      People
-                  </Typography>
+                      Nhân sự
+                    </Typography>
                   </Stack>
                   <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Assignee</InputLabel>
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Người thực hiện</InputLabel>
                     <Select 
                       value={filterAssignee} 
                       onChange={(e) => setFilterAssignee(e.target.value)}
-                      label="Assignee"
+                      label="Người thực hiện"
                       sx={{
                         borderRadius: 2.5,
                         bgcolor: 'white',
@@ -1725,16 +1777,16 @@ export default function ProjectTasksPage() {
                             All
                           </Avatar>
                           <Box>
-                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Assignees</Typography>
+                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>Tất cả</Typography>
                             <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
-                              {teamMembers.length} members
+                              {teamMembers.length} thành viên
                             </Typography>
                           </Box>
                         </Box>
                       </MenuItem>
                       {teamMembers.map((member, idx) => {
                         const userId = member.user_id?._id || member._id;
-                        const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
+        const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Không rõ';
                         return (
                           <MenuItem key={userId || idx} value={userId}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -1767,16 +1819,16 @@ export default function ProjectTasksPage() {
                       <span style={{ fontSize: '10px' }}>✓</span>
                     </Box>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Status & Priority
-                  </Typography>
+                      Trạng thái & Ưu tiên
+                    </Typography>
                   </Stack>
                   <Stack spacing={2}>
                     <FormControl fullWidth size="small">
-                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Status</InputLabel>
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Trạng thái</InputLabel>
                       <Select 
                         value={filterStatus} 
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        label="Status"
+                        label="Trạng thái"
                         sx={{
                           borderRadius: 2.5,
                           bgcolor: 'white',
@@ -1792,7 +1844,7 @@ export default function ProjectTasksPage() {
                         <MenuItem value="all">
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#cbd5e0', border: '2px solid #e2e8f0' }} />
-                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Status</Typography>
+                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>Tất cả trạng thái</Typography>
                           </Box>
                         </MenuItem>
                         {statuses.map((s) => (
@@ -1812,11 +1864,11 @@ export default function ProjectTasksPage() {
                       </Select>
                     </FormControl>
                     <FormControl fullWidth size="small">
-                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Priority</InputLabel>
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Ưu tiên</InputLabel>
                       <Select 
                         value={filterPriority} 
                         onChange={(e) => setFilterPriority(e.target.value)}
-                        label="Priority"
+                        label="Ưu tiên"
                         sx={{
                           borderRadius: 2.5,
                           bgcolor: 'white',
@@ -1832,7 +1884,7 @@ export default function ProjectTasksPage() {
                         <MenuItem value="all">
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <FlagIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
-                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Priority</Typography>
+                            <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>Tất cả mức ưu tiên</Typography>
                           </Box>
                         </MenuItem>
                         {priorities.map((p) => (
@@ -1868,12 +1920,12 @@ export default function ProjectTasksPage() {
                       <span style={{ fontSize: '10px', color: 'white' }}>⚙</span>
                     </Box>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Project Structure
-                  </Typography>
+                      Cấu trúc dự án
+                    </Typography>
                   </Stack>
                   <Stack spacing={2}>
                     <FormControl fullWidth size="small">
-                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Feature</InputLabel>
+                      <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Tính năng</InputLabel>
                       <Select 
                         value={filterFeature} 
                         onChange={(e) => {
@@ -1882,7 +1934,7 @@ export default function ProjectTasksPage() {
                             setFilterFunction('all');
                           }
                         }}
-                        label="Feature"
+                        label="Tính năng"
                         sx={{
                           borderRadius: 2.5,
                           bgcolor: 'white',
@@ -1910,9 +1962,9 @@ export default function ProjectTasksPage() {
                               ⚡
                             </Box>
                             <Box>
-                              <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Features</Typography>
+                              <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>Tất cả tính năng</Typography>
                               <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
-                                {features.length} items
+                                {features.length} mục
                               </Typography>
                             </Box>
                           </Box>
@@ -1944,13 +1996,13 @@ export default function ProjectTasksPage() {
                         color: filterFeature === 'all' ? '#9ca3af' : '#6b7280', 
                         '&.Mui-focused': { color: filterFeature === 'all' ? '#9ca3af' : '#7b68ee' } 
                       }}>
-                        Function
+                        Chức năng
                       </InputLabel>
                       <Select 
                         value={filterFunction}
                         onChange={(e) => setFilterFunction(e.target.value)}
                         disabled={filterFeature === 'all'}
-                        label="Function"
+                        label="Chức năng"
                         sx={{
                           borderRadius: 2.5,
                           bgcolor: filterFeature === 'all' ? '#f8f9fb' : 'white',
@@ -1988,11 +2040,11 @@ export default function ProjectTasksPage() {
                             </Box>
                             <Box>
                               <Typography sx={{ fontSize: '14px', fontWeight: 500, color: filterFeature === 'all' ? '#9ca3af' : 'inherit' }}>
-                                {filterFeature === 'all' ? 'Select Feature first' : 'All Functions'}
+                                {filterFeature === 'all' ? 'Chọn tính năng trước' : 'Tất cả chức năng'}
                               </Typography>
                               {filterFeature !== 'all' && (
                                 <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
-                                  {functions.length} items
+                                  {functions.length} mục
                                 </Typography>
                               )}
                             </Box>
@@ -2053,9 +2105,9 @@ export default function ProjectTasksPage() {
                               🎯
                             </Box>
                             <Box>
-                              <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>All Milestones</Typography>
+                              <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>Tất cả milestone</Typography>
                               <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '11px' }}>
-                                {milestones.length} items
+                                {milestones.length} mục
                               </Typography>
                             </Box>
                           </Box>
@@ -2141,7 +2193,7 @@ export default function ProjectTasksPage() {
                     </Box>
                   }
                 >
-                  Clear All Filters
+                  Xóa tất cả bộ lọc
                 </Button>
               </Box>
             )}
@@ -2166,10 +2218,10 @@ export default function ProjectTasksPage() {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Đang xem Tasks của Feature: 
+                  Đang xem công việc của tính năng: 
                 </Typography>
                 <Chip 
-                  label={allFeatures.find(f => f._id === featureIdFromUrl)?.title || 'Unknown'}
+                  label={allFeatures.find(f => f._id === featureIdFromUrl)?.title || 'Không rõ'}
                   size="small"
                   sx={{
                     background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
@@ -2200,10 +2252,10 @@ export default function ProjectTasksPage() {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Đang xem Tasks của Function: 
+                  Đang xem công việc của chức năng: 
                 </Typography>
                 <Chip 
-                  label={allFunctions.find(f => f._id === functionIdFromUrl)?.title || 'Unknown'}
+                  label={allFunctions.find(f => f._id === functionIdFromUrl)?.title || 'Không rõ'}
                   size="small"
                   sx={{
                     background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
@@ -2225,7 +2277,7 @@ export default function ProjectTasksPage() {
                 display: 'grid !important', 
                 gridTemplateColumns: { 
                   xs: '50px minmax(200px, 1fr) 120px 110px', 
-                  md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                  md: '50px minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
                 }, 
                 columnGap: 2, 
                 color: '#6b7280', 
@@ -2238,14 +2290,13 @@ export default function ProjectTasksPage() {
                 alignItems: 'center',
               }}>
                 <Box>STT</Box>
-                <Box>Task name</Box>
-                <Box>Assignee</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Assigner</Box>
-                <Box>Due date</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Status</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Priority</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Dependencies</Box>
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Progress</Box>
+                <Box>Tên công việc</Box>
+                <Box>Người thực hiện</Box>
+                <Box>Hạn chót</Box>
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Trạng thái</Box>
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Ưu tiên</Box>
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Phụ thuộc</Box>
+                <Box sx={{ display: { xs: 'none', md: 'block' } }}>Thao tác</Box>
               </Box>
 
               {/* Groups */}
@@ -2298,13 +2349,14 @@ export default function ProjectTasksPage() {
                       const assignerName = resolveName(t.assigner_id, "");
                       const assignerInitials = assignerName ? assignerName.split(' ').map((part: string) => part[0]).join('').slice(0, 2).toUpperCase() : '';
                       const priorityName = typeof t.priority === 'object' ? (t.priority as any)?.name : (t.priority as any) || '-';
-                      const isOverdue = t.deadline ? new Date(t.deadline).getTime() < Date.now() && (String(t.status).toLowerCase() !== 'completed') : false;
+                      const normalizedTaskStatus = resolveStatusName(t.status);
+                      const isOverdue = t.deadline ? new Date(t.deadline).getTime() < Date.now() && normalizedTaskStatus !== 'Done' : false;
                       
                       // Check if task is blocked by incomplete dependencies (predecessors)
                       const hasBlockingDependencies = taskDependencies[t._id]?.dependencies?.some((dep: any) => {
-                        const status = dep.depends_on_task_id?.status;
-                        const isCompleted = ['Done', 'Completed'].includes(status);
-                        const isStarted = ['In Progress', 'Testing', 'Review', 'Done', 'Completed'].includes(status);
+                        const status = resolveStatusName(dep.depends_on_task_id?.status);
+                        const isCompleted = status === 'Done';
+                        const isStarted = status === 'Doing' || status === 'Done';
                         
                         // FS: This task is blocked if predecessor is not completed
                         if (dep.dependency_type === 'FS' && !isCompleted) return true;
@@ -2326,7 +2378,7 @@ export default function ProjectTasksPage() {
                             display: 'grid !important', 
                             gridTemplateColumns: { 
                               xs: '50px minmax(200px, 1fr) 120px 110px', 
-                              md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
+                              md: '50px minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
                             }, 
                             columnGap: 2, 
                             alignItems: 'center', 
@@ -2347,47 +2399,30 @@ export default function ProjectTasksPage() {
                               gap: 0.5,
                             }}
                           >
-                            {/* Expand/Collapse chevron - only show if task has subtasks AND is not a subtask itself */}
-                            {taskSubtasks[t._id]?.length > 0 && !t.parent_task_id ? (
-                              <IconButton
-                                size="small"
-                                onClick={(e) => toggleTaskExpansion(t._id, e)}
-                                sx={{ 
-                                  padding: 0,
-                                  width: 20,
-                                  height: 20,
-                                  color: expandedTasks.has(t._id) ? '#7b68ee' : '#6b7280',
-                                  '&:hover': { 
-                                    bgcolor: '#f3f4f6',
-                                    color: '#7b68ee'
-                                  },
-                                  transition: 'all 0.2s ease'
-                                }}
-                              >
-                                {expandedTasks.has(t._id) ? (
-                                  <ExpandMoreIcon sx={{ fontSize: 18 }} />
-                                ) : (
-                                  <ChevronRightIcon sx={{ fontSize: 18 }} />
-                                )}
-                              </IconButton>
-                            ) : (
                               <Box sx={{ width: 20 }} />
-                            )}
                             
-                            <Typography
-                              sx={{ 
-                                fontSize: '13px', 
-                                fontWeight: 600, 
-                                color: '#7b68ee',
-                                cursor: 'pointer',
-                                '&:hover': { 
-                                  textDecoration: 'underline',
-                                  color: '#6b5bd6'
+                            <Box
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                fontWeight: 700,
+                                fontSize: '14px',
+                                boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                  transform: 'scale(1.05)',
+                                  boxShadow: '0 4px 12px rgba(123, 104, 238, 0.5)',
                                 }
                               }}
                             >
-                              {index + 1}
-                            </Typography>
+                              {(indexById.get(t._id) ?? 0) + 1}
+                            </Box>
                           </Box>
 
                           {/* Task name - double click to edit */}
@@ -2479,73 +2514,6 @@ export default function ProjectTasksPage() {
                                     {t.title}
                                   </Typography>
                                 </Tooltip>
-                                
-                                {/* Subtask counter badge - Jira/ClickUp style with progress */}
-                                {/* Only show for parent tasks (not subtasks themselves) */}
-                                {taskSubtasks[t._id]?.length > 0 && !t.parent_task_id && (() => {
-                                  const completedCount = taskSubtasks[t._id].filter((st: any) => {
-                                    const stName = typeof st.status === 'object' ? st.status?.name : st.status;
-                                    return stName === 'Completed' || stName === 'Done';
-                                  }).length;
-                                  const totalCount = taskSubtasks[t._id].length;
-                                  const subtaskProgress = Math.round((completedCount / totalCount) * 100);
-                                  const allCompleted = completedCount === totalCount;
-                                  
-                                  return (
-                                    <Tooltip title={`${completedCount} of ${totalCount} subtasks completed (${subtaskProgress}%)`}>
-                                      <Box sx={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center',
-                                        gap: 0.75,
-                                        px: 1,
-                                        py: 0.5,
-                                        borderRadius: 1.5,
-                                      bgcolor: expandedTasks.has(t._id) ? '#ede9fe' : '#f3f4f6',
-                                      border: expandedTasks.has(t._id) ? '1px solid #7b68ee40' : 'none',
-                                      transition: 'all 0.2s ease',
-                                      }}>
-                                        <Box sx={{ 
-                                          width: 14,
-                                          height: 14,
-                                          borderRadius: '50%',
-                                          border: `2px solid ${allCompleted ? '#10b981' : '#7b68ee'}`,
-                                          bgcolor: allCompleted ? '#10b981' : 'transparent',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          flexShrink: 0,
-                                        }}>
-                                          {allCompleted && (
-                                            <CheckCircleIcon sx={{ fontSize: 10, color: 'white' }} />
-                                          )}
-                                        </Box>
-                                        <Typography sx={{ 
-                                          fontSize: '11px',
-                                          fontWeight: 700,
-                                          color: allCompleted ? '#10b981' : (expandedTasks.has(t._id) ? '#7b68ee' : '#6b7280'),
-                                        }}>
-                                          {completedCount}/{totalCount}
-                                        </Typography>
-                                        {/* Mini progress bar */}
-                                        <Box sx={{
-                                          width: 32,
-                                          height: 4,
-                                          bgcolor: expandedTasks.has(t._id) ? '#c4b5fd' : '#e5e7eb',
-                                          borderRadius: 2,
-                                          overflow: 'hidden',
-                                          flexShrink: 0,
-                                        }}>
-                                          <Box sx={{
-                                            width: `${subtaskProgress}%`,
-                                            height: '100%',
-                                            bgcolor: allCompleted ? '#10b981' : '#7b68ee',
-                                            transition: 'width 0.3s ease',
-                                          }} />
-                                        </Box>
-                                      </Box>
-                                    </Tooltip>
-                                  );
-                                })()}
                                 
                                 {/* Hierarchy badges: Milestone → Feature → Function - Clickable with truncation */}
                                 {t.milestone_id && typeof t.milestone_id === 'object' && (
@@ -2704,7 +2672,7 @@ export default function ProjectTasksPage() {
                               </MenuItem>
                               {teamMembers.map((member, idx) => {
                                 const userId = member.user_id?._id || member._id;
-                                const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
+                        const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Không rõ';
                                 return (
                                   <MenuItem key={userId || idx} value={userId}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -2717,29 +2685,6 @@ export default function ProjectTasksPage() {
                                 );
                               })}
                             </Select>
-                          </Box>
-
-                          {/* Assigner (người giao task) */}
-                          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                            {assignerName ? (
-                              <Tooltip title={`Assigned by: ${assignerName}`}>
-                                <Avatar 
-                                  sx={{ 
-                                    width: 28, 
-                                    height: 28, 
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    bgcolor: '#64748b',
-                                  }}
-                                >
-                                  {assignerInitials}
-                                </Avatar>
-                              </Tooltip>
-                            ) : (
-                              <Avatar sx={{ width: 28, height: 28, bgcolor: '#e5e7eb', color: '#9ca3af' }}>
-                                <PersonIcon sx={{ fontSize: 16 }} />
-                              </Avatar>
-                            )}
                           </Box>
 
                           {/* Due date - inline edit */}
@@ -2782,32 +2727,79 @@ export default function ProjectTasksPage() {
                               onChange={async (e) => {
                                 e.stopPropagation();
                               const newStatusId = e.target.value;
+                              // Get status name from STATUS_OPTIONS if it's an ID
+                              const statusObj = allStatuses.find(s => s._id === newStatusId);
+                              const statusToSend = statusObj?.name || statusObj?._id || newStatusId;
+                              
+                              console.log('Changing status:', { newStatusId, statusToSend, currentStatus: t.status });
+                              
                                 try {
                                   await axiosInstance.patch(`/api/tasks/${t._id}`, {
-                                  status: newStatusId
+                                  status: statusToSend
                                   });
                                   await loadAll();
                                 } catch (error: any) {
                                   console.error('Error updating status:', error);
+                                  console.log('Error response:', error?.response);
+                                  console.log('Error response data:', error?.response?.data);
+                                  console.log('Error status code:', error?.response?.status);
                                   
                                   // Check if it's a dependency violation error
-                                  if (error?.response?.data?.violations) {
+                                  if (error?.response?.status === 400) {
+                                    const responseData = error?.response?.data || {};
+                                    
+                                    // Check for violations array (dependency violations)
+                                    if (responseData.violations && Array.isArray(responseData.violations) && responseData.violations.length > 0) {
+                                      console.log('✅ Setting dependency violation dialog with violations:', responseData.violations);
                                     setDependencyViolationDialog({
                                       open: true,
-                                      violations: error.response.data.violations,
+                                        violations: responseData.violations,
                                       taskId: t._id,
-                                    newStatus: newStatusId
-                                    });
-                                  } else {
-                                    setError(error?.response?.data?.message || 'Không thể cập nhật status');
+                                        newStatus: statusToSend
+                                      });
+                                      return; // Don't show error message if showing dialog
+                                    }
+                                    
+                                    // Check for errors array that might contain dependency errors
+                                    if (responseData.errors && Array.isArray(responseData.errors)) {
+                                      // Check if any error mentions dependency
+                                      const dependencyErrors = responseData.errors.filter((err: string) => 
+                                        err.toLowerCase().includes('dependency') || 
+                                        err.toLowerCase().includes('cannot complete') ||
+                                        err.toLowerCase().includes('cannot start')
+                                      );
+                                      
+                                      if (dependencyErrors.length > 0) {
+                                        // Convert errors to violations format
+                                        const violations = dependencyErrors.map((err: string) => ({
+                                          message: err,
+                                          type: 'FS', // Default type
+                                          is_mandatory: true
+                                        }));
+                                        
+                                        console.log('✅ Converting errors to violations:', violations);
+                                        setDependencyViolationDialog({
+                                          open: true,
+                                          violations: violations,
+                                          taskId: t._id,
+                                          newStatus: statusToSend
+                                        });
+                                        return;
+                                      }
+                                    }
                                   }
+                                  
+                                  // Show regular error message
+                                  console.log('❌ No violations found, showing error message');
+                                  console.log('Response data keys:', Object.keys(error?.response?.data || {}));
+                                  setError(error?.response?.data?.message || 'Không thể cập nhật status');
                                 }
                               }}
                               size="small"
                               displayEmpty
                             renderValue={(value) => {
                               const statusObj = allStatuses.find(s => s._id === value);
-                              const statusName = statusObj?.name || 'No Status';
+                      const statusName = statusObj?.name || 'Không có trạng thái';
                               return (
                                 <Chip 
                                   label={statusName} 
@@ -2921,7 +2913,7 @@ export default function ProjectTasksPage() {
                                     {taskDependencies[t._id]?.dependencies?.length > 0 && (
                                       <Box sx={{ mb: 0.5 }}>
                                         <Typography fontSize="10px" fontWeight={700} sx={{ mb: 0.5, color: '#93c5fd' }}>
-                                          Waiting on:
+                                          Đang chờ:
                                         </Typography>
                                         {taskDependencies[t._id].dependencies.map((d: any) => (
                                           <Typography key={d._id} fontSize="11px" sx={{ pl: 1 }}>
@@ -2993,359 +2985,42 @@ export default function ProjectTasksPage() {
                             )}
                           </Box>
 
-                          {/* Progress - inline edit with slider */}
-                          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                            <Tooltip title={`${t.progress || 0}% completed`}>
-                              <Box 
+                          {/* Action buttons */}
+                          <Box 
+                            sx={{ 
+                              display: { xs: 'none', md: 'flex' }, 
+                              alignItems: 'center', 
+                              gap: 0.5,
+                              justifyContent: 'flex-end'
+                            }} 
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Tooltip title="Xóa task">
+                              <IconButton
+                                size="small"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Bạn có chắc muốn xóa task "${t.title}"?`)) {
+                                    await deleteTask(t._id);
+                                  }
+                                }}
                                 sx={{ 
-                                  width: 50,
-                                  height: 6,
-                                  bgcolor: '#e5e7eb',
-                                  borderRadius: 3,
-                                  overflow: 'hidden',
-                                  cursor: 'pointer',
-                                  '&:hover': {
-                                    height: 8,
-                                  },
-                                  transition: 'height 0.2s ease'
+                                  color: '#ef4444',
+                                  '&:hover': { 
+                                    color: '#dc2626',
+                                    bgcolor: '#fef2f2' 
+                                  }
                                 }}
                               >
-                                <Box 
-                                  sx={{ 
-                                    width: `${t.progress || 0}%`,
-                                    height: '100%',
-                                    bgcolor: t.progress === 100 ? '#22c55e' : '#7b68ee',
-                                    transition: 'width 0.3s ease',
-                                  }}
-                                />
-                              </Box>
+                                <DeleteIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
                             </Tooltip>
                           </Box>
+
                         </Box>
 
                         {/* Subtasks - rendered below parent task with indentation */}
-                        {/* Only render subtasks if t is a parent task (not a subtask itself) */}
-                        {expandedTasks.has(t._id) && !t.parent_task_id && taskSubtasks[t._id] && taskSubtasks[t._id].map((subtask: any, subIndex: number) => {
-                          const isLastSubtask = subIndex === taskSubtasks[t._id].length - 1;
-                          const subtaskStatusName = typeof subtask.status === 'object' ? subtask.status?.name : subtask.status;
-                          const isSubtaskCompleted = subtaskStatusName === 'Completed' || subtaskStatusName === 'Done';
-                          
-                          return (
-                          <Box 
-                            key={subtask._id} 
-                            sx={{ 
-                              px: 3, 
-                              py: 1.5,
-                              pl: 5, // Extra left padding for indentation
-                              display: 'grid !important', 
-                              gridTemplateColumns: { 
-                                xs: '50px minmax(200px, 1fr) 120px 110px', 
-                                md: '50px minmax(250px, 2fr) 140px 140px 120px 100px 100px 80px 60px' 
-                              }, 
-                              columnGap: 2, 
-                              alignItems: 'center', 
-                              bgcolor: '#fafbfc',
-                              borderBottom: '1px solid #f3f4f6',
-                              cursor: 'pointer',
-                              position: 'relative',
-                              transition: 'all 0.2s ease',
-                              '&:hover': { 
-                                bgcolor: '#f5f3ff',
-                                '& .subtask-actions': {
-                                  opacity: 1,
-                                },
-                              },
-                              // Tree line connector - vertical line
-                              '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                left: '35px',
-                                top: 0,
-                                bottom: isLastSubtask ? '50%' : 0,
-                                width: '1.5px',
-                                bgcolor: '#d1d5db',
-                              },
-                              // Tree line connector - horizontal line (L-shape)
-                              '&::after': {
-                                content: '""',
-                                position: 'absolute',
-                                left: '35px',
-                                top: '50%',
-                                width: '16px',
-                                height: '1.5px',
-                                bgcolor: '#d1d5db',
-                              },
-                            }}
-                            onClick={() => openTaskDetailsModal(subtask._id)}
-                          >
-                            {/* STT - Click to open detail */}
-                            <Box 
-                              sx={{ 
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                pl: 2,
-                              }}
-                            >
-                              <Checkbox
-                                checked={isSubtaskCompleted}
-                                size="small"
-                                sx={{
-                                  padding: 0,
-                                  color: '#d1d5db',
-                                  '&.Mui-checked': {
-                                    color: '#7b68ee',
-                                  },
-                                }}
-                                onChange={(e: any) => {
-                                  e.stopPropagation();
-                                  // Quick status toggle
-                                  const newStatusId = isSubtaskCompleted 
-                                    ? allStatuses.find((s: any) => s.name === 'To Do')?._id 
-                                    : allStatuses.find((s: any) => s.name === 'Done')?._id;
-                                  if (newStatusId) {
-                                    axiosInstance.patch(`/api/tasks/${subtask._id}`, { status: newStatusId })
-                                      .then(() => loadSubtasks(t._id))
-                                      .catch((err: any) => console.error('Error updating subtask:', err));
-                                  }
-                                }}
-                              />
-                              <Typography
-                                sx={{ 
-                                  fontSize: '12px', 
-                                  fontWeight: 500, 
-                                  color: '#9ca3af',
-                                  cursor: 'pointer',
-                                  '&:hover': { 
-                                    textDecoration: 'underline',
-                                    color: '#7b68ee'
-                                  }
-                                }}
-                              >
-                                {index + 1}.{subIndex + 1}
-                              </Typography>
-                            </Box>
-
-                            {/* Subtask name with icon */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
-                              <Box sx={{ 
-                                width: 20,
-                                height: 20,
-                                borderRadius: 1,
-                                bgcolor: '#ede9fe',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                              }}>
-                                <Box sx={{ 
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  bgcolor: '#7b68ee',
-                                }} />
-                              </Box>
-                              <Tooltip title={subtask.title} arrow placement="top">
-                              <Typography 
-                                sx={{ 
-                                  fontWeight: 400, 
-                                  fontSize: '13px', 
-                                    color: isSubtaskCompleted ? '#9ca3af' : '#4b5563',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                    textDecoration: isSubtaskCompleted ? 'line-through' : 'none',
-                                    flex: 1,
-                                    cursor: 'pointer',
-                                }}
-                              >
-                                {subtask.title}
-                              </Typography>
-                              </Tooltip>
-                              {/* Quick actions on hover */}
-                              <Box 
-                                className="subtask-actions"
-                                sx={{ 
-                                  display: 'flex',
-                                  gap: 0.5,
-                                  opacity: 0,
-                                  transition: 'opacity 0.2s ease',
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Tooltip title="Edit subtask">
-                                  <IconButton 
-                                size="small" 
-                                sx={{ 
-                                      width: 22,
-                                      height: 22,
-                                      color: '#9ca3af',
-                                      '&:hover': { 
-                                  color: '#7b68ee',
-                                        bgcolor: '#ede9fe',
-                                      },
-                                    }}
-                                    onClick={() => openTaskDetailsModal(subtask._id)}
-                                  >
-                                    <EditIcon sx={{ fontSize: 14 }} />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete subtask">
-                                  <IconButton 
-                                    size="small"
-                                    sx={{ 
-                                      width: 22,
-                                      height: 22,
-                                      color: '#9ca3af',
-                                      '&:hover': { 
-                                        color: '#ef4444',
-                                        bgcolor: '#fee2e2',
-                                      },
-                                    }}
-                                    onClick={() => {
-                                      if (confirm('Delete this subtask?')) {
-                                        axiosInstance.delete(`/api/tasks/${subtask._id}`)
-                                          .then(() => loadSubtasks(t._id))
-                                          .catch((err: any) => console.error('Error deleting subtask:', err));
-                                      }
-                                    }}
-                                  >
-                                    <DeleteIcon sx={{ fontSize: 14 }} />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                            </Box>
-
-                            {/* Assignee */}
-                            <Box onClick={(e) => e.stopPropagation()}>
-                              {subtask.assignee_id ? (
-                                <Tooltip title={subtask.assignee_id?.full_name || subtask.assignee_id?.email}>
-                                  <Avatar 
-                                    sx={{ 
-                                      width: 26, 
-                                      height: 26, 
-                                      fontSize: '11px',
-                                      fontWeight: 600,
-                                      bgcolor: '#9333ea',
-                                      cursor: 'pointer',
-                                      '&:hover': {
-                                        opacity: 0.8,
-                                      },
-                                    }}
-                                  >
-                                    {(subtask.assignee_id?.full_name || subtask.assignee_id?.email || 'U')[0].toUpperCase()}
-                                  </Avatar>
-                                </Tooltip>
-                              ) : (
-                                <Tooltip title="Assign to someone">
-                                  <Avatar 
-                                    sx={{ 
-                                      width: 26, 
-                                      height: 26, 
-                                      fontSize: '11px',
-                                      bgcolor: '#f3f4f6',
-                                      color: '#9ca3af',
-                                      cursor: 'pointer',
-                                      '&:hover': {
-                                        bgcolor: '#e5e7eb',
-                                      },
-                                    }}
-                                  >
-                                    +
-                                  </Avatar>
-                                </Tooltip>
-                              )}
-                            </Box>
-
-                            {/* Assigner - empty for subtasks */}
-                            <Box sx={{ display: { xs: 'none', md: 'block' } }} />
-
-                            {/* Due Date */}
-                          <Box>
-                              {subtask.deadline ? (
-                                <Chip
-                                  label={new Date(subtask.deadline).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' })}
-                                  size="small"
-                                  icon={<CalendarMonthIcon sx={{ fontSize: 12 }} />}
-                                  sx={{
-                                    height: 22,
-                                    fontSize: '11px',
-                                    fontWeight: 500,
-                                    bgcolor: new Date(subtask.deadline) < new Date() && !isSubtaskCompleted ? '#fee2e2' : '#f3f4f6',
-                                    color: new Date(subtask.deadline) < new Date() && !isSubtaskCompleted ? '#dc2626' : '#6b7280',
-                                    '& .MuiChip-icon': {
-                                      marginLeft: '6px',
-                                    },
-                                  }}
-                                />
-                              ) : (
-                                <Typography fontSize="11px" color="#d1d5db">—</Typography>
-                              )}
-                          </Box>
-
-                            {/* Status */}
-                            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                              <Chip 
-                                label={subtaskStatusName} 
-                                size="small"
-                                sx={{
-                                  height: 22,
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  bgcolor: isSubtaskCompleted ? '#dcfce7' : '#f3f4f6',
-                                  color: isSubtaskCompleted ? '#16a34a' : '#6b7280',
-                                  border: isSubtaskCompleted ? '1px solid #bbf7d0' : 'none',
-                                }}
-                              />
-                          </Box>
-
-                            {/* Priority */}
-                            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                              {subtask.priority && (
-                                <Chip 
-                                  label={typeof subtask.priority === 'object' ? subtask.priority?.name : subtask.priority}
-                                  size="small"
-                                  sx={{
-                                    height: 20,
-                                    fontSize: '10px',
-                                    fontWeight: 600,
-                                    bgcolor: getPriorityColor(typeof subtask.priority === 'object' ? subtask.priority?.name : subtask.priority) + '20',
-                                    color: getPriorityColor(typeof subtask.priority === 'object' ? subtask.priority?.name : subtask.priority),
-                                  }}
-                                />
-                              )}
-                            </Box>
-
-                            {/* Dependencies - empty */}
-                            <Box sx={{ display: { xs: 'none', md: 'flex' } }} />
-
-                            {/* Progress */}
-                            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', justifyContent: 'center' }}>
-                              {subtask.progress !== undefined && subtask.progress > 0 ? (
-                                <Tooltip title={`${subtask.progress}% complete`}>
-                                <Box sx={{ 
-                                    width: 48,
-                                    height: 7,
-                                  bgcolor: '#e5e7eb',
-                                    borderRadius: 4,
-                                    overflow: 'hidden',
-                                    position: 'relative',
-                                }}>
-                                  <Box sx={{ 
-                                    width: `${subtask.progress}%`,
-                                    height: '100%',
-                                      bgcolor: isSubtaskCompleted ? '#10b981' : '#7b68ee',
-                                      transition: 'all 0.3s ease',
-                                  }} />
-                        </Box>
-                                </Tooltip>
-                              ) : (
-                                <Typography fontSize="11px" color="#d1d5db">—</Typography>
-                              )}
-                            </Box>
-                          </Box>
-                        );
-                        })}
+                        {/* Only render subtasks if t is a parent task (not a subtask itself) */}                        {/* Subtasks removed */}
                       </Fragment>
                       );
                     })}
@@ -3382,7 +3057,7 @@ export default function ProjectTasksPage() {
                             },
                           }}
                         >
-                          Add task
+                          Thêm công việc
                         </Button>
                       </Box>
                     )}
@@ -3392,10 +3067,10 @@ export default function ProjectTasksPage() {
                 {Object.keys(groupedByStatus).length === 0 && (
                   <Box sx={{ py: 16, textAlign: 'center', bgcolor: 'white' }}>
                     <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: '#6b7280' }}>
-                      No tasks yet
+                      Chưa có công việc nào
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      Create your first task to get started
+                      Tạo công việc đầu tiên để bắt đầu
                     </Typography>
                     <Button 
                       variant="contained" 
@@ -3414,7 +3089,7 @@ export default function ProjectTasksPage() {
                         },
                       }}
                     >
-                      Create Task
+                      Tạo công việc
                     </Button>
                   </Box>
                 )}
@@ -3585,33 +3260,6 @@ export default function ProjectTasksPage() {
                                 )}
                               </Stack>
 
-                              {/* Meta Info Row 2 - Progress */}
-                              {task.progress !== undefined && task.progress > 0 && (
-                                <Box sx={{ mb: 1.5 }}>
-                                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                                    <Typography fontSize="10px" fontWeight={600} color="text.secondary">
-                                      Progress
-                                    </Typography>
-                                    <Typography fontSize="10px" fontWeight={700} color="#7b68ee">
-                                      {task.progress}%
-                                    </Typography>
-                                  </Stack>
-                                  <Box sx={{ 
-                                    height: 6, 
-                                    bgcolor: '#e8e9eb', 
-                                    borderRadius: 3,
-                                    overflow: 'hidden'
-                                  }}>
-                                    <Box sx={{ 
-                                      width: `${task.progress}%`, 
-                                      height: '100%', 
-                                      bgcolor: task.progress === 100 ? '#22c55e' : '#7b68ee',
-                                      transition: 'width 0.3s ease',
-                                      borderRadius: 3
-                                    }} />
-                                  </Box>
-                                </Box>
-                              )}
 
                               {/* Bottom Row - Assignee & Indicators */}
                               <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -3645,31 +3293,10 @@ export default function ProjectTasksPage() {
 
                                 {/* Indicators */}
                                 <Stack direction="row" spacing={0.5} alignItems="center">
-                                  {/* Subtasks indicator */}
-                                  {taskSubtasks[task._id]?.length > 0 && (
-                                    <Tooltip title={`${taskSubtasks[task._id].filter((s: any) => s.status === 'Completed').length}/${taskSubtasks[task._id].length} subtasks`}>
-                                      <Chip
-                                        icon={<CheckCircleIcon sx={{ fontSize: 12 }} />}
-                                        label={`${taskSubtasks[task._id].filter((s: any) => s.status === 'Completed').length}/${taskSubtasks[task._id].length}`}
-                                        size="small"
-                                        sx={{
-                                          height: 20,
-                                          fontSize: '10px',
-                                          fontWeight: 600,
-                                          bgcolor: '#f0fdf4',
-                                          color: '#16a34a',
-                                          '& .MuiChip-icon': {
-                                            color: 'inherit'
-                                          }
-                                        }}
-                                      />
-                                    </Tooltip>
-                                  )}
-
                                   {/* Dependencies indicator */}
                                   {(taskDependencies[task._id]?.dependencies?.length > 0 || 
                                     taskDependencies[task._id]?.dependents?.length > 0) && (
-                                    <Tooltip title="Has dependencies">
+                                    <Tooltip title="Có ràng buộc phụ thuộc">
                                       <IconButton size="small" sx={{ color: '#3b82f6', p: 0.25 }}>
                                         <LinkIcon sx={{ fontSize: 14 }} />
                                       </IconButton>
@@ -3678,7 +3305,7 @@ export default function ProjectTasksPage() {
 
                                   {/* Time estimate */}
                                   {task.estimate && (
-                                    <Tooltip title={`${task.estimate}h estimated`}>
+                                    <Tooltip title={`${task.estimate}h ước tính`}>
                                       <IconButton size="small" sx={{ color: '#6b7280', p: 0.25 }}>
                                         <AccessTimeIcon sx={{ fontSize: 14 }} />
                                       </IconButton>
@@ -3711,7 +3338,7 @@ export default function ProjectTasksPage() {
                             }
                           }}
                         >
-                          Add Task
+                          Thêm công việc
                         </Button>
                       </Stack>
                     </Box>
@@ -3727,10 +3354,10 @@ export default function ProjectTasksPage() {
                     borderRadius: 3
                   }}>
                     <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: '#6b7280' }}>
-                      No tasks yet
+                      Chưa có công việc nào
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      Create your first task to get started
+                      Hãy tạo công việc đầu tiên để bắt đầu
                     </Typography>
                     <Button 
                       variant="contained" 
@@ -3741,7 +3368,7 @@ export default function ProjectTasksPage() {
                         '&:hover': { bgcolor: '#6952d6' }
                       }}
                     >
-                      Create Task
+                      Tạo công việc
                     </Button>
                   </Box>
                 )}
@@ -3769,7 +3396,7 @@ export default function ProjectTasksPage() {
                     <ChevronRightIcon sx={{ transform: 'rotate(180deg)' }} />
                   </IconButton>
                   <Typography variant="h6" fontWeight={700} sx={{ minWidth: 200, textAlign: 'center' }}>
-                    {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    {calendarDate.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
                   </Typography>
                   <IconButton 
                     onClick={() => {
@@ -3801,7 +3428,7 @@ export default function ProjectTasksPage() {
                       }
                     }}
                   >
-                    Today
+                    Hôm nay
                   </Button>
                 </Stack>
               </Box>
@@ -3815,7 +3442,7 @@ export default function ProjectTasksPage() {
                   bgcolor: '#f8f9fb',
                   borderBottom: '2px solid #e8e9eb'
                 }}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map((day) => (
                     <Box 
                       key={day}
                       sx={{ 
@@ -3945,11 +3572,6 @@ export default function ProjectTasksPage() {
             </Box>
           )}
 
-          {/* CI/CD View */}
-          {view === "cicd" && (
-            <ProjectCICDView projectId={projectId} />
-          )}
-
           {/* Dialog - Tạo/Sửa Task */}
           <Dialog 
             open={openDialog} 
@@ -3964,65 +3586,12 @@ export default function ProjectTasksPage() {
               }
             }}
           >
-            {/* Modern Header */}
-            <Box sx={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                position: 'relative',
-                overflow: 'hidden',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                top: '-50%',
-                right: '-10%',
-                width: '300px',
-                height: '300px',
-                background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
-                  borderRadius: '50%',
-              }
-            }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                px: 4,
-                py: 3,
-                position: 'relative',
-                zIndex: 1
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(255,255,255,0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(10px)'
-                  }}>
-                    <AssignmentIcon sx={{ fontSize: 28, color: 'white' }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h5" fontWeight={700} color="white">
-                      {editing ? 'Chỉnh sửa Task' : 'Tạo Task mới'}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', mt: 0.5 }}>
-                      {editing ? 'Cập nhật thông tin task' : 'Thêm task mới vào dự án'}
-                    </Typography>
-                  </Box>
-                </Box>
-                <IconButton 
-                  onClick={() => setOpenDialog(false)}
-                  sx={{ 
-                    color: 'white',
-                    bgcolor: 'rgba(255,255,255,0.1)',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
-                  }}
-                >
-                  <CloseIcon />
-                </IconButton>
+            <DialogTitle sx={{ fontWeight: 'bold' }}>
+              {editing ? 'Cập nhật Task - Lên Kế Hoạch' : 'Tạo Task Mới - Lên Kế Hoạch'}
+              <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary', fontWeight: 'normal', mt: 0.5 }}>
+                {editing ? 'Cập nhật thông tin task trong dự án' : 'Thêm task mới vào dự án'}
               </Box>
-            </Box>
+            </DialogTitle>
             <DialogContent sx={{ p: 4 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4 }}>
                 {/* Left Column - Main Info */}
@@ -4186,10 +3755,10 @@ export default function ProjectTasksPage() {
                   </Typography>
                     <Stack spacing={2.5}>
                       <FormControl fullWidth>
-                        <InputLabel>Status</InputLabel>
+                        <InputLabel>Trạng thái</InputLabel>
                         <Select 
                           value={form.status} 
-                          label="Status" 
+                          label="Trạng thái" 
                           onChange={(e) => setForm({ ...form, status: e.target.value })}
                           sx={{ 
                             bgcolor: 'white',
@@ -4199,7 +3768,7 @@ export default function ProjectTasksPage() {
                             }
                           }}
                         >
-                          <MenuItem value=""><em>Chọn status</em></MenuItem>
+                          <MenuItem value=""><em>Chọn trạng thái</em></MenuItem>
                         {statuses.map((s) => (
                             <MenuItem key={s._id} value={s._id}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -4218,17 +3787,17 @@ export default function ProjectTasksPage() {
                   </FormControl>
                       
                       <FormControl fullWidth>
-                        <InputLabel>Priority</InputLabel>
+                        <InputLabel>Ưu tiên</InputLabel>
                         <Select 
                           value={form.priority} 
-                          label="Priority" 
+                          label="Ưu tiên" 
                           onChange={(e) => setForm({ ...form, priority: e.target.value })}
                           sx={{ 
                             bgcolor: 'white',
                             borderRadius: 2 
                           }}
                         >
-                          <MenuItem value=""><em>Chọn priority</em></MenuItem>
+                          <MenuItem value=""><em>Chọn mức ưu tiên</em></MenuItem>
                         {priorities.map((p) => (
                             <MenuItem key={p._id} value={p._id}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -4248,10 +3817,10 @@ export default function ProjectTasksPage() {
                   </FormControl>
                       
                       <FormControl fullWidth>
-                        <InputLabel>Assignee</InputLabel>
+                        <InputLabel>Người thực hiện</InputLabel>
                         <Select 
                           value={form.assignee} 
-                          label="Assignee" 
+                          label="Người thực hiện" 
                           onChange={(e) => setForm({ ...form, assignee: e.target.value })}
                           sx={{ 
                             bgcolor: 'white',
@@ -4261,7 +3830,7 @@ export default function ProjectTasksPage() {
                       <MenuItem value=""><em>Chưa gán</em></MenuItem>
                       {teamMembers.map((member, idx) => {
                         const userId = member.user_id?._id || member._id;
-                        const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Unknown';
+                        const userName = member.user_id?.full_name || member.full_name || member.user_id?.email || member.email || 'Không rõ';
                         return (
                           <MenuItem key={userId || idx} value={userId}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -4305,17 +3874,17 @@ export default function ProjectTasksPage() {
                   </Typography>
                     <Stack spacing={2.5}>
                       <FormControl fullWidth required>
-                        <InputLabel>Feature *</InputLabel>
+                        <InputLabel>Tính năng *</InputLabel>
                         <Select 
                           value={form.feature_id} 
-                          label="Feature *" 
+                          label="Tính năng *" 
                           onChange={(e) => setForm({ ...form, feature_id: e.target.value })}
                           sx={{ 
                             bgcolor: 'white',
                             borderRadius: 2 
                           }}
                         >
-                          <MenuItem value=""><em>Chọn feature</em></MenuItem>
+                          <MenuItem value=""><em>Chọn tính năng</em></MenuItem>
                           {features.map((f) => (
                             <MenuItem key={f.id} value={f.id}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -4333,38 +3902,10 @@ export default function ProjectTasksPage() {
                   </FormControl>
                       
                       <FormControl fullWidth>
-                        <InputLabel>Milestone</InputLabel>
-                        <Select 
-                          value={form.milestone_id} 
-                          label="Milestone" 
-                          onChange={(e) => setForm({ ...form, milestone_id: e.target.value })}
-                          sx={{ 
-                            bgcolor: 'white',
-                            borderRadius: 2 
-                          }}
-                        >
-                      <MenuItem value=""><em>Không chọn</em></MenuItem>
-                          {milestones.map((m) => (
-                            <MenuItem key={m.id} value={m.id}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <Box sx={{ 
-                                  width: 8, 
-                                  height: 8, 
-                                  borderRadius: '50%', 
-                                  bgcolor: '#f59e0b' 
-                                }} />
-                                <Typography fontSize="14px" fontWeight={500}>{m.title}</Typography>
-                              </Box>
-                            </MenuItem>
-                          ))}
-                    </Select>
-                  </FormControl>
-                      
-                      <FormControl fullWidth>
-                        <InputLabel>Function</InputLabel>
+                        <InputLabel>Chức năng</InputLabel>
                   <Select 
                     value={form.function_id} 
-                          label="Function" 
+                          label="Chức năng" 
                     onChange={(e) => setForm({ ...form, function_id: e.target.value })}
                     disabled={!form.feature_id}
                           sx={{ 
@@ -4387,22 +3928,7 @@ export default function ProjectTasksPage() {
                             </MenuItem>
                           ))}
                   </Select>
-                  {!form.feature_id && (
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              mt: 1, 
-                              ml: 1.5,
-                              color: '#9ca3af',
-                              fontSize: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            ⓘ Vui lòng chọn Feature trước
-                    </Typography>
-                  )}
+                
                 </FormControl>
                     </Stack>
                 </Box>
@@ -4410,67 +3936,60 @@ export default function ProjectTasksPage() {
               </Box>
             </DialogContent>
             <DialogActions sx={{ 
-              px: 4, 
-              py: 3, 
-              bgcolor: '#fafbfc',
-              borderTop: '1px solid #e5e7eb',
-              gap: 2,
+              px: 3, 
+              py: 2.5, 
+              borderTop: '1px solid #e8e9eb',
+              background: '#fafbff',
+              gap: 1.5,
               justifyContent: 'space-between'
             }}>
               <Typography variant="caption" sx={{ color: '#9ca3af', fontSize: '12px' }}>
                 * Trường bắt buộc
               </Typography>
               <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button 
-                onClick={() => setOpenDialog(false)}
-                variant="outlined"
-                  startIcon={<CloseIcon sx={{ fontSize: 18 }} />}
-                sx={{ 
-                    borderRadius: 2,
-                  px: 3,
-                    py: 1,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                    fontSize: '14px',
-                    borderColor: '#e5e7eb',
+                <Button 
+                  onClick={() => setOpenDialog(false)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
                     color: '#6b7280',
-                    '&:hover': {
-                      borderColor: '#d1d5db',
-                      bgcolor: '#f9fafb'
-                    }
-                }}
-              >
-                Hủy
-              </Button>
-              <Button 
-                  disabled={!form.title || !form.feature_id} 
-                variant="contained" 
-                onClick={saveTask}
-                  startIcon={editing ? <CheckCircleIcon sx={{ fontSize: 18 }} /> : <AddIcon sx={{ fontSize: 18 }} />}
-                sx={{
-                    borderRadius: 2,
-                  px: 4,
+                    px: 3,
                     py: 1,
-                  textTransform: 'none',
-                  fontWeight: 700,
-                    fontSize: '14px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
-                  '&:hover': {
-                      background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
-                      boxShadow: '0 6px 20px rgba(102, 126, 234, 0.6)',
-                      transform: 'translateY(-1px)'
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#f3f4f6' }
+                  }}
+                >
+                  Hủy
+                </Button>
+                <Button 
+                  variant="contained" 
+                  onClick={saveTask}
+                  disabled={!form.title || !form.feature_id}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    px: 3,
+                    py: 1,
+                    borderRadius: 2,
+                    boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                      boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
+                      transform: 'translateY(-1px)',
                     },
                     '&:disabled': {
                       background: '#e5e7eb',
                       color: '#9ca3af',
-                      boxShadow: 'none'
+                      boxShadow: 'none',
                     },
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  {editing ? 'Cập nhật Task' : 'Tạo Task'}
-              </Button>
+                  {editing ? "💾 Cập nhật" : "✨ Tạo Task"}
+                </Button>
               </Box>
             </DialogActions>
           </Dialog>
@@ -4485,10 +4004,6 @@ export default function ProjectTasksPage() {
               setSelectedTaskId(null);
             }}
             onUpdate={loadAll}
-            onTaskChange={(newTaskId) => {
-              // Switch to view the selected subtask
-              setSelectedTaskId(newTaskId);
-            }}
           />
 
           {/* Dependency Violation Warning Dialog */}
@@ -4516,12 +4031,12 @@ export default function ProjectTasksPage() {
                 }}>
                   ⚠️
                 </Box>
-                <Typography variant="h6" fontWeight={700}>Dependency Violation</Typography>
+                <Typography variant="h6" fontWeight={700}>Xung đột phụ thuộc</Typography>
               </Box>
             </DialogTitle>
             <DialogContent sx={{ pt: 3 }}>
               <Typography variant="body1" sx={{ mb: 2, fontWeight: 500 }}>
-                Cannot change status due to the following dependency constraints:
+                Không thể đổi trạng thái vì các ràng buộc phụ thuộc sau:
               </Typography>
               
               <Stack spacing={1.5}>
@@ -4538,7 +4053,7 @@ export default function ProjectTasksPage() {
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                       <Chip 
-                        label={violation.type}
+                        label={violation.type || violation.dependency_type || 'FS'}
                         size="small"
                         sx={{ 
                           height: 20,
@@ -4549,10 +4064,10 @@ export default function ProjectTasksPage() {
                         }}
                       />
                       <Typography variant="caption" fontWeight={600} color="text.secondary">
-                        {violation.type === 'FS' && 'Finish-to-Start'}
-                        {violation.type === 'FF' && 'Finish-to-Finish'}
-                        {violation.type === 'SS' && 'Start-to-Start'}
-                        {violation.type === 'SF' && 'Start-to-Finish'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'FS' && 'Hoàn thành trước - Bắt đầu (FS)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'FF' && 'Hoàn thành đồng thời (FF)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'SS' && 'Bắt đầu song song (SS)'}
+                        {(violation.type || violation.dependency_type || 'FS') === 'SF' && 'Bắt đầu - Hoàn thành (SF)'}
                       </Typography>
                     </Box>
                     <Typography variant="body2" sx={{ mt: 1 }}>
@@ -4563,16 +4078,16 @@ export default function ProjectTasksPage() {
               </Stack>
 
               <Box sx={{ mt: 3, p: 2, bgcolor: '#f3f4f6', borderRadius: 2 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'start', gap: 1 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'start', gap: 1 }}>
                   <span style={{ fontSize: '16px' }}>💡</span>
                   <span>
-                    <strong>Options:</strong><br/>
-                    • Complete the blocking tasks first
+                    <strong>Lựa chọn:</strong><br/>
+                    • Hoàn thành các công việc đang chặn trước
                     {dependencyViolationDialog.violations.some((v: any) => !v.is_mandatory) && (
-                      <><br/>• Click "Force Update" to override optional dependencies (not recommended)</>
+                      <><br/>• Chọn "Vẫn cập nhật cưỡng bức" để bỏ qua các phụ thuộc tùy chọn (không khuyến khích)</>
                     )}
                     {dependencyViolationDialog.violations.every((v: any) => v.is_mandatory) && (
-                      <><br/>• ❌ Cannot force update - all dependencies are <strong>mandatory</strong></>
+                      <><br/>• ❌ Không thể cập nhật cưỡng bức - tất cả phụ thuộc đều <strong>bắt buộc</strong></>
                     )}
                   </span>
                 </Typography>
@@ -4587,7 +4102,7 @@ export default function ProjectTasksPage() {
                   color: 'text.secondary'
                 }}
               >
-                Cancel
+                Hủy
               </Button>
               {/* Only show Force Update button if there are non-mandatory violations */}
               {dependencyViolationDialog.violations.some((v: any) => !v.is_mandatory) && (
@@ -4615,7 +4130,7 @@ export default function ProjectTasksPage() {
                     '&:hover': { bgcolor: '#d97706' }
                   }}
                 >
-                  ⚡ Force Update Anyway
+                  ⚡ Vẫn cập nhật cưỡng bức
                 </Button>
               )}
             </DialogActions>
@@ -4637,7 +4152,7 @@ export default function ProjectTasksPage() {
             <DialogTitle sx={{ fontWeight: 700, pb: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <LinkIcon sx={{ color: '#7b68ee' }} />
-                Task Dependencies
+                Phụ thuộc công việc
               </Box>
             </DialogTitle>
             <DialogContent>
@@ -4646,7 +4161,7 @@ export default function ProjectTasksPage() {
                 {dependencyTaskId && (
                   <Box sx={{ p: 2, bgcolor: '#f8f9fb', borderRadius: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      Managing dependencies for:
+                      Đang quản lý phụ thuộc cho:
                     </Typography>
                     <Typography variant="h6" fontWeight={600}>
                       {tasks.find(t => t._id === dependencyTaskId)?.title}
@@ -4659,7 +4174,7 @@ export default function ProjectTasksPage() {
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <BlockIcon sx={{ fontSize: 18, color: '#ef4444' }} />
-                      Waiting on (Blocked by)
+                      Đang chờ (bị chặn bởi)
                     </Typography>
                     <Button
                       size="small"
@@ -4673,7 +4188,7 @@ export default function ProjectTasksPage() {
                         fontWeight: 600,
                       }}
                     >
-                      Add
+                      Thêm
                     </Button>
                   </Box>
 
@@ -4735,7 +4250,7 @@ export default function ProjectTasksPage() {
                                 
                                 {/* Lag indicator */}
                                 {dep.lag_days !== 0 && (
-                                  <Tooltip title={dep.lag_days > 0 ? `${dep.lag_days} days delay` : `${Math.abs(dep.lag_days)} days lead time`}>
+                                  <Tooltip title={dep.lag_days > 0 ? `${dep.lag_days} ngày trễ` : `${Math.abs(dep.lag_days)} ngày sớm`}>
                                     <Chip 
                                       label={dep.lag_days > 0 ? `+${dep.lag_days}d` : `${dep.lag_days}d`}
                                       size="small"
@@ -4752,9 +4267,9 @@ export default function ProjectTasksPage() {
                                 
                                 {/* Optional indicator */}
                                 {!dep.is_mandatory && (
-                                  <Tooltip title="Optional - Soft Logic">
+                                  <Tooltip title="Tùy chọn - ràng buộc mềm">
                                     <Chip
-                                      label="✏️ Optional"
+                                      label="✏️ Tùy chọn"
                                       size="small"
                                       sx={{
                                         height: 18,
@@ -4798,22 +4313,22 @@ export default function ProjectTasksPage() {
                     </Stack>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                      No blocking dependencies
+                      Không có phụ thuộc chặn
                     </Typography>
                   )}
 
                   {/* Add new dependency form */}
-                  <Box sx={{ mt: 2, p: 2.5, bgcolor: '#f8f9fb', borderRadius: 2, border: '1px dashed #d1d5db' }}>
-                    <Typography variant="body2" fontWeight={600} sx={{ mb: 2, color: '#6b7280' }}>
-                      Add New Dependency
+                  <Box sx={{ mt: 2, p: 3, bgcolor: '#f8f9fb', borderRadius: 2, border: '2px dashed #7b68ee' }}>
+                    <Typography fontSize="14px" fontWeight={700} sx={{ mb: 2, color: '#7b68ee' }}>
+                      Thêm Phụ thuộc (Công việc này phụ thuộc vào)
                     </Typography>
                     <Stack spacing={2}>
-                      {/* Row 1: Task Selection */}
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Select Task</InputLabel>
+                      {/* Task Selection */}
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Công việc phải hoàn thành trước</InputLabel>
                         <Select
                           value={dependencyForm.depends_on_task_id}
-                          label="Select Task"
+                          label="Công việc phải hoàn thành trước"
                           onChange={(e) => setDependencyForm({ ...dependencyForm, depends_on_task_id: e.target.value })}
                         >
                           {tasks
@@ -4821,11 +4336,11 @@ export default function ProjectTasksPage() {
                             .map(task => (
                               <MenuItem key={task._id} value={task._id}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography fontSize="14px">{task.title}</Typography>
+                                  <Typography fontSize="13px">{task.title}</Typography>
                                   <Chip 
                                     label={typeof task.status === 'object' ? (task.status as any)?.name : task.status} 
-                                    size="small" 
-                                    sx={{ height: 18, fontSize: '10px' }} 
+                                    size="small"
+                                    sx={{ height: 18, fontSize: '10px' }}
                                   />
                                 </Box>
                               </MenuItem>
@@ -4833,74 +4348,96 @@ export default function ProjectTasksPage() {
                         </Select>
                       </FormControl>
 
-                      {/* Row 2: Dependency Type and Lag */}
-                      <Stack direction="row" spacing={1.5}>
-                        <FormControl size="small" sx={{ flex: 2 }}>
-                          <InputLabel>Dependency Type</InputLabel>
+                      {/* Dependency Type & Lag */}
+                      <Stack direction="row" spacing={2}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Loại</InputLabel>
                           <Select
                             value={dependencyForm.dependency_type}
-                            label="Dependency Type"
+                            label="Loại"
                             onChange={(e) => setDependencyForm({ ...dependencyForm, dependency_type: e.target.value })}
                           >
                             <MenuItem value="FS">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Finish-to-Start (FS)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Predecessor must finish before successor starts
+                                <Typography fontSize="13px" fontWeight={600}>FS - Hoàn thành - Bắt đầu</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Công việc trước phải hoàn thành trước
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="FF">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Finish-to-Finish (FF)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Both tasks must finish together
+                                <Typography fontSize="13px" fontWeight={600}>FF - Hoàn thành - Hoàn thành</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Cả hai phải hoàn thành cùng lúc
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="SS">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Start-to-Start (SS)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Both tasks must start together
+                                <Typography fontSize="13px" fontWeight={600}>SS - Bắt đầu - Bắt đầu</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Cả hai phải bắt đầu cùng lúc
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="SF">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Start-to-Finish (SF)</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Predecessor must start before successor finishes
+                                <Typography fontSize="13px" fontWeight={600}>SF - Bắt đầu - Hoàn thành</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Công việc trước phải bắt đầu trước
                                 </Typography>
                               </Box>
                             </MenuItem>
                             <MenuItem value="relates_to">
                               <Box>
-                                <Typography fontSize="13px" fontWeight={600}>Related To</Typography>
-                                <Typography fontSize="11px" color="text.secondary">
-                                  Simple reference link (no constraint)
+                                <Typography fontSize="13px" fontWeight={600}>Liên quan đến</Typography>
+                                <Typography fontSize="10px" color="text.secondary">
+                                  Chỉ tham chiếu (không ràng buộc)
                                 </Typography>
                               </Box>
                             </MenuItem>
                           </Select>
                         </FormControl>
 
-                        <TextField
-                          size="small"
-                          label="Lag (days)"
-                          type="number"
-                          value={dependencyForm.lag_days}
-                          onChange={(e) => setDependencyForm({ ...dependencyForm, lag_days: parseInt(e.target.value) || 0 })}
-                          sx={{ flex: 1 }}
-                          inputProps={{ min: -30, max: 30 }}
-                          helperText={
-                            dependencyForm.lag_days > 0 
-                              ? `+${dependencyForm.lag_days}d delay` 
-                              : dependencyForm.lag_days < 0 
-                                ? `${dependencyForm.lag_days}d lead` 
-                                : 'No lag'
-                          }
-                        />
+                        <Box sx={{ width: 200 }}>
+                          <TextField
+                            label="Lag/Lead (ngày)"
+                            type="number"
+                            size="small"
+                            value={dependencyForm.lag_days}
+                            onChange={(e) => setDependencyForm({ ...dependencyForm, lag_days: parseInt(e.target.value) || 0 })}
+                            fullWidth
+                            inputProps={{ min: -30, max: 30 }}
+                            helperText={
+                              dependencyForm.lag_days > 0 
+                                ? `⏱️ Lag: +${dependencyForm.lag_days} ngày (công việc sau sẽ bắt đầu SAU ${dependencyForm.lag_days} ngày)` 
+                                : dependencyForm.lag_days < 0 
+                                  ? `⚡ Lead: ${Math.abs(dependencyForm.lag_days)} ngày (công việc sau có thể bắt đầu TRƯỚC ${Math.abs(dependencyForm.lag_days)} ngày)` 
+                                  : 'Không có lag/lead (bắt đầu ngay sau khi điều kiện đáp ứng)'
+                            }
+                            sx={{
+                              '& .MuiFormHelperText-root': {
+                                fontSize: '10px',
+                                mt: 0.5,
+                                lineHeight: 1.3
+                              }
+                            }}
+                          />
+                          <Box sx={{ mt: 1, p: 1.5, bgcolor: '#f0f9ff', borderRadius: 1, border: '1px solid #bae6fd' }}>
+                            <Typography fontSize="10px" fontWeight={600} color="#0284c7" sx={{ mb: 0.5 }}>
+                              💡 Giải thích:
+                            </Typography>
+                            <Typography fontSize="10px" color="#0369a1" component="div">
+                              <Box component="span" sx={{ display: 'block', mb: 0.5 }}>
+                                • <strong>Lag (số dương):</strong> Độ trễ - công việc sau phải đợi thêm X ngày sau khi điều kiện đáp ứng
+                              </Box>
+                              <Box component="span" sx={{ display: 'block' }}>
+                                • <strong>Lead (số âm):</strong> Độ sớm - công việc sau có thể bắt đầu sớm X ngày trước khi điều kiện đáp ứng
+                              </Box>
+                            </Typography>
+                          </Box>
+                        </Box>
                       </Stack>
 
                       {/* Is Mandatory Toggle Switch */}
@@ -4935,12 +4472,12 @@ export default function ProjectTasksPage() {
                           </Box>
                           <Box sx={{ flex: 1 }}>
                             <Typography fontSize="13px" fontWeight={600} color={dependencyForm.is_mandatory ? '#7b68ee' : '#6b7280'}>
-                              {dependencyForm.is_mandatory ? '🔒 Mandatory' : '✏️ Optional'}
+                              {dependencyForm.is_mandatory ? '🔒 Bắt buộc' : '✏️ Tùy chọn'}
                             </Typography>
                             <Typography fontSize="10px" color="text.secondary">
                               {dependencyForm.is_mandatory 
-                                ? 'Hard logic - must be enforced'
-                                : 'Soft logic - can be changed if needed'}
+                                ? 'Ràng buộc cứng - phải được thực thi'
+                                : 'Ràng buộc mềm - có thể thay đổi nếu cần'}
                             </Typography>
                           </Box>
                         </Stack>
@@ -4948,45 +4485,54 @@ export default function ProjectTasksPage() {
 
                       {/* Notes */}
                       <TextField
-                        label="Notes (Optional)"
+                        label="Ghi chú (Tùy chọn)"
                         size="small"
                         multiline
                         rows={2}
                         value={dependencyForm.notes}
                         onChange={(e) => setDependencyForm({ ...dependencyForm, notes: e.target.value })}
-                        placeholder="Explain why this dependency exists..."
-                        helperText="Provide context for team members"
+                        placeholder="Giải thích lý do phụ thuộc này tồn tại..."
+                        helperText="Cung cấp ngữ cảnh cho các thành viên trong nhóm"
                       />
 
-                      {/* Submit Button */}
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        disabled={!dependencyForm.depends_on_task_id}
-                        onClick={async () => {
-                          if (dependencyTaskId && dependencyForm.depends_on_task_id) {
-                            await addDependency(
-                              dependencyTaskId, 
-                              dependencyForm.depends_on_task_id, 
-                              dependencyForm.dependency_type,
-                              dependencyForm.lag_days,
-                              dependencyForm.is_mandatory,
-                              dependencyForm.notes
-                            );
+                      {/* Action Buttons */}
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button
+                          size="small"
+                          onClick={() => {
                             setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
-                          }
-                        }}
-                        sx={{
-                          bgcolor: '#7b68ee',
-                          textTransform: 'none',
-                          fontWeight: 600,
-                          py: 1,
-                          '&:hover': { bgcolor: '#6952d6' }
-                        }}
-                      >
-                        <AddIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                        Add Dependency
-                      </Button>
+                          }}
+                          sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
+                        >
+                          Hủy
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          disabled={!dependencyForm.depends_on_task_id}
+                          onClick={async () => {
+                            if (dependencyTaskId && dependencyForm.depends_on_task_id) {
+                              await addDependency(
+                                dependencyTaskId, 
+                                dependencyForm.depends_on_task_id, 
+                                dependencyForm.dependency_type,
+                                dependencyForm.lag_days,
+                                dependencyForm.is_mandatory,
+                                dependencyForm.notes
+                              );
+                              setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
+                            }
+                          }}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            bgcolor: '#7b68ee',
+                            '&:hover': { bgcolor: '#6952d6' }
+                          }}
+                        >
+                          Thêm Phụ thuộc
+                        </Button>
+                      </Stack>
                     </Stack>
                   </Box>
                 </Box>

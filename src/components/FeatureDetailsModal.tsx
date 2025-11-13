@@ -19,6 +19,7 @@ import {
   FormControl,
   Divider,
   Autocomplete,
+  Checkbox,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
@@ -32,7 +33,6 @@ import FeatureDetailsOverview from "./FeatureDetails/FeatureDetailsOverview";
 import FeatureDetailsFunctions from "./FeatureDetails/FeatureDetailsFunctions";
 import FeatureDetailsComments from "./FeatureDetails/FeatureDetailsComments";
 import FeatureDetailsActivity from "./FeatureDetails/FeatureDetailsActivity";
-import FeatureDetailsDevelopment from "./FeatureDetails/FeatureDetailsDevelopment";
 
 type Feature = {
   _id: string;
@@ -65,8 +65,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
   const [allStatuses, setAllStatuses] = useState<any[]>([]);
   const [allPriorities, setAllPriorities] = useState<any[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
+  const [featureMilestoneIds, setFeatureMilestoneIds] = useState<string[]>([]);
 
-  const tabMap = ['overview', 'functions', 'development', 'comments', 'activity'];
+  const tabMap = ['overview', 'functions', 'comments', 'activity'];
 
   const getTabContent = (index: number) => {
     return tabMap[index];
@@ -76,11 +78,17 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
     if (open && featureId) {
       setCurrentTab(0);
       loadFeatureDetails();
-      // Load constants instead of API call
-      setAllStatuses(STATUS_OPTIONS);
+      // Feature model uses enum: ["To Do", "Doing", "Done"]
+      setAllStatuses([
+        { _id: "To Do", name: "To Do", value: "to-do" },
+        { _id: "Doing", name: "Doing", value: "doing" },
+        { _id: "Done", name: "Done", value: "done" },
+      ]);
       setAllPriorities(PRIORITY_OPTIONS);
       if (projectId) {
         loadProjectTags();
+        loadMilestones();
+        loadFeatureMilestones();
       }
     }
   }, [open, featureId, projectId]);
@@ -105,6 +113,26 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setAvailableTags(Array.from(tagsSet).sort());
     } catch (error) {
       console.error('Error loading project tags:', error);
+    }
+  };
+
+  const loadMilestones = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
+      setMilestones(response.data || []);
+    } catch (error) {
+      console.error('Error loading milestones:', error);
+    }
+  };
+
+  const loadFeatureMilestones = async () => {
+    try {
+      const response = await axiosInstance.get(`/api/features/${featureId}/milestones`);
+      const uniqueIds = Array.isArray(response.data) ? [...new Set(response.data)] : [];
+      setFeatureMilestoneIds(uniqueIds);
+    } catch (error) {
+      console.error('Error loading feature milestones:', error);
+      setFeatureMilestoneIds([]);
     }
   };
 
@@ -208,7 +236,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 padding: 0
               }}
             >
-              Features
+              Tính năng
             </Link>
             <Typography 
               fontSize="13px" 
@@ -221,7 +249,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 whiteSpace: 'nowrap'
               }}
             >
-              {feature?.title || 'Feature Details'}
+              {feature?.title || 'Chi tiết tính năng'}
             </Typography>
           </Breadcrumbs>
 
@@ -354,11 +382,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               }
             }}
           >
-            <Tab label="Overview" />
-            <Tab label="Functions" />
-            <Tab label="Development" />
-            <Tab label="Comments" />
-            <Tab label="Activity" />
+            <Tab label="Tổng quan" />
+            <Tab label="Chức năng" />
+            <Tab label="Bình luận" />
+            <Tab label="Hoạt động" />
           </Tabs>
         </Box>
       </Box>
@@ -378,13 +405,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
         }}>
           {loading ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography>Loading...</Typography>
+              <Typography>Đang tải...</Typography>
             </Box>
           ) : (
             <>
               {getTabContent(currentTab) === 'overview' && feature && <FeatureDetailsOverview feature={feature} onUpdate={handleFeatureUpdate} projectId={projectId} />}
               {getTabContent(currentTab) === 'functions' && featureId && projectId && <FeatureDetailsFunctions featureId={featureId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'development' && featureId && projectId && <FeatureDetailsDevelopment featureId={featureId} projectId={projectId} />}
               {getTabContent(currentTab) === 'comments' && featureId && <FeatureDetailsComments featureId={featureId} />}
               {getTabContent(currentTab) === 'activity' && featureId && <FeatureDetailsActivity featureId={featureId} />}
             </>
@@ -404,14 +430,14 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             fontWeight={700} 
             sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
           >
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Status */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Status
+                Trạng thái
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -426,7 +452,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   displayEmpty
                   renderValue={(value) => {
                     const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Select status';
+                    return statusObj?.name || 'Chọn trạng thái';
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -449,7 +475,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Priority */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Priority
+                Ưu tiên
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -463,7 +489,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'No priority';
+                    if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -483,7 +509,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     }
                   }}
                 >
-                  <MenuItem value="">No Priority</MenuItem>
+                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -567,10 +593,113 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
 
             <Divider />
 
+            {/* Milestones */}
+            <Box>
+              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+                Cột mốc
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  multiple
+                  value={featureMilestoneIds}
+                  onChange={async (e) => {
+                    const newMilestoneIds = e.target.value as string[];
+                    try {
+                      // Remove all old links
+                      await axiosInstance.delete(`/api/features/${featureId}/milestones`).catch(() => null);
+                      
+                      // Add new links
+                      if (newMilestoneIds.length > 0) {
+                        await axiosInstance.post(`/api/features/${featureId}/milestones`, {
+                          milestone_ids: newMilestoneIds
+                        });
+                      }
+                      
+                      setFeatureMilestoneIds(newMilestoneIds);
+                      
+                      // Notify parent to refresh
+                      if (onUpdate) {
+                        await onUpdate();
+                      }
+                    } catch (error) {
+                      console.error('Error updating milestones:', error);
+                    }
+                  }}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(selected as string[]).map((id) => {
+                        const m = milestones.find(m => m._id === id);
+                        return (
+                          <Chip 
+                            key={id} 
+                            label={m?.title || id} 
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '11px',
+                              bgcolor: '#e0e7ff',
+                              color: '#4f46e5',
+                              fontWeight: 600,
+                            }}
+                          />
+                        );
+                      })}
+                      {(selected as string[]).length === 0 && (
+                        <Typography fontSize="13px" color="text.secondary">
+                          Chưa có cột mốc
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                  displayEmpty
+                  sx={{
+                    fontSize: '13px',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e8e9eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#7b68ee',
+                    }
+                  }}
+                >
+                  {milestones.length === 0 ? (
+                    <MenuItem disabled>Chưa có cột mốc nào</MenuItem>
+                  ) : (
+                    milestones.map((m) => (
+                      <MenuItem key={m._id} value={m._id}>
+                        <Checkbox 
+                          checked={featureMilestoneIds.includes(m._id)}
+                          size="small"
+                          sx={{ mr: 1 }}
+                        />
+                        <Box sx={{ flex: 1 }}>
+                          <Typography fontSize="13px" fontWeight={600}>
+                            {m.title}
+                          </Typography>
+                          {(m.start_date || m.deadline) && (
+                            <Typography fontSize="11px" color="text.secondary">
+                              {m.start_date ? new Date(m.start_date).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }) : '—'} → {m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }) : '—'}
+                            </Typography>
+                          )}
+                        </Box>
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+              {featureMilestoneIds.length > 0 && (
+                <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5 }}>
+                  💡 Tính năng được liên kết với {featureMilestoneIds.length} cột mốc
+                </Typography>
+              )}
+            </Box>
+
+            <Divider />
+
             {/* Tags */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Tags
+                Nhãn
               </Typography>
               <Autocomplete
                 multiple
@@ -647,7 +776,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       />
                       {!availableTags.includes(option) && (
                         <Typography fontSize="11px" color="text.secondary">
-                          (Create new)
+                          (Tạo mới)
                         </Typography>
                       )}
                     </Box>
@@ -656,7 +785,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    placeholder="Add tags..."
+                    placeholder="Thêm nhãn..."
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         fontSize: '13px',

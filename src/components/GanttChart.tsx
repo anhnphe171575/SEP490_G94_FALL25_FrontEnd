@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { getPeriodStart } from "@/lib/timeline";
 import type { CSSProperties } from "react";
+import { normalizeStatusValue } from "@/constants/settings";
 
 // dhtmlx-gantt is pure JS; import lazily inside effects to avoid SSR issues
 
@@ -114,11 +115,11 @@ export default function GanttChart({
 
       // Color by status via templates
       gantt.templates.task_class = (start: Date, end: Date, task: any) => {
-        const status = task.status as string | undefined;
-        if (status === "Planned") return "gantt-task-planned";
-        if (status === "In Progress") return "gantt-task-inprogress";
-        if (status === "Completed") return "gantt-task-completed";
-        if (status === "Overdue") return "gantt-task-overdue";
+        const rawStatus = typeof task.status === "object" ? task.status?.name : task.status;
+        const status = normalizeStatusValue(rawStatus as string | undefined);
+        if (status === "To Do") return "gantt-task-planned";
+        if (status === "Doing") return "gantt-task-inprogress";
+        if (status === "Done") return "gantt-task-completed";
         return "gantt-task-default";
       };
 

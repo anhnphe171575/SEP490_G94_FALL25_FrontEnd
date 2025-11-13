@@ -66,10 +66,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         params: { limit: LIMIT, skip: currentSkip }
       });
       
-      // Filter out subtask activities
-      const newLogs = (response.data.activity_logs || []).filter(
-        (log: ActivityLog) => log.action !== 'CREATE_SUBTASK'
-      );
+      const newLogs = response.data.activity_logs || [];
       
       if (reset) {
         setActivityLogs(newLogs);
@@ -140,20 +137,20 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
 
   const formatActivityMessage = (log: ActivityLog) => {
     const { action, metadata } = log;
-    const userName = log.created_by?.full_name || log.created_by?.email || 'Someone';
+    const userName = log.created_by?.full_name || log.created_by?.email || 'Ai đó';
 
     switch (action) {
       case 'CREATE_TASK':
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> created this task
+            <strong>{userName}</strong> đã tạo công việc này
           </Typography>
         );
       
       case 'DELETE_TASK':
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> deleted this task
+            <strong>{userName}</strong> đã xóa công việc này
           </Typography>
         );
       
@@ -161,7 +158,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         return (
           <Box>
             <Typography fontSize="14px" color="text.primary">
-              <strong>{userName}</strong> changed status
+              <strong>{userName}</strong> đã thay đổi trạng thái
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
               {metadata?.old_value && (
@@ -199,7 +196,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         return (
           <Box>
             <Typography fontSize="14px" color="text.primary">
-              <strong>{userName}</strong> changed assignee
+              <strong>{userName}</strong> đã thay đổi người thực hiện
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
               {metadata?.old_assignee && (
@@ -237,7 +234,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         return (
           <Box>
             <Typography fontSize="14px" color="text.primary">
-              <strong>{userName}</strong> changed priority
+              <strong>{userName}</strong> đã thay đổi ưu tiên
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
               {metadata?.old_value && (
@@ -275,7 +272,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         return (
           <Box>
             <Typography fontSize="14px" color="text.primary">
-              <strong>{userName}</strong> changed deadline
+              <strong>{userName}</strong> đã thay đổi hạn chót
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
               {metadata?.old_value && (
@@ -297,7 +294,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         return (
           <Box>
             <Typography fontSize="14px" color="text.primary">
-              <strong>{userName}</strong> updated progress
+              <strong>{userName}</strong> đã cập nhật tiến độ
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
               <Typography fontSize="12px" color="text.secondary" sx={{ textDecoration: 'line-through', opacity: 0.7 }}>
@@ -314,7 +311,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
       case 'ADD_COMMENT':
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> added a comment
+            <strong>{userName}</strong> đã thêm bình luận
           </Typography>
         );
       
@@ -322,14 +319,14 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
         const fieldName = metadata?.field ? metadata.field.replace(/_/g, ' ') : 'field';
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> updated {fieldName}
+            <strong>{userName}</strong> đã cập nhật {fieldName}
           </Typography>
         );
       
       default:
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> performed an action
+            <strong>{userName}</strong> đã thực hiện một hành động
           </Typography>
         );
     }
@@ -340,12 +337,12 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
-    if (diffInSeconds < 60) return 'just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 60) return 'vừa xong';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} phút trước`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} giờ trước`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} ngày trước`;
     
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('vi-VN');
   };
 
   if (loading && activityLogs.length === 0) {
@@ -360,10 +357,10 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
-          No activity yet
+          Chưa có hoạt động nào
         </Typography>
         <Typography variant="body2" color="text.secondary" fontSize="13px">
-          All changes and updates to this task will appear here
+          Tất cả thay đổi và cập nhật cho công việc này sẽ hiển thị ở đây
         </Typography>
       </Box>
     );
@@ -374,10 +371,10 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>
-          Activity Log
+          Nhật ký hoạt động
         </Typography>
         <Typography variant="body2" color="text.secondary" fontSize="13px">
-          {activityLogs.length} {activityLogs.length === 1 ? 'activity' : 'activities'}
+          {activityLogs.length} {activityLogs.length === 1 ? 'hoạt động' : 'hoạt động'}
         </Typography>
       </Box>
 
@@ -479,7 +476,7 @@ export default function TaskDetailsActivity({ taskId }: TaskDetailsActivityProps
               }
             }}
           >
-            {loading ? 'Loading...' : 'Load More'}
+            {loading ? 'Đang tải...' : 'Tải thêm'}
           </Button>
         </Box>
       )}

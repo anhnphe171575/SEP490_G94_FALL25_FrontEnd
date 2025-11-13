@@ -85,7 +85,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
   };
 
   const deleteComment = async (commentId: string) => {
-    if (!confirm('Delete this comment?')) return;
+    if (!confirm('Xóa bình luận này?')) return;
     
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/comments/${commentId}`);
@@ -103,11 +103,11 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return commentDate.toLocaleDateString();
+    if (diffMins < 1) return 'vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    return commentDate.toLocaleDateString('vi-VN');
   };
 
   return (
@@ -127,10 +127,10 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
         </Box>
         <Box>
           <Typography variant="h6" fontWeight={700}>
-            Comments
+            Bình luận
           </Typography>
           <Typography fontSize="12px" color="text.secondary">
-            {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+            {comments.length} {comments.length === 1 ? 'bình luận' : 'bình luận'}
           </Typography>
         </Box>
       </Box>
@@ -155,7 +155,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
               fullWidth
               multiline
               rows={3}
-              placeholder="Add a comment... (Use @ to mention someone)"
+              placeholder="Thêm bình luận... (Sử dụng @ để đề cập ai đó)"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               sx={{
@@ -179,7 +179,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
                 onClick={() => setNewComment("")}
                 sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
               >
-                Clear
+                Xóa
               </Button>
               <Button
                 size="small"
@@ -194,7 +194,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
                   '&:hover': { bgcolor: '#6952d6' }
                 }}
               >
-                Comment
+                Bình luận
               </Button>
             </Stack>
           </Box>
@@ -204,7 +204,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
       {/* Comments List */}
       {loading ? (
         <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary">Loading comments...</Typography>
+          <Typography color="text.secondary">Đang tải bình luận...</Typography>
         </Box>
       ) : comments.length === 0 ? (
         <Box sx={{ 
@@ -216,10 +216,10 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
         }}>
           <ChatBubbleOutlineIcon sx={{ fontSize: 48, color: '#d1d5db', mb: 2 }} />
           <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-            No comments yet
+            Chưa có bình luận nào
           </Typography>
           <Typography fontSize="12px" color="text.secondary">
-            Start the conversation by adding the first comment
+            Bắt đầu cuộc trò chuyện bằng cách thêm bình luận đầu tiên
           </Typography>
         </Box>
       ) : (
@@ -259,14 +259,14 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                     <Stack direction="row" spacing={1.5} alignItems="center">
                       <Typography fontSize="14px" fontWeight={700} color="text.primary">
-                        {comment.user_id?.full_name || comment.user_id?.email || 'Unknown User'}
+                        {comment.user_id?.full_name || comment.user_id?.email || 'Người dùng không xác định'}
                       </Typography>
                       <Typography fontSize="12px" color="text.secondary">
                         {formatTimeAgo(comment.createdAt)}
                       </Typography>
                       {comment.updatedAt && comment.updatedAt !== comment.createdAt && (
                         <Typography fontSize="11px" color="text.secondary" fontStyle="italic">
-                          (edited)
+                          (đã chỉnh sửa)
                         </Typography>
                       )}
                     </Stack>
@@ -316,7 +316,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
                           }}
                           sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
                         >
-                          Cancel
+                          Hủy
                         </Button>
                         <Button
                           size="small"
@@ -329,7 +329,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
                             '&:hover': { bgcolor: '#6952d6' }
                           }}
                         >
-                          Save
+                          Lưu
                         </Button>
                       </Stack>
                     </Box>
@@ -373,7 +373,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
           sx={{ fontSize: '13px', gap: 1.5 }}
         >
           <EditIcon sx={{ fontSize: 16 }} />
-          Edit
+          Chỉnh sửa
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -384,7 +384,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
           sx={{ fontSize: '13px', gap: 1.5, color: '#ef4444' }}
         >
           <DeleteIcon sx={{ fontSize: 16 }} />
-          Delete
+          Xóa
         </MenuItem>
       </Menu>
     </Box>

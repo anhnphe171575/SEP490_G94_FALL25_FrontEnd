@@ -17,14 +17,15 @@ import LinkIcon from "@mui/icons-material/Link";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 
 interface DependencyViolation {
-  dependency_type: string;
-  predecessor_task: {
+  dependency_type?: string;
+  predecessor_task?: {
     _id: string;
     title: string;
     status: string;
   };
   message: string;
-  is_mandatory: boolean;
+  is_mandatory?: boolean;
+  type?: string; // 'date_validation' or undefined for dependency violations
 }
 
 interface DependencyViolationDialogProps {
@@ -50,8 +51,14 @@ export default function DependencyViolationDialog({
   violations,
   canForce = false,
 }: DependencyViolationDialogProps) {
-  const mandatoryViolations = violations.filter((v) => v.is_mandatory);
-  const optionalViolations = violations.filter((v) => !v.is_mandatory);
+  // Separate date validation errors from dependency violations
+  const dateValidationErrors = violations.filter((v) => v.type === 'date_validation');
+  const dependencyViolations = violations.filter((v) => v.type !== 'date_validation');
+  
+  const mandatoryViolations = dependencyViolations.filter((v) => v.is_mandatory);
+  const optionalViolations = dependencyViolations.filter((v) => !v.is_mandatory);
+  
+  const isDateValidation = dateValidationErrors.length > 0;
 
   return (
     <Dialog 
@@ -90,20 +97,40 @@ export default function DependencyViolationDialog({
           <WarningAmberIcon sx={{ fontSize: 28, color: "white" }} />
         </Box>
         <Typography variant="h6" fontWeight={700} color="#f57c00">
-          Dependency Violation
+          {isDateValidation ? 'Validation Error' : 'Dependency Violation'}
         </Typography>
       </DialogTitle>
 
       <DialogContent sx={{ pt: 3, pb: 2 }}>
         <Alert severity="warning" sx={{ mb: 3 }}>
           <Typography fontSize="14px" fontWeight={600}>
-            Cannot change status due to the following dependency constraints:
+            {isDateValidation 
+              ? 'Cannot update task due to the following validation errors:' 
+              : 'Cannot change status due to the following dependency constraints:'}
           </Typography>
         </Alert>
 
         <Stack spacing={2}>
+          {/* Date Validation Errors */}
+          {dateValidationErrors.map((error, index) => (
+            <Box
+              key={`date-${index}`}
+              sx={{
+                p: 2,
+                bgcolor: "#fff8e1",
+                borderRadius: 2,
+                border: "2px solid #ffe082",
+              }}
+            >
+              <Typography fontSize="14px" color="text.primary">
+                {error.message}
+              </Typography>
+            </Box>
+          ))}
+          {/* Dependency Violations */}
           {mandatoryViolations.map((violation, index) => {
-            const depType = DEPENDENCY_TYPE_LABELS[violation.dependency_type] || DEPENDENCY_TYPE_LABELS.FS;
+            const depTypeCode = violation.dependency_type || violation.type || 'FS';
+            const depType = DEPENDENCY_TYPE_LABELS[depTypeCode] || DEPENDENCY_TYPE_LABELS.FS;
             
             return (
               <Box
@@ -117,7 +144,7 @@ export default function DependencyViolationDialog({
               >
                 <Stack direction="row" spacing={1.5} alignItems="flex-start">
                   <Chip
-                    label={violation.dependency_type}
+                    label={depTypeCode}
                     size="small"
                     sx={{
                       bgcolor: `${depType.color}20`,
@@ -180,12 +207,15 @@ export default function DependencyViolationDialog({
                 💡 Options:
               </Typography>
               <Typography fontSize="12px" color="text.secondary" component="ul" sx={{ pl: 2, m: 0 }}>
-                <li>Complete the blocking tasks first, or</li>
-                {canForce && (
-                  <li>Click "Force Update" to override this constraint (not recommended)</li>
-                )}
-                {!canForce && (
-                  <li>Cannot force update - all dependencies are mandatory</li>
+                {isDateValidation ? (
+                  <>
+                    <li>Adjust task dates to be within project dates, or</li>
+                    <li>Adjust estimate to fit within the date range</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Complete the blocking tasks first</li>
+                  </>
                 )}
               </Typography>
             </Box>
@@ -196,37 +226,18 @@ export default function DependencyViolationDialog({
       <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e0e0e0" }}>
         <Button
           onClick={onClose}
-          variant="outlined"
+          variant="contained"
           sx={{
             textTransform: "none",
             fontWeight: 600,
-            borderColor: "#d1d5db",
-            color: "#6b7280",
+            bgcolor: "#6b7280",
             "&:hover": {
-              borderColor: "#9ca3af",
-              bgcolor: "#f9fafb",
+              bgcolor: "#4b5563",
             },
           }}
         >
-          Cancel
+          Đóng
         </Button>
-        {canForce && (
-          <Button
-            onClick={onForceUpdate}
-            variant="contained"
-            startIcon={<WarningAmberIcon />}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              bgcolor: "#f59e0b",
-              "&:hover": {
-                bgcolor: "#d97706",
-              },
-            }}
-          >
-            ⚡ Force Update Anyway
-          </Button>
-        )}
       </DialogActions>
     </Dialog>
   );
