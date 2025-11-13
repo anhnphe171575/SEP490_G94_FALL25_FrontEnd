@@ -27,10 +27,16 @@ type Contributor = {
     email: string;
   };
   total_tasks: number;
+  completed_tasks: number;
   breakdown: Array<{
     priority_id: string;
     priority_name: string;
     priority_value: string;
+    count: number;
+  }>;
+  type_breakdown: Array<{
+    type_id: string;
+    type_name: string;
     count: number;
   }>;
 };
@@ -137,50 +143,36 @@ export default function ContributorPage() {
   // Get top contributors
   const topContributors = contributionData?.contributors?.slice(0, 5) || [];
   
-  // Get priority stats
-  const getPriorityStats = () => {
-    if (!contributionData?.contributors) return { Low: 0, Medium: 0, High: 0, 'Very High': 0 };
-    const stats: { [key: string]: number } = {};
-    contributionData.contributors.forEach(contributor => {
-      contributor.breakdown.forEach(item => {
-        const name = item.priority_name || 'Unknown';
-        stats[name] = (stats[name] || 0) + item.count;
-      });
-    });
-    return stats;
+  // Get status stats from statistics API
+  const statusStats = statistics?.statistics?.status || {};
+  
+  // Status colors mapping
+  const STATUS_COLORS: { [key: string]: string } = {
+    'Planning': '#6b7280',      // Gray
+    'In Progress': '#3b82f6',   // Blue
+    'Testing': '#a855f7',       // Purple
+    'Completed': '#10b981',     // Green
+    'Cancelled': '#ef4444',     // Red
+    'On Hold': '#f59e0b',       // Amber
   };
 
-  const priorityStats = getPriorityStats();
-
-  // Prepare chart data
-  const comparisonData = contributionData?.contributors?.slice(0, 10).map((c) => {
-    const low = c.breakdown.find(b => b.priority_name?.toLowerCase().includes('low'))?.count || 0;
-    const medium = c.breakdown.find(b => b.priority_name?.toLowerCase().includes('medium'))?.count || 0;
-    const high = c.breakdown.find(b => b.priority_name?.toLowerCase() === 'high')?.count || 0;
-    const veryHigh = c.breakdown.find(b => b.priority_name?.toLowerCase().includes('very high'))?.count || 0;
-    
-    return {
-      name: c.user?.full_name?.split(' ').pop() || 'N/A',
-      Low: low,
-      Medium: medium,
-      High: high,
-      'Very High': veryHigh,
-    };
-  }) || [];
-
-  const summaryData = [
-    { name: "Low", value: priorityStats['Low'] || 0, color: "#22c55e" },
-    { name: "Medium", value: priorityStats['Medium'] || 0, color: "#f59e0b" },
-    { name: "High", value: priorityStats['High'] || 0, color: "#ef4444" },
-    { name: "Very High", value: priorityStats['Very High'] || 0, color: "#dc2626" },
+  // Prepare status summary data for charts and cards
+  const statusSummaryData = [
+    { name: "Planning", value: statusStats['Planning'] || 0, color: STATUS_COLORS['Planning'] },
+    { name: "In Progress", value: statusStats['In Progress'] || 0, color: STATUS_COLORS['In Progress'] },
+    { name: "Testing", value: statusStats['Testing'] || 0, color: STATUS_COLORS['Testing'] },
+    { name: "Completed", value: statusStats['Completed'] || 0, color: STATUS_COLORS['Completed'] },
+    { name: "Cancelled", value: statusStats['Cancelled'] || 0, color: STATUS_COLORS['Cancelled'] },
+    { name: "On Hold", value: statusStats['On Hold'] || 0, color: STATUS_COLORS['On Hold'] },
   ].filter(item => item.value > 0);
 
-  const COLORS = {
-    low: "#22c55e",
-    medium: "#f59e0b",
-    high: "#ef4444",
-    veryHigh: "#dc2626",
-  };
+  // Prepare chart data for status distribution by contributor
+  // Note: This requires status breakdown per contributor, which we don't have in current API
+  // For now, we'll show overall status distribution
+  const statusChartData = statusSummaryData.map(item => ({
+    name: item.name,
+    value: item.value,
+  }));
 
   if (loading) {
     return (
@@ -257,7 +249,7 @@ export default function ContributorPage() {
     
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
           {/* Tổng Task */}
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
@@ -274,103 +266,96 @@ export default function ContributorPage() {
             </p>
           </div>
 
-          {/* Low Priority Tasks */}
-          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-6 text-white shadow-lg">
+          {/* Planning Tasks */}
+          <div className="bg-gradient-to-br from-gray-600 to-gray-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-green-200 text-sm mb-1">Low Priority</p>
-                <p className="text-4xl font-bold">{summaryData.find(s => s.name === 'Low')?.value || 0}</p>
+                <p className="text-gray-200 text-sm mb-1">Planning</p>
+                <p className="text-4xl font-bold">{statusStats['Planning'] || 0}</p>
               </div>
-              <svg className="w-8 h-8 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </div>
-            <p className="text-sm text-green-200">Ưu tiên thấp</p>
+            <p className="text-sm text-gray-200">Đang lập kế hoạch</p>
           </div>
 
-          {/* Medium Priority Tasks */}
-          <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white shadow-lg">
+          {/* In Progress Tasks */}
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-amber-200 text-sm mb-1">Medium Priority</p>
-                <p className="text-4xl font-bold">{summaryData.find(s => s.name === 'Medium')?.value || 0}</p>
+                <p className="text-blue-200 text-sm mb-1">In Progress</p>
+                <p className="text-4xl font-bold">{statusStats['In Progress'] || 0}</p>
               </div>
-              <svg className="w-8 h-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <p className="text-sm text-amber-200">Ưu tiên trung bình</p>
+            <p className="text-sm text-blue-200">Đang thực hiện</p>
           </div>
 
-          {/* High Priority Tasks */}
+          {/* Testing Tasks */}
+          <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-purple-200 text-sm mb-1">Testing</p>
+                <p className="text-4xl font-bold">{statusStats['Testing'] || 0}</p>
+              </div>
+              <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm text-purple-200">Đang kiểm thử</p>
+          </div>
+
+          {/* Completed Tasks */}
+          <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6 text-white shadow-lg">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-emerald-200 text-sm mb-1">Completed</p>
+                <p className="text-4xl font-bold">{statusStats['Completed'] || 0}</p>
+              </div>
+              <svg className="w-8 h-8 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm text-emerald-200">
+              {statistics?.statistics?.total 
+                ? Math.round((statusStats['Completed'] || 0) / statistics.statistics.total * 100)
+                : 0}% hoàn thành
+            </p>
+          </div>
+
+          {/* Cancelled Tasks */}
           <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-red-200 text-sm mb-1">High Priority</p>
-                <p className="text-4xl font-bold">{summaryData.find(s => s.name === 'High')?.value || 0}</p>
+                <p className="text-red-200 text-sm mb-1">Cancelled</p>
+                <p className="text-4xl font-bold">{statusStats['Cancelled'] || 0}</p>
               </div>
               <svg className="w-8 h-8 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <p className="text-sm text-red-200">Ưu tiên cao</p>
+            <p className="text-sm text-red-200">Đã hủy</p>
+          </div>
+
+          {/* On Hold Tasks */}
+          <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white shadow-lg">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-amber-200 text-sm mb-1">On Hold</p>
+                <p className="text-4xl font-bold">{statusStats['On Hold'] || 0}</p>
+              </div>
+              <svg className="w-8 h-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm text-amber-200">Tạm dừng</p>
           </div>
         </div>
 
-        {/* Charts Row */}
-        {comparisonData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Comparison Chart */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Phân bố Priority theo Thành viên</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "12px" }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: "12px" }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
-                    labelStyle={{ color: "#0f172a" }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Low" fill={COLORS.low} name="Low" />
-                  <Bar dataKey="Medium" fill={COLORS.medium} name="Medium" />
-                  <Bar dataKey="High" fill={COLORS.high} name="High" />
-                  <Bar dataKey="Very High" fill={COLORS.veryHigh} name="Very High" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Priority Distribution Pie Chart */}
-            {summaryData.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Tỷ lệ Priority</h2>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={summaryData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {summaryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
-                      labelStyle={{ color: "#0f172a" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        )}
+        
 
         {/* Contributors with Calendar */}
         <div>
@@ -378,20 +363,6 @@ export default function ContributorPage() {
           {contributionData?.contributors && contributionData.contributors.length > 0 ? (
             <div className="space-y-4">
               {contributionData.contributors.map((contributor, index) => {
-                const lowCount = contributor.breakdown.find(b => 
-                  b.priority_name?.toLowerCase().includes('low')
-                )?.count || 0;
-                const mediumCount = contributor.breakdown.find(b => 
-                  b.priority_name?.toLowerCase().includes('medium') && 
-                  !b.priority_name?.toLowerCase().includes('very')
-                )?.count || 0;
-                const highCount = contributor.breakdown.find(b => 
-                  b.priority_name?.toLowerCase() === 'high'
-                )?.count || 0;
-                const veryHighCount = contributor.breakdown.find(b => 
-                  b.priority_name?.toLowerCase().includes('very high')
-                )?.count || 0;
-
                 return (
                   <div
                     key={contributor.assignee_id}
@@ -403,7 +374,7 @@ export default function ContributorPage() {
                       router.push(`/supervisor/contributor/detail?${params.toString()}`);
                     }}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
                       {/* Member Info */}
                       <div className="flex items-center gap-3">
                         <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
@@ -415,30 +386,55 @@ export default function ContributorPage() {
                         </div>
                       </div>
 
-                      {/* Priority Counts */}
+                      {/* Type Breakdown */}
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-green-50 rounded p-3 border border-green-200">
-                          <p className="text-xs text-gray-500">Low</p>
-                          <p className="text-xl font-bold text-green-600">{lowCount}</p>
-                        </div>
-                        <div className="bg-amber-50 rounded p-3 border border-amber-200">
-                          <p className="text-xs text-gray-500">Medium</p>
-                          <p className="text-xl font-bold text-amber-600">{mediumCount}</p>
-                        </div>
-                        <div className="bg-red-50 rounded p-3 border border-red-200">
-                          <p className="text-xs text-gray-500">High</p>
-                          <p className="text-xl font-bold text-red-600">{highCount}</p>
-                        </div>
-                        <div className="bg-red-50 rounded p-3 border border-red-300">
-                          <p className="text-xs text-gray-500">Very High</p>
-                          <p className="text-lg font-bold text-red-700">{veryHighCount}</p>
-                        </div>
+                        {(() => {
+                          const simpleCount = contributor.type_breakdown?.find(t => t.type_name === 'Simple')?.count || 0;
+                          const mediumCount = contributor.type_breakdown?.find(t => t.type_name === 'Medium')?.count || 0;
+                          const complexCount = contributor.type_breakdown?.find(t => t.type_name === 'Complex')?.count || 0;
+                          const veryComplexCount = contributor.type_breakdown?.find(t => t.type_name === 'Very Complex')?.count || 0;
+                          
+                          return (
+                            <>
+                              <div className="bg-blue-50 rounded p-3 border border-blue-200">
+                                <p className="text-xs text-gray-500">Simple</p>
+                                <p className="text-xl font-bold text-blue-600">{simpleCount}</p>
+                              </div>
+                              <div className="bg-indigo-50 rounded p-3 border border-indigo-200">
+                                <p className="text-xs text-gray-500">Medium</p>
+                                <p className="text-xl font-bold text-indigo-600">{mediumCount}</p>
+                              </div>
+                              <div className="bg-purple-50 rounded p-3 border border-purple-200">
+                                <p className="text-xs text-gray-500">Complex</p>
+                                <p className="text-xl font-bold text-purple-600">{complexCount}</p>
+                              </div>
+                              <div className="bg-pink-50 rounded p-3 border border-pink-200">
+                                <p className="text-xs text-gray-500">Very Complex</p>
+                                <p className="text-lg font-bold text-pink-600">{veryComplexCount}</p>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
 
-                      {/* Total */}
-                      <div className="bg-blue-50 rounded p-3 border border-blue-200">
-                        <p className="text-xs text-gray-500">Tổng Task</p>
-                        <p className="text-2xl font-bold text-blue-600">{contributor.total_tasks}</p>
+                      {/* Total and Completed */}
+                      <div className="space-y-2">
+                        <div className="bg-blue-50 rounded p-3 border border-blue-200">
+                          <p className="text-xs text-gray-500">Tổng Task</p>
+                          <p className="text-2xl font-bold text-blue-600">{contributor.total_tasks}</p>
+                        </div>
+                        <div className="bg-emerald-50 rounded p-3 border border-emerald-200">
+                          <p className="text-xs text-gray-500">Đã Hoàn Thành</p>
+                          <p className="text-2xl font-bold text-emerald-600">{contributor.completed_tasks || 0}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded p-3 border border-gray-200">
+                          <p className="text-xs text-gray-500">Tỷ lệ</p>
+                          <p className="text-lg font-bold text-gray-700">
+                            {contributor.total_tasks > 0 
+                              ? Math.round((contributor.completed_tasks || 0) / contributor.total_tasks * 100)
+                              : 0}%
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
