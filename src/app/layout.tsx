@@ -4,6 +4,7 @@ import "./globals.css";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
 import MuiProvider from "./MuiProvider";
 import EmotionRegistry from "./EmotionRegistry";
+import Header from "@/components/Header";
 
 import { Toaster } from "sonner";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
       >
         <EmotionRegistry>
           <MuiProvider>
+            <Header />
             {children}
             <Toaster position="top-right" richColors closeButton />
           </MuiProvider>

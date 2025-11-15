@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import {
   PieChart,
   Pie,
@@ -430,7 +429,7 @@ export default function TaskDashboardPage() {
                 </Box>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                    Task Dashboard
+                     Dashboard
                 </Typography>
                   <Typography variant="body2" sx={{ color: '#6b7280' }}>
                     Project overview and key metrics

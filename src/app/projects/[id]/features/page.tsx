@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import FeatureDetailsModal from "@/components/FeatureDetailsModal";
-import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import StarIcon from "@mui/icons-material/Star";
 import { PRIORITY_OPTIONS } from "@/constants/settings";
 import {
@@ -148,6 +147,7 @@ export default function ProjectFeaturesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPriority, setFilterPriority] = useState<string>("all");
   
   // View tab state
   const [viewTab, setViewTab] = useState<'table' | 'gantt'>('table');
@@ -287,9 +287,15 @@ export default function ProjectFeaturesPage() {
         : f.status_id;
       const matchStatus = filterStatus === 'all' || String(statusId) === String(filterStatus);
       
-      return matchSearch && matchStatus;
+      // Match priority filter
+      const priorityId = typeof f.priority_id === 'object' 
+        ? (f.priority_id as any)?._id 
+        : f.priority_id;
+      const matchPriority = filterPriority === 'all' || String(priorityId) === String(filterPriority);
+      
+      return matchSearch && matchStatus && matchPriority;
     });
-  }, [features, searchTerm, filterStatus]);
+  }, [features, searchTerm, filterStatus, filterPriority]);
 
   const handleOpenForm = () => {
     setForm({ 
@@ -417,16 +423,6 @@ export default function ProjectFeaturesPage() {
       <ResponsiveSidebar />
       <main>
         <div className="w-full">
-          {/* Breadcrumb Navigation */}
-          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
-            <ProjectBreadcrumb 
-              projectId={projectId}
-              items={[
-                { label: 'Tính năng', icon: <StarIcon sx={{ fontSize: 16 }} /> }
-              ]}
-            />
-          </Box>
-
           {/* ClickUp-style Top Bar (standardized) */}
           <Box 
             sx={{ 
@@ -526,7 +522,12 @@ export default function ProjectFeaturesPage() {
                 {selectedFeatureIds.length > 0 && (
                   <Button 
                     variant="contained" 
-                    onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setOpenMilestoneFromFeaturesDialog(true);
+                    }}
                     sx={{ 
                       bgcolor: '#10b981',
                       color: 'white',
@@ -615,7 +616,7 @@ export default function ProjectFeaturesPage() {
               />
 
               <Badge 
-                badgeContent={[filterStatus !== 'all', searchTerm].filter(Boolean).length || 0}
+                badgeContent={[filterStatus !== 'all', filterPriority !== 'all', searchTerm].filter(Boolean).length || 0}
                 color="primary"
                 sx={{
                   '& .MuiBadge-badge': {
@@ -792,11 +793,39 @@ export default function ProjectFeaturesPage() {
                     </Select>
                   </FormControl>
                 </Box>
+                
+                <Box>
+                  <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Priority
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Ưu tiên</InputLabel>
+                    <Select
+                      value={filterPriority}
+                      label="Ưu tiên"
+                      onChange={(e) => setFilterPriority(e.target.value)}
+                      sx={{
+                        borderRadius: 2.5,
+                        bgcolor: 'white',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#8b5cf6', borderWidth: '2px' },
+                      }}
+                    >
+                      <MenuItem value="all">Tất cả</MenuItem>
+                      {priorities.map((priority) => (
+                        <MenuItem key={priority._id} value={priority._id}>
+                          {priority.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
               </Stack>
             </Box>
 
             {/* Footer */}
-            {filterStatus !== 'all' && (
+            {(filterStatus !== 'all' || filterPriority !== 'all') && (
               <Box sx={{ 
                 px: 3.5,
                 py: 2.5,
@@ -809,6 +838,7 @@ export default function ProjectFeaturesPage() {
                   fullWidth
                   onClick={() => {
                     setFilterStatus('all');
+                    setFilterPriority('all');
                   }}
                   sx={{
                     textTransform: 'none',
@@ -1304,9 +1334,36 @@ export default function ProjectFeaturesPage() {
             onClose={() => setOpenMilestoneFromFeaturesDialog(false)}
             projectId={projectId}
             selectedFeatures={selectedFeatures.filter(f => f._id) as any}
-            onSuccess={() => {
+            onSuccess={async () => {
               setSelectedFeatureIds([]);
-              // Optionally reload milestones or navigate
+              setOpenMilestoneFromFeaturesDialog(false);
+              // Reload milestones and features
+              try {
+                const [milestoneRes, featureRes] = await Promise.all([
+                  axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: [] })),
+                  axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: [] })),
+                ]);
+                const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
+                setMilestones(milestonesList);
+                
+                if (Array.isArray(featureRes.data)) {
+                  const enriched: Feature[] = await Promise.all(
+                    featureRes.data.map(async (f: any) => {
+                      try {
+                        const linkRes = await axiosInstance.get(`/api/features/${f._id}/milestones`);
+                        const uniqueMilestoneIds = Array.isArray(linkRes.data) ? [...new Set(linkRes.data)] : [];
+                        return { ...f, milestone_ids: uniqueMilestoneIds } as Feature;
+                      } catch {
+                        return { ...f, milestone_ids: [] } as Feature;
+                      }
+                    })
+                  );
+                  setFeatures(enriched);
+                }
+                toast.success('Tạo milestone thành công');
+              } catch (error) {
+                console.error('Error reloading data:', error);
+              }
             }}
           />
 
