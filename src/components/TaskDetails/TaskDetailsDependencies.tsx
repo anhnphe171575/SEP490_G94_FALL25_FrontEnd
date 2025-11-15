@@ -28,6 +28,7 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import axiosInstance from "../../../ultis/axios";
 import { normalizeStatusValue } from "@/constants/settings";
 import DependencyDateConflictDialog from "../DependencyDateConflictDialog";
+import { toast } from "sonner";
 
 interface TaskDetailsDependenciesProps {
   taskId: string | null;
@@ -136,30 +137,57 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
           warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
         });
         
-        alert(warningMessage);
+        toast.warning('Dependency được tạo với cảnh báo', {
+          description: warnings.map((w: any) => w.message).join('\n'),
+          duration: 5000
+        });
       } else if (statusWarning) {
         // Legacy: show status warning
-        const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
-        alert(confirmMessage);
+        toast.warning('Cảnh báo trạng thái', {
+          description: `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency được tạo thành công, nhưng bạn nên kiểm tra trạng thái task.`,
+          duration: 5000
+        });
       } else if (dateWarning) {
-        // Legacy: show date warning  
-        const confirmMessage = `${dateWarning.message}\n\n${dateWarning.suggestion}\n\n✅ Dependency was created successfully.`;
-        alert(confirmMessage);
+        // Legacy: show date warning - especially for SS dependency
+        const isSS = newDependency.dependency_type === 'SS';
+        const warningTitle = isSS 
+          ? '⚠️ Cảnh báo: Ngày bắt đầu không khớp (SS Dependency)'
+          : '⚠️ Cảnh báo: Ngày tháng không khớp';
+        
+        toast.warning(warningTitle, {
+          description: `${dateWarning.message}\n\n${dateWarning.suggestion}\n\n✅ Dependency được tạo thành công.`,
+          duration: 6000
+        });
+      } else {
+        // Success without warnings
+        toast.success('Đã thêm phụ thuộc thành công');
       }
       
       setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
       setShowAddForm(false);
       setError(null);
       await loadDependencies();
+      if (onTaskUpdate) {
+        await onTaskUpdate();
+      }
     } catch (error: any) {
+      console.error('Error adding dependency:', error);
+      console.error('Error response:', error?.response);
+      console.error('Error data:', error?.response?.data);
+      
       const errorData = error?.response?.data;
       if (error?.response?.status === 400 && errorData?.violation) {
         // Date violation - show detailed error
         const violation = errorData.violation;
         const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
+        const isSS = newDependency.dependency_type === 'SS';
+        
+        // For SS dependency, check if we can auto-fix based on required_start_date or predecessor_start_date
+        const canAutoFixSS = violation.required_start_date || violation.predecessor_start_date;
+        const hasRequiredDate = violation.required_start_date || violation.predecessor_start_date;
         
         // Only offer auto-fix for MANDATORY dependencies
-        if (newDependency.is_mandatory && errorData.can_auto_fix && violation.required_start_date) {
+        if (newDependency.is_mandatory && (errorData.can_auto_fix || (isSS && canAutoFixSS)) && hasRequiredDate) {
           // Show new conflict dialog instead of window.confirm
           setConflictViolation(violation);
           setShowConflictDialog(true);
@@ -182,13 +210,36 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
               setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
               setShowAddForm(false);
               await loadDependencies();
+              if (onTaskUpdate) {
+                await onTaskUpdate();
+              }
+              toast.success('Đã thêm phụ thuộc tùy chọn thành công');
             } catch (forceError: any) {
-              setError(forceError?.response?.data?.message || 'Không thể thêm dependency');
+              const forceErrorMsg = forceError?.response?.data?.message || 'Không thể thêm dependency';
+              setError(forceErrorMsg);
+              toast.error('Không thể thêm phụ thuộc', {
+                description: forceErrorMsg
+              });
             }
           }
+        } else {
+          // Mandatory dependency but cannot auto-fix - show error message
+          const errorMsg = errorData?.message || violation?.message || 'Không thể thêm phụ thuộc vì vi phạm quy tắc ngày tháng';
+          const suggestion = violation?.suggestion || '';
+          setError(errorMsg);
+          toast.error('Không thể thêm phụ thuộc', {
+            description: suggestion ? `${errorMsg}\n\n${suggestion}` : errorMsg,
+            duration: 6000
+          });
         }
       } else {
-        setError(errorData?.message || 'Failed to add dependency');
+        // Other 400 errors or non-400 errors
+        const errorMsg = errorData?.message || error?.message || 'Failed to add dependency';
+        setError(errorMsg);
+        toast.error('Không thể thêm phụ thuộc', {
+          description: errorMsg,
+          duration: 5000
+        });
       }
     }
   };
@@ -238,6 +289,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
         await onTaskUpdate();
       }
       console.log('✅ All done!');
+      toast.success('Đã thêm phụ thuộc và tự động điều chỉnh ngày thành công');
     } catch (fixError: any) {
       console.error('❌ Auto-fix error:', fixError);
       console.error('Error details:', fixError?.response?.data);
@@ -259,8 +311,16 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/dependencies/${depId}`);
       await loadDependencies();
+      if (onTaskUpdate) {
+        await onTaskUpdate();
+      }
+      toast.success('Đã xóa phụ thuộc thành công');
     } catch (error: any) {
-        setError(error?.response?.data?.message || 'Không thể xóa phụ thuộc');
+      const errorMsg = error?.response?.data?.message || 'Không thể xóa phụ thuộc';
+      setError(errorMsg);
+      toast.error('Không thể xóa phụ thuộc', {
+        description: errorMsg
+      });
     }
   };
 

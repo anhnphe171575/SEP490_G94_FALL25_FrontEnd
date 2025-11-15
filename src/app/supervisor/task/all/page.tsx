@@ -122,8 +122,8 @@ export default function AllTasksPage() {
             </div>
           </div>
 
-          {/* Quick Navigation */}
-          <div className="flex justify-end mb-4">
+          {/* QuickNav - Always at the top */}
+          <div className="mb-4">
             <QuickNav selectedProject={projectId} />
           </div>
 

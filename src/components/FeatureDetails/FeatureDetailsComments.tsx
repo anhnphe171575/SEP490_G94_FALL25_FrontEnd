@@ -163,7 +163,7 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
               fullWidth
               multiline
               rows={3}
-              placeholder="Thêm bình luận... (Sử dụng @ để đề cập ai đó)"
+              placeholder="Thêm bình luận..."
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               sx={{

@@ -566,15 +566,7 @@ export default function DocumentsPage() {
           </div>
 
           <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} className="mb-4">
-            <Link
-              color="inherit"
-              href="#"
-              onClick={() => navigateToFolder(null)}
-              className="flex items-center gap-1"
-            >
-              <HomeIcon fontSize="small" />
-              Tài liệu
-            </Link>
+           
             {folderPath.map((folder) => (
               <Link
                 key={folder._id}

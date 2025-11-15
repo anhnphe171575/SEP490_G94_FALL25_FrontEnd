@@ -6,9 +6,11 @@ import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
+import DependencyDateConflictDialog from "@/components/DependencyDateConflictDialog";
 import dynamic from 'next/dynamic';
 import './tasks.module.css';
 import { STATUS_OPTIONS, PRIORITY_OPTIONS, TASK_TYPE_OPTIONS, normalizeStatusValue } from "@/constants/settings";
+import { toast } from "sonner";
 
 
 const DHtmlxGanttChart = dynamic(
@@ -51,6 +53,7 @@ import {
   Badge,
   Popover,
   Checkbox,
+  Link,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -191,8 +194,8 @@ export default function ProjectTasksPage() {
   // calendar view state
   const [calendarDate, setCalendarDate] = useState(new Date());
   
-  // functions for selected feature
-  const [functions, setFunctions] = useState<any[]>([]);
+  // functions for selected feature (in form)
+  const [formFunctions, setFormFunctions] = useState<any[]>([]);
   
   // Filter options - fetch from backend
   const [allFeatures, setAllFeatures] = useState<any[]>([]);
@@ -237,7 +240,7 @@ export default function ProjectTasksPage() {
     if (form.feature_id) {
       loadFunctionsByFeature(form.feature_id);
     } else {
-      setFunctions([]);
+      setFormFunctions([]);
       setForm(prev => ({ ...prev, function_id: "" }));
     }
   }, [form.feature_id]);
@@ -290,9 +293,9 @@ export default function ProjectTasksPage() {
   // Auto-filter by feature when featureId is in URL
   useEffect(() => {
     if (featureIdFromUrl && allFeatures.length > 0) {
-      const featureExists = allFeatures.some(f => f._id === featureIdFromUrl);
+      const featureExists = allFeatures.some(f => String(f._id || '') === String(featureIdFromUrl));
       if (featureExists) {
-        setFilterFeature(featureIdFromUrl);
+        setFilterFeature(String(featureIdFromUrl));
       }
     }
   }, [featureIdFromUrl, allFeatures]);
@@ -341,14 +344,14 @@ export default function ProjectTasksPage() {
   const loadFunctionsByFeature = async (featureId: string) => {
     try {
       if (!featureId) {
-        setFunctions([]);
+        setFormFunctions([]);
         return;
       }
       const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
-      setFunctions(response.data || []);
+      setFormFunctions(response.data || []);
     } catch (e: any) {
       console.error("Error loading functions:", e);
-      setFunctions([]);
+      setFormFunctions([]);
     }
   };
 
@@ -387,11 +390,11 @@ export default function ProjectTasksPage() {
       setLoading(true);
       const params: any = {
         q: debouncedSearch || undefined,
-        assignee_id: filterAssignee !== 'all' ? filterAssignee : undefined,
-        status: filterStatus !== 'all' ? filterStatus : undefined,
-        priority: filterPriority !== 'all' ? filterPriority : undefined,
-        feature_id: filterFeature !== 'all' ? filterFeature : undefined,
-        milestone_id: filterMilestone !== 'all' ? filterMilestone : undefined,
+        assignee_id: filterAssignee !== 'all' ? String(filterAssignee) : undefined,
+        status: filterStatus !== 'all' ? String(filterStatus) : undefined,
+        priority: filterPriority !== 'all' ? String(filterPriority) : undefined,
+        feature_id: filterFeature !== 'all' ? String(filterFeature) : undefined,
+        milestone_id: filterMilestone !== 'all' ? String(filterMilestone) : undefined,
         from: filterDateRange.from || undefined,
         to: filterDateRange.to || undefined,
         sortBy,
@@ -436,7 +439,7 @@ export default function ProjectTasksPage() {
       deadline: "",
       estimate: 0,
     });
-    setFunctions([]);
+    setFormFunctions([]);
     setOpenDialog(true);
   };
 
@@ -497,28 +500,27 @@ export default function ProjectTasksPage() {
     } catch (e: any) {
       const errorData = e?.response?.data || {};
       
-      // Check if it's a date validation error
-      if (e?.response?.status === 400 && (errorData.type === 'date_validation' || errorData.errors)) {
-        // Convert errors to violations format for dialog
-        const violations = (errorData.errors || []).map((err: string) => ({
-          message: err,
-          type: 'date_validation',
-          is_mandatory: true
-        }));
-        
-        if (violations.length > 0) {
-          setDependencyViolationDialog({
-            open: true,
-            violations: violations,
-            taskId: editing?._id || '',
-            newStatus: ''
+      // Check if it's a date validation error - show appropriate error message instead of dependency dialog
+      if (e?.response?.status === 400 && errorData.type === 'date_validation') {
+        // Show date validation errors in a user-friendly way
+        const errorMessages = errorData.errors || [];
+        if (errorMessages.length > 0) {
+          const errorText = errorMessages.length === 1 
+            ? errorMessages[0]
+            : errorMessages.join('. ');
+          toast.error(`Lỗi xác thực ngày: ${errorText}`, {
+            duration: 5000
           });
-          return;
+        } else {
+          toast.error(errorData.message || "Lỗi xác thực ngày tháng");
         }
+        return;
       }
       
       // Show regular error message
-      setError(errorData.message || "Không thể lưu task");
+      const errorMessage = errorData.message || "Không thể lưu task";
+      toast.error(errorMessage);
+      setError(errorMessage);
     }
   };
 
@@ -628,11 +630,11 @@ export default function ProjectTasksPage() {
           otherWarnings.forEach((w: any, index: number) => {
             warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
           });
-          alert(warningMessage);
+          toast.warning(warningMessage, { duration: 5000 });
         }
       } else if (statusWarning) {
         const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
-        alert(confirmMessage);
+        toast.info(confirmMessage, { duration: 5000 });
       }
       
       setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
@@ -647,62 +649,19 @@ export default function ProjectTasksPage() {
         
         // Only offer auto-fix for MANDATORY dependencies
         if (isMandatory && errorData.can_auto_fix && violation.required_start_date) {
-          setError(errorMessage);
+          // Store pending dependency data
+          setPendingDependencyData({
+            taskId,
+            dependsOnTaskId,
+            type,
+            lagDays,
+            isMandatory,
+            notes
+          });
           
-          // Format dates for better display
-          const currentStart = violation.current_start_date ? new Date(violation.current_start_date).toLocaleDateString('vi-VN') : 'N/A';
-          const requiredStart = violation.required_start_date ? new Date(violation.required_start_date).toLocaleDateString('vi-VN') : 'N/A';
-          const currentEnd = violation.current_deadline ? new Date(violation.current_deadline).toLocaleDateString('vi-VN') : 'N/A';
-          
-          // Calculate task duration and new end date
-          let newEnd = 'N/A';
-          let durationMessage = '';
-          if (violation.current_start_date && violation.current_deadline && violation.required_start_date) {
-            const currentStartDate = new Date(violation.current_start_date);
-            const currentEndDate = new Date(violation.current_deadline);
-            const newStartDate = new Date(violation.required_start_date);
-            
-            // Calculate duration in days
-            const duration = Math.ceil((currentEndDate.getTime() - currentStartDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            // Calculate new end date (preserve duration)
-            const newEndDate = new Date(newStartDate);
-            newEndDate.setDate(newEndDate.getDate() + duration);
-            newEnd = newEndDate.toLocaleDateString('vi-VN');
-            
-            durationMessage = `\n\nThời lượng task: ${duration} ngày (giữ nguyên)`;
-          }
-          
-          const autoFix = window.confirm(
-            `${errorMessage}\n\n` +
-            `📅 Ngày hiện tại:\n` +
-            `   • Bắt đầu: ${currentStart}\n` +
-            `   • Kết thúc: ${currentEnd}\n\n` +
-            `📅 Ngày sau khi điều chỉnh:\n` +
-            `   • Bắt đầu: ${requiredStart}\n` +
-            `   • Kết thúc: ${newEnd}${durationMessage}\n\n` +
-            `Bạn có muốn tự động điều chỉnh ngày tháng không?`
-          );
-          if (autoFix) {
-            try {
-              await axiosInstance.post(`/api/tasks/${taskId}/auto-adjust-dates`, {
-                preserve_duration: true
-              });
-              // Retry adding dependency with strict_validation disabled
-              // (dates already adjusted, no need to validate again)
-              await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
-                depends_on_task_id: dependsOnTaskId,
-                dependency_type: type,
-                lag_days: lagDays,
-                is_mandatory: isMandatory,
-                notes: notes,
-                strict_validation: false
-              });
-              await loadTaskDependencies(taskId);
-            } catch (fixError: any) {
-              setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
-            }
-          }
+          // Show conflict dialog instead of window.confirm
+          setConflictViolation(violation);
+          setShowConflictDialog(true);
         } else if (!isMandatory) {
           // For OPTIONAL dependencies, show warning and ask if user wants to proceed anyway
           const proceed = window.confirm(
@@ -837,12 +796,29 @@ export default function ProjectTasksPage() {
     }
   };
 
-  // Use fetched filter options
-  const features = allFeatures.map(f => ({ id: f._id, title: f.title }));
-  const milestones = allMilestones.map(m => ({ id: m._id, title: m.title }));
+  // Use fetched filter options - ensure IDs are strings
+  const features = allFeatures
+    .filter(f => f._id) // Only include features with valid _id
+    .map(f => ({ id: String(f._id), title: f.title || 'Không có tiêu đề' }));
+  const milestones = allMilestones
+    .filter(m => m._id) // Only include milestones with valid _id
+    .map(m => ({ id: String(m._id), title: m.title || 'Không có tiêu đề' }));
   // Keep full objects with _id and name for status/priority
   const statuses = allStatuses;
   const priorities = allPriorities;
+  
+  // Filter functions based on selected feature
+  const functions = useMemo(() => {
+    if (filterFeature === 'all') {
+      return allFunctions;
+    }
+    return allFunctions.filter(fn => {
+      const featureId = typeof fn.feature_id === 'object' 
+        ? String((fn.feature_id as any)?._id || '')
+        : String(fn.feature_id || '');
+      return featureId === String(filterFeature);
+    });
+  }, [allFunctions, filterFeature]);
 
   const filteredSorted = useMemo(() => {
     let filtered = tasks;
@@ -1354,7 +1330,7 @@ export default function ProjectTasksPage() {
                         ⚡
                       </Box>
                     }
-                    label={features.find(f => f.id === filterFeature)?.title || 'Tính năng'}
+                    label={features.find(f => String(f.id) === String(filterFeature))?.title || 'Tính năng'}
                     size="small"
                     onDelete={() => {
                       setFilterFeature('all');
@@ -1449,7 +1425,7 @@ export default function ProjectTasksPage() {
                         🎯
                       </Box>
                     }
-                    label={milestones.find(m => m.id === filterMilestone)?.title || 'Milestone'}
+                    label={milestones.find(m => String(m.id) === String(filterMilestone))?.title || 'Milestone'}
                     size="small"
                     onDelete={() => setFilterMilestone('all')}
                     sx={{
@@ -1929,9 +1905,27 @@ export default function ProjectTasksPage() {
                       <Select 
                         value={filterFeature} 
                         onChange={(e) => {
-                          setFilterFeature(e.target.value);
-                          if (e.target.value === 'all') {
+                          const newFeatureId = e.target.value;
+                          setFilterFeature(newFeatureId);
+                          // Reset function filter if feature changes or is set to 'all'
+                          if (newFeatureId === 'all') {
                             setFilterFunction('all');
+                          } else {
+                            // Check if current function belongs to new feature, if not reset
+                            const currentFunction = allFunctions.find(fn => {
+                              const fnId = typeof fn._id === 'string' ? fn._id : String(fn._id || '');
+                              return fnId === String(filterFunction);
+                            });
+                            if (currentFunction) {
+                              const fnFeatureId = typeof currentFunction.feature_id === 'object' 
+                                ? String((currentFunction.feature_id as any)?._id || '')
+                                : String(currentFunction.feature_id || '');
+                              if (fnFeatureId !== String(newFeatureId)) {
+                                setFilterFunction('all');
+                              }
+                            } else {
+                              setFilterFunction('all');
+                            }
                           }
                         }}
                         label="Tính năng"
@@ -1970,7 +1964,7 @@ export default function ProjectTasksPage() {
                           </Box>
                         </MenuItem>
                         {features.map((f) => (
-                          <MenuItem key={f.id} value={f.id}>
+                          <MenuItem key={f.id} value={String(f.id)}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                               <Box sx={{ 
                                 width: 22, 
@@ -2076,7 +2070,7 @@ export default function ProjectTasksPage() {
                       <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#7b68ee' } }}>Milestone</InputLabel>
                       <Select 
                         value={filterMilestone} 
-                        onChange={(e) => setFilterMilestone(e.target.value)}
+                        onChange={(e) => setFilterMilestone(String(e.target.value))}
                         label="Milestone"
                         sx={{
                           borderRadius: 2.5,
@@ -2113,7 +2107,7 @@ export default function ProjectTasksPage() {
                           </Box>
                         </MenuItem>
                         {milestones.map((m) => (
-                          <MenuItem key={m.id} value={m.id}>
+                          <MenuItem key={m.id} value={String(m.id)}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                               <Box sx={{ 
                                 width: 22, 
@@ -2276,8 +2270,8 @@ export default function ProjectTasksPage() {
                 py: 1.5, 
                 display: 'grid !important', 
                 gridTemplateColumns: { 
-                  xs: '50px minmax(200px, 1fr) 120px 110px', 
-                  md: '50px minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
+                  xs: 'minmax(200px, 1fr) 120px 110px', 
+                  md: 'minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
                 }, 
                 columnGap: 2, 
                 color: '#6b7280', 
@@ -2289,7 +2283,6 @@ export default function ProjectTasksPage() {
                 borderBottom: '1px solid #e8e9eb',
                 alignItems: 'center',
               }}>
-                <Box>STT</Box>
                 <Box>Tên công việc</Box>
                 <Box>Người thực hiện</Box>
                 <Box>Hạn chót</Box>
@@ -2377,8 +2370,8 @@ export default function ProjectTasksPage() {
                             py: 1.25, 
                             display: 'grid !important', 
                             gridTemplateColumns: { 
-                              xs: '50px minmax(200px, 1fr) 120px 110px', 
-                              md: '50px minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
+                              xs: 'minmax(200px, 1fr) 120px 110px', 
+                              md: 'minmax(250px, 2fr) 140px 120px 100px 100px 80px 80px' 
                             }, 
                             columnGap: 2, 
                             alignItems: 'center', 
@@ -2391,40 +2384,6 @@ export default function ProjectTasksPage() {
                           }}
                           onClick={() => openTaskDetailsModal(t._id)}
                         >
-                          {/* STT - Click to open detail */}
-                          <Box 
-                            sx={{ 
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                            }}
-                          >
-                              <Box sx={{ width: 20 }} />
-                            
-                            <Box
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'white',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                                transition: 'all 0.2s ease',
-                                '&:hover': {
-                                  transform: 'scale(1.05)',
-                                  boxShadow: '0 4px 12px rgba(123, 104, 238, 0.5)',
-                                }
-                              }}
-                            >
-                              {(indexById.get(t._id) ?? 0) + 1}
-                            </Box>
-                          </Box>
-
                           {/* Task name - double click to edit */}
                           <Box onClick={(e) => e.stopPropagation()}>
                             {editingTaskId === t._id ? (
@@ -2439,8 +2398,12 @@ export default function ProjectTasksPage() {
                                         title: editingTitle.trim()
                                       });
                                       await loadAll();
-                                    } catch (error) {
+                                      toast.success('Đã cập nhật tiêu đề thành công');
+                                    } catch (error: any) {
                                       console.error('Error updating title:', error);
+                                      toast.error('Không thể cập nhật tiêu đề', {
+                                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                                      });
                                     }
                                   }
                                   setEditingTaskId(null);
@@ -2481,14 +2444,19 @@ export default function ProjectTasksPage() {
                                         {t.title}
                                       </Typography>
                                       <Typography fontSize="11px" color="rgba(255,255,255,0.8)">
-                                        Double-click to edit
+                                        Click to open detail
                                       </Typography>
                                     </Box>
                                   } 
                                   placement="top"
                                   arrow
                                 >
-                                  <Typography 
+                                  <Link
+                                    component="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openTaskDetailsModal(t._id);
+                                    }}
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
                                       setEditingTaskId(t._id);
@@ -2497,7 +2465,7 @@ export default function ProjectTasksPage() {
                                     sx={{ 
                                       fontWeight: 500, 
                                       fontSize: '14px', 
-                                      color: hasBlockingDependencies ? '#f59e0b' : '#1f2937',
+                                      color: hasBlockingDependencies ? '#f59e0b' : '#7b68ee',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
                                       whiteSpace: 'nowrap',
@@ -2506,13 +2474,17 @@ export default function ProjectTasksPage() {
                                       borderRadius: 1,
                                       cursor: 'pointer',
                                       maxWidth: '100%',
+                                      textDecoration: 'none',
+                                      display: 'block',
                                       '&:hover': {
+                                        textDecoration: 'underline',
+                                        color: hasBlockingDependencies ? '#d97706' : '#6952d6',
                                         bgcolor: '#f3f4f6',
                                       }
                                     }}
                                   >
                                     {t.title}
-                                  </Typography>
+                                  </Link>
                                 </Tooltip>
                                 
                                 {/* Hierarchy badges: Milestone → Feature → Function - Clickable with truncation */}
@@ -2626,8 +2598,12 @@ export default function ProjectTasksPage() {
                                     assignee_id: e.target.value || null
                                   });
                                   await loadAll();
-                                } catch (error) {
+                                  toast.success('Đã cập nhật người thực hiện thành công');
+                                } catch (error: any) {
                                   console.error('Error updating assignee:', error);
+                                  toast.error('Không thể cập nhật người thực hiện', {
+                                    description: error?.response?.data?.message || 'Vui lòng thử lại'
+                                  });
                                 }
                               }}
                               size="small"
@@ -2699,8 +2675,12 @@ export default function ProjectTasksPage() {
                                     deadline: e.target.value
                                   });
                                   await loadAll();
-                                } catch (error) {
+                                  toast.success('Đã cập nhật hạn chót thành công');
+                                } catch (error: any) {
                                   console.error('Error updating deadline:', error);
+                                  toast.error('Không thể cập nhật hạn chót', {
+                                    description: error?.response?.data?.message || 'Vui lòng thử lại'
+                                  });
                                 }
                               }}
                               InputProps={{
@@ -2738,6 +2718,7 @@ export default function ProjectTasksPage() {
                                   status: statusToSend
                                   });
                                   await loadAll();
+                                  toast.success('Đã cập nhật trạng thái thành công');
                                 } catch (error: any) {
                                   console.error('Error updating status:', error);
                                   console.log('Error response:', error?.response);
@@ -2792,7 +2773,9 @@ export default function ProjectTasksPage() {
                                   // Show regular error message
                                   console.log('❌ No violations found, showing error message');
                                   console.log('Response data keys:', Object.keys(error?.response?.data || {}));
-                                  setError(error?.response?.data?.message || 'Không thể cập nhật status');
+                                  toast.error('Không thể cập nhật trạng thái', {
+                                    description: error?.response?.data?.message || 'Vui lòng thử lại'
+                                  });
                                 }
                               }}
                               size="small"
@@ -2849,8 +2832,12 @@ export default function ProjectTasksPage() {
                                   priority: e.target.value || null
                                   });
                                   await loadAll();
-                                } catch (error) {
+                                  toast.success('Đã cập nhật ưu tiên thành công');
+                                } catch (error: any) {
                                   console.error('Error updating priority:', error);
+                                  toast.error('Không thể cập nhật ưu tiên', {
+                                    description: error?.response?.data?.message || 'Vui lòng thử lại'
+                                  });
                                 }
                               }}
                               size="small"
@@ -3914,7 +3901,7 @@ export default function ProjectTasksPage() {
                           }}
                   >
                     <MenuItem value=""><em>Không chọn</em></MenuItem>
-                          {functions.map((fn) => (
+                          {formFunctions.map((fn) => (
                             <MenuItem key={fn._id} value={fn._id}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                 <Box sx={{ 
@@ -4005,6 +3992,23 @@ export default function ProjectTasksPage() {
             }}
             onUpdate={loadAll}
           />
+
+          {/* Dependency Date Conflict Dialog */}
+          {showConflictDialog && conflictViolation && (
+            <DependencyDateConflictDialog
+              open={showConflictDialog}
+              onClose={() => {
+                setShowConflictDialog(false);
+                setConflictViolation(null);
+                setPendingDependencyData(null);
+              }}
+              onAutoFix={handleAutoFixDependency}
+              onManualEdit={handleManualEditDependency}
+              violation={conflictViolation}
+              taskTitle={currentTaskForDependency?.title}
+              predecessorTitle={tasks.find(t => t._id === pendingDependencyData?.dependsOnTaskId)?.title}
+            />
+          )}
 
           {/* Dependency Violation Warning Dialog */}
           <Dialog

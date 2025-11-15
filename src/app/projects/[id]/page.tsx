@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar"; // Import ResponsiveSidebar để sử dụng cho sidebar
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton } from "@mui/material";
+import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -999,7 +999,6 @@ export default function ProjectDetailPage() {
                       <Table size="small" sx={{ '& td, & th': { borderColor: 'var(--border)' } }}>
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={{ width: 60 }}>STT</TableCell>
                             <TableCell>Tiêu đề</TableCell>
                             <TableCell>Bắt đầu - Hết hạn</TableCell>
                             <TableCell sx={{ width: 120 }}>Thao tác</TableCell>
@@ -1009,26 +1008,25 @@ export default function ProjectDetailPage() {
                           {getFilteredMilestones().map((m, idx) => (
                             <TableRow key={m._id} hover>
                               <TableCell>
-                                <Box
+                                <Link
+                                  component="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMilestoneModal({ open: true, milestoneId: m._id });
+                                  }}
                                   sx={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'white',
-                                    fontWeight: 700,
-                                    fontSize: '14px',
-                                    boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)'
+                                    fontWeight: 600,
+                                    color: '#7b68ee',
+                                    textDecoration: 'none',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      textDecoration: 'underline',
+                                      color: '#6952d6',
+                                    }
                                   }}
                                 >
-                                  {idx + 1}
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ fontWeight: 600 }}>
-                                {m.title}
+                                  {m.title}
+                                </Link>
                               </TableCell>
                               <TableCell>
                                 <Typography variant="caption" color="text.secondary">
@@ -1123,11 +1121,7 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
             <MenuItem value="Months">Tháng</MenuItem>
             <MenuItem value="Quarters">Quý</MenuItem>
           </MUISelect>
-          <FormControlLabel
-            className="ml-2"
-            control={<MUICheckbox size="small" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} />}
-            label={<Typography variant="body2">Tự động điều chỉnh</Typography>}
-          />
+         
         </div>
       </div>
 

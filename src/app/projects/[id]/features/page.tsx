@@ -40,6 +40,7 @@ import {
   Alert,
   Tabs,
   Tab,
+  Link,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
@@ -52,6 +53,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import InputAdornment from "@mui/material/InputAdornment";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
+import { toast } from "sonner";
 
 type Milestone = {
   _id: string;
@@ -263,12 +265,28 @@ export default function ProjectFeaturesPage() {
   // Gantt-related derived data removed
   // Filtered list aligned with Functions page behavior
   const filteredFeatures = useMemo(() => {
-    return (features || []).filter((f) => {
-      const matchSearch =
-        f.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (f.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const statusId = typeof f.status_id === 'object' ? (f.status_id as any)?._id : f.status_id;
-      const matchStatus = filterStatus === 'all' || statusId === filterStatus;
+    if (!features || features.length === 0) return [];
+    
+    const normalizedSearchTerm = (searchTerm || '').trim().toLowerCase();
+    
+    return features.filter((f) => {
+      // Match search term
+      let matchSearch = true;
+      if (normalizedSearchTerm) {
+        const title = (f.title || '').toLowerCase();
+        const description = (f.description || '').toLowerCase();
+        const tags = (f.tags || []).map(tag => (tag || '').toLowerCase()).join(' ');
+        
+        matchSearch = 
+          title.includes(normalizedSearchTerm) 
+      }
+      
+      // Match status filter
+      const statusId = typeof f.status_id === 'object' 
+        ? (f.status_id as any)?._id 
+        : f.status_id;
+      const matchStatus = filterStatus === 'all' || String(statusId) === String(filterStatus);
+      
       return matchSearch && matchStatus;
     });
   }, [features, searchTerm, filterStatus]);
@@ -325,8 +343,11 @@ export default function ProjectFeaturesPage() {
         end_date: "",
         tags: []
       });
+      toast.success("Đã tạo feature thành công");
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tạo feature");
+      const errorMessage = e?.response?.data?.message || "Không thể tạo feature";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -366,7 +387,11 @@ export default function ProjectFeaturesPage() {
         return updated;
       }));
       cancelEditRow();
-    } catch {}
+      toast.success("Đã cập nhật thành công");
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.message || "Không thể cập nhật feature";
+      toast.error(errorMessage);
+    }
   };
 
   const handleToggleFeatureSelection = (featureId: string) => {
@@ -842,13 +867,11 @@ export default function ProjectFeaturesPage() {
                 <Table size="small" sx={{ minWidth: 1400, '& td, & th': { borderColor: 'var(--border)' } }}>
                   <TableHead>
                     <TableRow>
-                     
-                      <TableCell sx={{ width: 60 }}>STT</TableCell>
                       <TableCell>Tiêu đề</TableCell>
-                      <TableCell>Trạng thái</TableCell>
-                      <TableCell>Ưu tiên</TableCell>
                       <TableCell sx={{ minWidth: 200 }}>Cột mốc</TableCell>
                       <TableCell>Bắt đầu - Hết hạn</TableCell>
+                      <TableCell>Trạng thái</TableCell>
+                      <TableCell>Ưu tiên</TableCell>
                       <TableCell>Thao tác</TableCell>
                     </TableRow>
                   </TableHead>
@@ -885,39 +908,6 @@ export default function ProjectFeaturesPage() {
                       );
                       return (
                         <TableRow key={f._id || idx} hover>
-                         
-                          <TableCell 
-                            sx={{ 
-                              fontWeight: 600, 
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => {
-                              setFeatureModal({ open: true, featureId: f._id });
-                            }}
-                          >
-                            <Box
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'white',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                                transition: 'all 0.2s ease',
-                                '&:hover': {
-                                  transform: 'scale(1.05)',
-                                  boxShadow: '0 4px 12px rgba(123, 104, 238, 0.5)',
-                                }
-                            }}
-                          >
-                            {idx + 1}
-                            </Box>
-                          </TableCell>
                           <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => startEditCell(f, 'title')}>
                             {editingId === f._id && editingField === 'title' ? (
                               <TextField
@@ -929,92 +919,35 @@ export default function ProjectFeaturesPage() {
                               />
                             ) : (
                               <Tooltip title={f.title || ''}>
-                                <Typography
+                                <Link
+                                  component="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFeatureModal({ open: true, featureId: f._id });
+                                  }}
                                   sx={{
+                                    fontWeight: 600,
+                                    color: '#7b68ee',
+                                    textDecoration: 'none',
+                                    cursor: 'pointer',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
-                                    maxWidth: 100
+                                    maxWidth: 100,
+                                    display: 'block',
+                                    '&:hover': {
+                                      textDecoration: 'underline',
+                                      color: '#6952d6',
+                                    }
                                   }}
                                 >
-                                  <b>{f.title || '...'}</b>
-                                </Typography>
+                                  {f.title || '...'}
+                                </Link>
                               </Tooltip>
                             )}
                           </TableCell>
                           
-                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'status_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
-                                onChange={async (e) => {
-                                  const newStatusId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating status:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {statuses.map((s) => (
-                                  <MenuItem key={s._id} value={s._id}>
-                                    {s.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              statusChip
-                            )}
-                          </TableCell>
-                          
-                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'priority_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
-                                onChange={async (e) => {
-                                  const newPriorityId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating priority:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {priorities.map((p) => (
-                                  <MenuItem key={p._id} value={p._id}>
-                                    {p.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              <Chip
-                                label={priorityName || '-'}
-                                size="small"
-                                color={
-                                  priorityName === 'Critical' ? 'error' :
-                                  priorityName === 'High' ? 'warning' :
-                                  priorityName === 'Medium' ? 'primary' : 'default'
-                                }
-                                variant="outlined"
-                              />
-                            )}
-                          </TableCell>
+                         
                           
                           <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
                             {editingId === f._id && editingField === 'milestone_ids' ? (
@@ -1037,8 +970,10 @@ export default function ProjectFeaturesPage() {
                                     ));
                                     setEditingId(null);
                                     setEditingField(null);
-                                  } catch (err) {
+                                    toast.success("Đã cập nhật cột mốc thành công");
+                                  } catch (err: any) {
                                     console.error('Error updating milestones:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật cột mốc");
                                   }
                                 }}
                                 renderValue={(selected) => (
@@ -1091,7 +1026,82 @@ export default function ProjectFeaturesPage() {
                             </Stack>
                           </TableCell>
                           
-                
+                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'status_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
+                                onChange={async (e) => {
+                                  const newStatusId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
+                                    ));
+                                    cancelEditRow();
+                                    toast.success("Đã cập nhật trạng thái thành công");
+                                  } catch (err: any) {
+                                    console.error('Error updating status:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật trạng thái");
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {statuses.map((s) => (
+                                  <MenuItem key={s._id} value={s._id}>
+                                    {s.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              statusChip
+                            )}
+                          </TableCell>
+                          
+                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'priority_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
+                                onChange={async (e) => {
+                                  const newPriorityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
+                                    ));
+                                    cancelEditRow();
+                                    toast.success("Đã cập nhật ưu tiên thành công");
+                                  } catch (err: any) {
+                                    console.error('Error updating priority:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật ưu tiên");
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {priorities.map((p) => (
+                                  <MenuItem key={p._id} value={p._id}>
+                                    {p.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              <Chip
+                                label={priorityName || '-'}
+                                size="small"
+                                color={
+                                  priorityName === 'Critical' ? 'error' :
+                                  priorityName === 'High' ? 'warning' :
+                                  priorityName === 'Medium' ? 'primary' : 'default'
+                                }
+                                variant="outlined"
+                              />
+                            )}
+                          </TableCell>
                           
                           <TableCell>
                             <Stack direction="row" spacing={0.5}>
@@ -1485,9 +1495,11 @@ export default function ProjectFeaturesPage() {
                       })
                     );
                     setFeatures(enriched);
+                    toast.success("Đã tạo cột mốc từ features thành công");
                   }
-                } catch (error) {
+                } catch (error: any) {
                   console.error('Error reloading features:', error);
+                  toast.error(error?.response?.data?.message || "Không thể tải lại danh sách features");
                 }
               }}
             />

@@ -32,8 +32,11 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
 import axiosInstance from "../../ultis/axios";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
+import { toast } from "sonner";
 
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
@@ -94,6 +97,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   // Dependencies state
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [hasMandatoryDependencies, setHasMandatoryDependencies] = useState(false);
+  
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState('');
 
   // Get tab name from index
   const getTabContent = (index: number) => {
@@ -104,6 +111,8 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   useEffect(() => {
     if (open && taskId) {
       setCurrentTab(0); // Reset to Overview tab when task changes
+      setIsEditingTitle(false); // Reset title editing state
+      setEditingTitle(''); // Reset editing title
       loadTaskDetails();
       loadDependencies();
       // Load constants instead of API call
@@ -207,6 +216,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
       // if (!skipParentRefresh && onUpdate) {
       //   onUpdate();
       // }
+      return { success: true };
     } catch (error: any) {
       console.error("Error updating task:", error);
       
@@ -227,25 +237,28 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
           
           // Reload to restore correct state
           await loadTaskDetails();
-          return; // Don't throw error, let user decide
+          return { success: false, hasValidationError: true }; // Don't throw error, let user decide
         }
         
-        // Handle date validation errors
-        if (responseData.errors && responseData.message === 'Date validation failed') {
-          const canForce = responseData.can_force || false;
-          
-          // Show validation errors in dependency violation dialog (reuse same UI)
-          setDependencyViolations(responseData.errors.map((err: string) => ({
-            message: err,
-            type: 'date_validation'
-          })));
-          setCanForceUpdate(canForce);
-          setPendingUpdate(updates);
-          setDependencyViolationOpen(true);
+        // Handle date validation errors - show toast instead of dependency dialog
+        if (responseData.type === 'date_validation' || (responseData.errors && responseData.message && responseData.message.includes('validation'))) {
+          const errorMessages = responseData.errors || [];
+          if (errorMessages.length > 0) {
+            const errorText = errorMessages.length === 1 
+              ? errorMessages[0]
+              : errorMessages.join('. ');
+            toast.error(`Lỗi xác thực ngày: ${errorText}`, {
+              duration: 5000
+            });
+          } else {
+            toast.error(responseData.message || "Lỗi xác thực ngày tháng", {
+              duration: 5000
+            });
+          }
           
           // Reload to restore correct state
           await loadTaskDetails();
-          return;
+          return { success: false, hasValidationError: true };
         }
       }
       
@@ -261,11 +274,42 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
         await handleTaskUpdate(pendingUpdate, true);
         setDependencyViolationOpen(false);
         setPendingUpdate(null);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Force update failed:", error);
-        alert("Không thể force update. Vui lòng thử lại.");
+        toast.error("Không thể force update", {
+          description: error?.response?.data?.message || 'Vui lòng thử lại'
+        });
       }
     }
+  };
+
+  const handleStartEditTitle = () => {
+    setEditingTitle(task?.title || '');
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editingTitle.trim()) {
+      toast.error('Tiêu đề không được để trống');
+      return;
+    }
+    try {
+      const result = await handleTaskUpdate({ title: editingTitle.trim() });
+      setIsEditingTitle(false);
+      if (result?.success) {
+        toast.success('Đã cập nhật tiêu đề thành công');
+      }
+    } catch (error: any) {
+      console.error('Error updating title:', error);
+      toast.error('Không thể cập nhật tiêu đề', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
+    }
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditingTitle('');
+    setIsEditingTitle(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -371,27 +415,102 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             {/* Title - Editable */}
             <Box sx={{ flex: 1 }}>
-              <Typography 
-                variant="h5" 
-                fontWeight={700}
-                sx={{ 
-                  mb: 1.5,
-                  color: '#1f2937',
-                  lineHeight: 1.3,
-                  cursor: 'text',
-                  '&:hover': {
-                    bgcolor: '#f9fafb',
-                    px: 1,
-                    mx: -1,
-                    borderRadius: 1,
-                  }
-                }}
-              >
-                {task?.title || 'Đang tải...'}
-              </Typography>
+              {isEditingTitle ? (
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <TextField
+                    fullWidth
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveTitle();
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditTitle();
+                      }
+                    }}
+                    autoFocus
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        fontSize: '24px',
+                        fontWeight: 700,
+                        '& fieldset': {
+                          borderColor: '#7b68ee',
+                          borderWidth: 2,
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#7b68ee',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#7b68ee',
+                        }
+                      }
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={handleSaveTitle}
+                    sx={{
+                      color: '#7b68ee',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <SaveIcon />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={handleCancelEditTitle}
+                    sx={{
+                      color: '#6b7280',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <CancelIcon />
+                  </IconButton>
+                </Stack>
+              ) : (
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography 
+                    variant="h5" 
+                    fontWeight={700}
+                    onClick={handleStartEditTitle}
+                    sx={{ 
+                      color: '#1f2937',
+                      lineHeight: 1.3,
+                      cursor: 'text',
+                      flex: 1,
+                      '&:hover': {
+                        bgcolor: '#f9fafb',
+                        px: 1,
+                        mx: -1,
+                        borderRadius: 1,
+                      }
+                    }}
+                  >
+                    {task?.title || 'Đang tải...'}
+                  </Typography>
+                </Stack>
+              )}
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+              {task?._id && (
+                  <Typography 
+                    fontSize="12px" 
+                    color="text.secondary"
+                    sx={{ 
+                      fontFamily: 'monospace',
+                      bgcolor: '#f3f4f6',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontWeight: 500
+                    }}
+                  >
+                    ID: {task._id}
+                  </Typography>
+                )}
                 {/* Status */}
                 {task?.status && (
                   <Chip 
@@ -444,17 +563,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     </Typography>
                   </Stack>
                 )}
-
-                {/* Due Date */}
-                {task?.deadline && (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <CalendarMonthIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                    <Typography fontSize="13px" color="text.secondary">
-                      {new Date(task.deadline).toLocaleDateString()}
-                    </Typography>
-                  </Stack>
-                )}
-
               </Stack>
             </Box>
           </Stack>
@@ -515,7 +623,9 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             </Box>
           ) : (
             <>
-              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={handleTaskUpdate} />}
+              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={async (updates: any) => {
+                await handleTaskUpdate(updates);
+              }} />}
               {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
               {getTabContent(currentTab) === 'comments' && <TaskDetailsComments key={task?.updatedAt || task?._id} taskId={taskId} />}
               {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments key={task?.updatedAt || task?._id} taskId={taskId} />}
@@ -551,9 +661,15 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   value={typeof task?.status === 'object' ? (task.status as any)?._id : task?.status || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ status: e.target.value });
-                    } catch (error) {
+                      const result = await handleTaskUpdate({ status: e.target.value });
+                      if (result?.success) {
+                        toast.success('Đã cập nhật trạng thái thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating status:', error);
+                      toast.error('Không thể cập nhật trạng thái', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
@@ -589,9 +705,15 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   value={typeof task?.priority === 'object' ? (task.priority as any)?._id : task?.priority || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ priority: e.target.value || null });
-                    } catch (error) {
+                      const result = await handleTaskUpdate({ priority: e.target.value || null });
+                      if (result?.success) {
+                        toast.success('Đã cập nhật ưu tiên thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating priority:', error);
+                      toast.error('Không thể cập nhật ưu tiên', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
@@ -684,12 +806,18 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   onChange={async (e) => {
                     const newFunctionId = e.target.value;
                     try {
-                      await handleTaskUpdate({ 
+                      const result = await handleTaskUpdate({ 
                         function_id: newFunctionId || null
                       });
-                    } catch (error) {
+                      // Only show success if there's no validation error
+                      if (result?.success) {
+                        toast.success('Đã cập nhật chức năng thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating function:', error);
-                      alert('Không thể cập nhật function. Vui lòng thử lại.');
+                      toast.error('Không thể cập nhật function', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
@@ -769,9 +897,15 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   value={typeof task?.assignee_id === 'object' ? task.assignee_id?._id || '' : task?.assignee_id || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ assignee_id: e.target.value || null });
-                    } catch (error) {
+                      const result = await handleTaskUpdate({ assignee_id: e.target.value || null });
+                      if (result?.success) {
+                        toast.success('Đã cập nhật người thực hiện thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating assignee:', error);
+                      toast.error('Không thể cập nhật người thực hiện', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
@@ -870,10 +1004,16 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     if (!confirm) return;
                   }
                   try {
-                    await handleTaskUpdate({ start_date: e.target.value });
+                    const result = await handleTaskUpdate({ start_date: e.target.value });
                     await loadDependencies(); // Reload to check new state
-                  } catch (error) {
+                    if (result?.success) {
+                      toast.success('Đã cập nhật ngày bắt đầu thành công');
+                    }
+                  } catch (error: any) {
                     console.error('Error updating start date:', error);
+                    toast.error('Không thể cập nhật ngày bắt đầu', {
+                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                    });
                   }
                 }}
                 InputProps={{
@@ -924,10 +1064,16 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     if (!confirm) return;
                   }
                   try {
-                    await handleTaskUpdate({ deadline: e.target.value });
+                    const result = await handleTaskUpdate({ deadline: e.target.value });
                     await loadDependencies(); // Reload to check new state
-                  } catch (error) {
+                    if (result?.success) {
+                      toast.success('Đã cập nhật hạn chót thành công');
+                    }
+                  } catch (error: any) {
                     console.error('Error updating deadline:', error);
+                    toast.error('Không thể cập nhật hạn chót', {
+                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                    });
                   }
                 }}
                 InputProps={{
@@ -958,9 +1104,15 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 value={task?.estimate || ''}
                 onChange={async (e) => {
                   try {
-                    await handleTaskUpdate({ estimate: Number(e.target.value) });
-                  } catch (error) {
+                    const result = await handleTaskUpdate({ estimate: Number(e.target.value) });
+                    if (result?.success) {
+                      toast.success('Đã cập nhật thời gian ước tính thành công');
+                    }
+                  } catch (error: any) {
                     console.error('Error updating estimate:', error);
+                    toast.error('Không thể cập nhật thời gian ước tính', {
+                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                    });
                   }
                 }}
                 placeholder="0"

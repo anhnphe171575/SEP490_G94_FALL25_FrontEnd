@@ -180,28 +180,7 @@ export default function DocumentPreview({
               </Typography>
             </Box>
           </Stack>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Tải xuống">
-              <IconButton onClick={handleDownload}>
-                <DownloadIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Chia sẻ">
-              <IconButton onClick={handleShare}>
-                <ShareIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Chỉnh sửa">
-              <IconButton onClick={handleEdit}>
-                <EditIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Đóng">
-              <IconButton onClick={onClose}>
-                <CloseIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
+        
         </Stack>
       </DialogTitle>
 
