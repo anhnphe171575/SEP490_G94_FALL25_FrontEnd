@@ -202,7 +202,7 @@ export default function NotificationsPage() {
     return (
       <div className="min-h-screen bg-white text-black">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
             <CircularProgress />
           </Box>
@@ -214,7 +214,7 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-4xl">
           {/* Header */}
           <div className="mb-6 md:mb-8 flex items-center justify-between">

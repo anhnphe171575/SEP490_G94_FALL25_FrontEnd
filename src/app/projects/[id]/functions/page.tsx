@@ -403,7 +403,7 @@ export default function ProjectFunctionsPage() {
     return (
       <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={28} />
           </Box>
