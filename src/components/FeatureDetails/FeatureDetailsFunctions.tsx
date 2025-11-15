@@ -127,7 +127,7 @@ export default function FeatureDetailsFunctions({
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
-          Functions ({functions.length})
+          Chức năng ({functions.length})
         </Typography>
         <Button
           variant="contained"
@@ -141,7 +141,7 @@ export default function FeatureDetailsFunctions({
             '&:hover': { bgcolor: '#6952d6' }
           }}
         >
-          Add Function
+          Thêm chức năng
         </Button>
       </Box>
 
@@ -154,10 +154,10 @@ export default function FeatureDetailsFunctions({
           border: '1px dashed #e8e9eb'
         }}>
           <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-            No functions yet
+            Chưa có chức năng nào
           </Typography>
           <Typography fontSize="12px" color="text.secondary" sx={{ mb: 2 }}>
-            Create your first function to get started
+            Tạo chức năng đầu tiên để bắt đầu
           </Typography>
           <Button
             variant="outlined"
@@ -173,7 +173,7 @@ export default function FeatureDetailsFunctions({
               }
             }}
           >
-            Add Function
+            Thêm chức năng
           </Button>
         </Box>
       ) : (
@@ -181,10 +181,10 @@ export default function FeatureDetailsFunctions({
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '60px' }}>STT</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Function</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Priority</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Chức năng</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Ưu tiên</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Trạng thái</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -268,7 +268,7 @@ export default function FeatureDetailsFunctions({
                       '&:hover': { bgcolor: '#f3f4f6' }
                     }}
                   >
-                    View Details
+                    Xem chi tiết
                   </Button>
                 </TableCell>
               </TableRow>
@@ -279,18 +279,18 @@ export default function FeatureDetailsFunctions({
 
       {/* Create Function Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Function</DialogTitle>
+        <DialogTitle>Tạo chức năng mới</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
-              label="Function Name *"
+              label="Tên chức năng *"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               fullWidth
               required
             />
             <TextField
-              label="Description"
+              label="Mô tả"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               fullWidth
@@ -298,14 +298,14 @@ export default function FeatureDetailsFunctions({
               rows={3}
             />
             <FormControl fullWidth>
-              <InputLabel>Priority</InputLabel>
+              <InputLabel>Ưu tiên</InputLabel>
               <Select
                 value={form.priority_id}
-                label="Priority"
+                label="Ưu tiên"
                 onChange={(e) => setForm({ ...form, priority_id: e.target.value })}
               >
                 <MenuItem value="">
-                  <em>None</em>
+                  <em>Không có</em>
                 </MenuItem>
                 {priorityTypes.map((priority) => (
                   <MenuItem key={priority._id} value={priority._id}>
@@ -315,10 +315,10 @@ export default function FeatureDetailsFunctions({
               </Select>
             </FormControl>
             <FormControl fullWidth required>
-              <InputLabel>Status *</InputLabel>
+              <InputLabel>Trạng thái *</InputLabel>
               <Select
                 value={form.status}
-                label="Status *"
+                label="Trạng thái *"
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
               >
                 {statusTypes.map((status) => (
@@ -331,14 +331,14 @@ export default function FeatureDetailsFunctions({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button onClick={() => setOpenDialog(false)}>Hủy</Button>
           <Button 
             variant="contained" 
             onClick={handleCreate}
             disabled={!form.title || !form.status || loading}
             sx={{ bgcolor: '#7b68ee', '&:hover': { bgcolor: '#6952d6' } }}
           >
-            Create
+            Tạo
           </Button>
         </DialogActions>
       </Dialog>

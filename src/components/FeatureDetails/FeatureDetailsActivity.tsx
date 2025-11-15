@@ -117,7 +117,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'CREATE_FEATURE') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> created this feature
+          <strong>{userName}</strong> đã tạo tính năng này
         </Typography>
       );
     }
@@ -125,7 +125,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'UPDATE_FEATURE') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> updated this feature
+          <strong>{userName}</strong> đã cập nhật tính năng này
         </Typography>
       );
     }
@@ -134,7 +134,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
       return (
         <Box>
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> changed status
+            <strong>{userName}</strong> đã thay đổi trạng thái
           </Typography>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
             {metadata?.old_value && (
@@ -173,7 +173,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
       return (
         <Box>
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> changed priority
+            <strong>{userName}</strong> đã thay đổi ưu tiên
           </Typography>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
             {metadata?.old_value && (
@@ -211,7 +211,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'FEATURE_TITLE_UPDATED') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> updated the title
+          <strong>{userName}</strong> đã cập nhật tiêu đề
         </Typography>
       );
     }
@@ -219,7 +219,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'FEATURE_DESCRIPTION_UPDATED') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> updated the description
+          <strong>{userName}</strong> đã cập nhật mô tả
         </Typography>
       );
     }
@@ -227,7 +227,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'CREATE_COMMENT') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> added a comment
+          <strong>{userName}</strong> đã thêm bình luận
         </Typography>
       );
     }
@@ -235,7 +235,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'UPDATE_COMMENT') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> updated a comment
+          <strong>{userName}</strong> đã cập nhật bình luận
         </Typography>
       );
     }
@@ -243,7 +243,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     if (action === 'DELETE_COMMENT') {
       return (
         <Typography fontSize="14px" color="text.primary">
-          <strong>{userName}</strong> deleted a comment
+          <strong>{userName}</strong> đã xóa bình luận
         </Typography>
       );
     }
@@ -253,21 +253,21 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
       if (action === 'CREATE_FUNCTION') {
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> created function: <strong>{functionTitle}</strong>
+            <strong>{userName}</strong> đã tạo chức năng: <strong>{functionTitle}</strong>
           </Typography>
         );
       }
       if (action === 'UPDATE_FUNCTION') {
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> updated function: <strong>{functionTitle}</strong>
+            <strong>{userName}</strong> đã cập nhật chức năng: <strong>{functionTitle}</strong>
           </Typography>
         );
       }
       if (action === 'DELETE_FUNCTION') {
         return (
           <Typography fontSize="14px" color="text.primary">
-            <strong>{userName}</strong> deleted function: <strong>{functionTitle}</strong>
+            <strong>{userName}</strong> đã xóa chức năng: <strong>{functionTitle}</strong>
           </Typography>
         );
       }
@@ -275,7 +275,7 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
 
     return (
       <Typography fontSize="14px" color="text.primary">
-        <strong>{userName}</strong> performed action: {action}
+        <strong>{userName}</strong> đã thực hiện hành động: {action}
       </Typography>
     );
   };
@@ -288,10 +288,10 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return 'vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
     return logDate.toLocaleDateString();
   };
 
@@ -313,10 +313,10 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
         border: '1px dashed #e8e9eb'
       }}>
         <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-          No activity yet
+          Chưa có hoạt động nào
         </Typography>
         <Typography fontSize="12px" color="text.secondary">
-          Activity logs will appear here as you work on this feature
+          Nhật ký hoạt động sẽ xuất hiện ở đây khi bạn làm việc với tính năng này
         </Typography>
       </Box>
     );

@@ -26,7 +26,9 @@ import BlockIcon from "@mui/icons-material/Block";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import axiosInstance from "../../../ultis/axios";
+import { normalizeStatusValue } from "@/constants/settings";
 import DependencyDateConflictDialog from "../DependencyDateConflictDialog";
+import { toast } from "sonner";
 
 interface TaskDetailsDependenciesProps {
   taskId: string | null;
@@ -87,7 +89,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
       setError(null);
     } catch (error: any) {
       console.error("Error loading dependencies:", error);
-      setError("Failed to load dependencies");
+      setError("Không thể tải phụ thuộc");
     } finally {
       setLoading(false);
     }
@@ -107,7 +109,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
       setAvailableTasks(tasks.filter((t: any) => t._id !== taskId));
     } catch (error) {
       console.error("Error loading tasks:", error);
-      setError("Failed to load available tasks");
+      setError("Không thể tải danh sách công việc");
     }
   };
 
@@ -135,30 +137,57 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
           warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
         });
         
-        alert(warningMessage);
+        toast.warning('Dependency được tạo với cảnh báo', {
+          description: warnings.map((w: any) => w.message).join('\n'),
+          duration: 5000
+        });
       } else if (statusWarning) {
         // Legacy: show status warning
-        const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
-        alert(confirmMessage);
+        toast.warning('Cảnh báo trạng thái', {
+          description: `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency được tạo thành công, nhưng bạn nên kiểm tra trạng thái task.`,
+          duration: 5000
+        });
       } else if (dateWarning) {
-        // Legacy: show date warning  
-        const confirmMessage = `${dateWarning.message}\n\n${dateWarning.suggestion}\n\n✅ Dependency was created successfully.`;
-        alert(confirmMessage);
+        // Legacy: show date warning - especially for SS dependency
+        const isSS = newDependency.dependency_type === 'SS';
+        const warningTitle = isSS 
+          ? '⚠️ Cảnh báo: Ngày bắt đầu không khớp (SS Dependency)'
+          : '⚠️ Cảnh báo: Ngày tháng không khớp';
+        
+        toast.warning(warningTitle, {
+          description: `${dateWarning.message}\n\n${dateWarning.suggestion}\n\n✅ Dependency được tạo thành công.`,
+          duration: 6000
+        });
+      } else {
+        // Success without warnings
+        toast.success('Đã thêm phụ thuộc thành công');
       }
       
       setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
       setShowAddForm(false);
       setError(null);
       await loadDependencies();
+      if (onTaskUpdate) {
+        await onTaskUpdate();
+      }
     } catch (error: any) {
+      console.error('Error adding dependency:', error);
+      console.error('Error response:', error?.response);
+      console.error('Error data:', error?.response?.data);
+      
       const errorData = error?.response?.data;
       if (error?.response?.status === 400 && errorData?.violation) {
         // Date violation - show detailed error
         const violation = errorData.violation;
         const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
+        const isSS = newDependency.dependency_type === 'SS';
+        
+        // For SS dependency, check if we can auto-fix based on required_start_date or predecessor_start_date
+        const canAutoFixSS = violation.required_start_date || violation.predecessor_start_date;
+        const hasRequiredDate = violation.required_start_date || violation.predecessor_start_date;
         
         // Only offer auto-fix for MANDATORY dependencies
-        if (newDependency.is_mandatory && errorData.can_auto_fix && violation.required_start_date) {
+        if (newDependency.is_mandatory && (errorData.can_auto_fix || (isSS && canAutoFixSS)) && hasRequiredDate) {
           // Show new conflict dialog instead of window.confirm
           setConflictViolation(violation);
           setShowConflictDialog(true);
@@ -181,13 +210,36 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
               setNewDependency({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
               setShowAddForm(false);
               await loadDependencies();
+              if (onTaskUpdate) {
+                await onTaskUpdate();
+              }
+              toast.success('Đã thêm phụ thuộc tùy chọn thành công');
             } catch (forceError: any) {
-              setError(forceError?.response?.data?.message || 'Không thể thêm dependency');
+              const forceErrorMsg = forceError?.response?.data?.message || 'Không thể thêm dependency';
+              setError(forceErrorMsg);
+              toast.error('Không thể thêm phụ thuộc', {
+                description: forceErrorMsg
+              });
             }
           }
+        } else {
+          // Mandatory dependency but cannot auto-fix - show error message
+          const errorMsg = errorData?.message || violation?.message || 'Không thể thêm phụ thuộc vì vi phạm quy tắc ngày tháng';
+          const suggestion = violation?.suggestion || '';
+          setError(errorMsg);
+          toast.error('Không thể thêm phụ thuộc', {
+            description: suggestion ? `${errorMsg}\n\n${suggestion}` : errorMsg,
+            duration: 6000
+          });
         }
       } else {
-        setError(errorData?.message || 'Failed to add dependency');
+        // Other 400 errors or non-400 errors
+        const errorMsg = errorData?.message || error?.message || 'Failed to add dependency';
+        setError(errorMsg);
+        toast.error('Không thể thêm phụ thuộc', {
+          description: errorMsg,
+          duration: 5000
+        });
       }
     }
   };
@@ -237,6 +289,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
         await onTaskUpdate();
       }
       console.log('✅ All done!');
+      toast.success('Đã thêm phụ thuộc và tự động điều chỉnh ngày thành công');
     } catch (fixError: any) {
       console.error('❌ Auto-fix error:', fixError);
       console.error('Error details:', fixError?.response?.data);
@@ -258,41 +311,49 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/dependencies/${depId}`);
       await loadDependencies();
+      if (onTaskUpdate) {
+        await onTaskUpdate();
+      }
+      toast.success('Đã xóa phụ thuộc thành công');
     } catch (error: any) {
-      setError(error?.response?.data?.message || 'Failed to remove dependency');
+      const errorMsg = error?.response?.data?.message || 'Không thể xóa phụ thuộc';
+      setError(errorMsg);
+      toast.error('Không thể xóa phụ thuộc', {
+        description: errorMsg
+      });
     }
   };
 
   const getDependencyTypeInfo = (type: string) => {
     const types: Record<string, { label: string; color: string; desc: string; icon: string }> = {
       'FS': { 
-        label: 'Finish-to-Start', 
+        label: 'Hoàn thành - Bắt đầu', 
         color: '#3b82f6', 
-        desc: 'Must finish before successor starts',
+        desc: 'Phải hoàn thành trước khi công việc tiếp theo bắt đầu',
         icon: '→'
       },
       'FF': { 
-        label: 'Finish-to-Finish', 
+        label: 'Hoàn thành - Hoàn thành', 
         color: '#8b5cf6', 
-        desc: 'Must finish together',
+        desc: 'Phải hoàn thành cùng lúc',
         icon: '⟹'
       },
       'SS': { 
-        label: 'Start-to-Start', 
+        label: 'Bắt đầu - Bắt đầu', 
         color: '#10b981', 
-        desc: 'Must start together',
+        desc: 'Phải bắt đầu cùng lúc',
         icon: '⇉'
       },
       'SF': { 
-        label: 'Start-to-Finish', 
+        label: 'Bắt đầu - Hoàn thành', 
         color: '#f59e0b', 
-        desc: 'Must start before successor finishes',
+        desc: 'Phải bắt đầu trước khi công việc tiếp theo hoàn thành',
         icon: '↷'
       },
       'relates_to': { 
-        label: 'Related To', 
+        label: 'Liên quan đến', 
         color: '#6b7280', 
-        desc: 'Reference link only',
+        desc: 'Chỉ liên kết tham chiếu',
         icon: '⟷'
       }
     };
@@ -302,7 +363,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
   if (loading) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Typography>Loading dependencies...</Typography>
+        <Typography>Đang tải phụ thuộc...</Typography>
       </Box>
     );
   }
@@ -327,10 +388,10 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
           <InfoOutlinedIcon sx={{ fontSize: 20, color: '#3b82f6', mt: 0.25 }} />
           <Box>
             <Typography fontSize="13px" fontWeight={600} color="#1e40af" sx={{ mb: 0.5 }}>
-              About Dependencies
+              Về Phụ thuộc
             </Typography>
             <Typography fontSize="12px" color="#3b82f6">
-              Dependencies define relationships between tasks. The system will enforce these constraints when you change task status.
+              Phụ thuộc xác định mối quan hệ giữa các công việc. Hệ thống sẽ thực thi các ràng buộc này khi bạn thay đổi trạng thái công việc.
             </Typography>
           </Box>
         </Stack>
@@ -358,10 +419,10 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             </Box>
             <Box>
               <Typography variant="h6" fontWeight={700}>
-                Waiting on (Blocked by)
+                Đang chờ (Bị chặn bởi)
               </Typography>
               <Typography fontSize="12px" color="text.secondary">
-                Tasks that must be completed before this task can proceed
+                Các công việc phải hoàn thành trước khi công việc này có thể tiếp tục
               </Typography>
             </Box>
           </Stack>
@@ -444,9 +505,9 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                           </Stack>
                         )}
                         {dep.lag_days !== 0 && (
-                          <Tooltip title={dep.lag_days > 0 ? `Lag: ${dep.lag_days} days delay` : `Lead: ${Math.abs(dep.lag_days)} days advance`}>
+                          <Tooltip title={dep.lag_days > 0 ? `Độ trễ: ${dep.lag_days} ngày` : `Độ sớm: ${Math.abs(dep.lag_days)} ngày`}>
                             <Chip
-                              label={dep.lag_days > 0 ? `+${dep.lag_days}d lag` : `${dep.lag_days}d lead`}
+                              label={dep.lag_days > 0 ? `+${dep.lag_days} ngày trễ` : `${Math.abs(dep.lag_days)} ngày sớm`}
                               size="small"
                               sx={{
                                 height: 18,
@@ -459,9 +520,9 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                           </Tooltip>
                         )}
                         {!dep.is_mandatory && (
-                          <Tooltip title="Optional - Soft Logic">
+                          <Tooltip title="Tùy chọn - Ràng buộc mềm">
                             <Chip
-                              label="✏️ Optional"
+                              label="✏️ Tùy chọn"
                               size="small"
                               sx={{
                                 height: 18,
@@ -525,10 +586,10 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             border: '1px dashed #e8e9eb'
           }}>
             <Typography fontSize="14px" color="text.secondary">
-              No dependencies
+              Không có phụ thuộc
             </Typography>
             <Typography fontSize="12px" color="text.secondary" sx={{ mt: 0.5 }}>
-              This task doesn't depend on any other tasks
+              Công việc này không phụ thuộc vào công việc nào khác
             </Typography>
           </Box>
         )}
@@ -546,16 +607,16 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             }}
           >
             <Typography fontSize="14px" fontWeight={700} sx={{ mb: 2, color: '#7b68ee' }}>
-              Add Dependency (This Task Depends On)
+              Thêm Phụ thuộc (Công việc này phụ thuộc vào)
             </Typography>
             
             <Stack spacing={2}>
               {/* Task Selection */}
               <FormControl fullWidth size="small">
-                <InputLabel>Task that must be completed first</InputLabel>
+                <InputLabel>Công việc phải hoàn thành trước</InputLabel>
                 <Select
                   value={newDependency.depends_on_task_id}
-                  label="Task that must be completed first"
+                  label="Công việc phải hoàn thành trước"
                   onChange={(e) => setNewDependency({ ...newDependency, depends_on_task_id: e.target.value })}
                 >
                   {availableTasks.map((task) => (
@@ -576,49 +637,49 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
               {/* Dependency Type & Lag */}
               <Stack direction="row" spacing={2}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Type</InputLabel>
+                  <InputLabel>Loại</InputLabel>
                   <Select
                     value={newDependency.dependency_type}
-                    label="Type"
+                    label="Loại"
                     onChange={(e) => setNewDependency({ ...newDependency, dependency_type: e.target.value })}
                   >
                     <MenuItem value="FS">
                       <Box>
-                        <Typography fontSize="13px" fontWeight={600}>FS - Finish-to-Start</Typography>
+                        <Typography fontSize="13px" fontWeight={600}>FS - Hoàn thành - Bắt đầu</Typography>
                         <Typography fontSize="10px" color="text.secondary">
-                          Predecessor must finish first
+                          Công việc trước phải hoàn thành trước
                         </Typography>
                       </Box>
                     </MenuItem>
                     <MenuItem value="FF">
                       <Box>
-                        <Typography fontSize="13px" fontWeight={600}>FF - Finish-to-Finish</Typography>
+                        <Typography fontSize="13px" fontWeight={600}>FF - Hoàn thành - Hoàn thành</Typography>
                         <Typography fontSize="10px" color="text.secondary">
-                          Both must finish together
+                          Cả hai phải hoàn thành cùng lúc
                         </Typography>
                       </Box>
                     </MenuItem>
                     <MenuItem value="SS">
                       <Box>
-                        <Typography fontSize="13px" fontWeight={600}>SS - Start-to-Start</Typography>
+                        <Typography fontSize="13px" fontWeight={600}>SS - Bắt đầu - Bắt đầu</Typography>
                         <Typography fontSize="10px" color="text.secondary">
-                          Both must start together
+                          Cả hai phải bắt đầu cùng lúc
                         </Typography>
                       </Box>
                     </MenuItem>
                     <MenuItem value="SF">
                       <Box>
-                        <Typography fontSize="13px" fontWeight={600}>SF - Start-to-Finish</Typography>
+                        <Typography fontSize="13px" fontWeight={600}>SF - Bắt đầu - Hoàn thành</Typography>
                         <Typography fontSize="10px" color="text.secondary">
-                          Predecessor must start first
+                          Công việc trước phải bắt đầu trước
                         </Typography>
                       </Box>
                     </MenuItem>
                     <MenuItem value="relates_to">
                       <Box>
-                        <Typography fontSize="13px" fontWeight={600}>Related To</Typography>
+                        <Typography fontSize="13px" fontWeight={600}>Liên quan đến</Typography>
                         <Typography fontSize="10px" color="text.secondary">
-                          Reference only (no constraint)
+                          Chỉ tham chiếu (không ràng buộc)
                         </Typography>
                       </Box>
                     </MenuItem>
@@ -626,7 +687,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                 </FormControl>
 
                 <TextField
-                  label="Lag (days)"
+                  label="Độ trễ (ngày)"
                   type="number"
                   size="small"
                   value={newDependency.lag_days}
@@ -635,10 +696,10 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                   inputProps={{ min: -30, max: 30 }}
                   helperText={
                     newDependency.lag_days > 0 
-                      ? `+${newDependency.lag_days}d delay` 
+                      ? `+${newDependency.lag_days} ngày trễ` 
                       : newDependency.lag_days < 0 
-                        ? `${newDependency.lag_days}d lead` 
-                        : 'No lag'
+                        ? `${Math.abs(newDependency.lag_days)} ngày sớm` 
+                        : 'Không có độ trễ'
                   }
                 />
               </Stack>
@@ -675,12 +736,12 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                   </Box>
                   <Box sx={{ flex: 1 }}>
                     <Typography fontSize="13px" fontWeight={600} color={newDependency.is_mandatory ? '#7b68ee' : '#6b7280'}>
-                      {newDependency.is_mandatory ? '🔒 Mandatory' : '✏️ Optional'}
+                      {newDependency.is_mandatory ? '🔒 Bắt buộc' : '✏️ Tùy chọn'}
                     </Typography>
                     <Typography fontSize="10px" color="text.secondary">
                       {newDependency.is_mandatory 
-                        ? 'Hard logic - must be enforced'
-                        : 'Soft logic - can be changed if needed'}
+                        ? 'Ràng buộc cứng - phải được thực thi'
+                        : 'Ràng buộc mềm - có thể thay đổi nếu cần'}
                     </Typography>
                   </Box>
                 </Stack>
@@ -688,14 +749,14 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
 
               {/* Notes */}
               <TextField
-                label="Notes (Optional)"
+                label="Ghi chú (Tùy chọn)"
                 size="small"
                 multiline
                 rows={2}
                 value={newDependency.notes}
                 onChange={(e) => setNewDependency({ ...newDependency, notes: e.target.value })}
-                placeholder="Explain why this dependency exists..."
-                helperText="Provide context for team members"
+                placeholder="Giải thích lý do phụ thuộc này tồn tại..."
+                helperText="Cung cấp ngữ cảnh cho các thành viên trong nhóm"
               />
 
               {/* Action Buttons */}
@@ -708,7 +769,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                   }}
                   sx={{ textTransform: 'none', fontWeight: 600, color: '#6b7280' }}
                 >
-                  Cancel
+                  Hủy
                 </Button>
                 <Button
                   size="small"
@@ -722,7 +783,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                     '&:hover': { bgcolor: '#6952d6' }
                   }}
                 >
-                  Add Dependency
+                  Thêm Phụ thuộc
                 </Button>
               </Stack>
             </Stack>
@@ -749,7 +810,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
               }
             }}
           >
-            Add Blocking Dependency
+            Thêm Phụ thuộc Chặn
           </Button>
         )}
       </Box>
@@ -778,10 +839,10 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             </Box>
             <Box>
               <Typography variant="h6" fontWeight={700}>
-                Blocking
+                Đang chặn
               </Typography>
               <Typography fontSize="12px" color="text.secondary">
-                Tasks that are waiting for this task to be completed
+                Các công việc đang chờ công việc này hoàn thành
               </Typography>
             </Box>
           </Stack>
@@ -802,7 +863,8 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
           <Stack spacing={1.5}>
             {dependents.map((dep) => {
               const depInfo = getDependencyTypeInfo(dep.dependency_type);
-              const isBlocking = ['In Progress', 'Testing', 'Review', 'Done', 'Completed'].includes(dep.task_id?.status);
+              const dependentStatus = normalizeStatusValue(dep.task_id?.status);
+              const isBlocking = dependentStatus === 'Doing' || dependentStatus === 'Done';
               
               return (
                 <Paper
@@ -844,7 +906,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                       </Typography>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Chip 
-                          label={dep.task_id?.status} 
+                          label={dependentStatus} 
                           size="small"
                           sx={{ 
                             height: 20,
@@ -865,9 +927,9 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                           </Stack>
                         )}
                         {dep.lag_days !== 0 && (
-                          <Tooltip title={dep.lag_days > 0 ? `Lag: ${dep.lag_days} days delay` : `Lead: ${Math.abs(dep.lag_days)} days advance`}>
+                          <Tooltip title={dep.lag_days > 0 ? `Độ trễ: ${dep.lag_days} ngày` : `Độ sớm: ${Math.abs(dep.lag_days)} ngày`}>
                             <Chip
-                              label={dep.lag_days > 0 ? `+${dep.lag_days}d lag` : `${dep.lag_days}d lead`}
+                              label={dep.lag_days > 0 ? `+${dep.lag_days} ngày trễ` : `${Math.abs(dep.lag_days)} ngày sớm`}
                               size="small"
                               sx={{
                                 height: 18,
@@ -880,9 +942,9 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                           </Tooltip>
                         )}
                         {!dep.is_mandatory && (
-                          <Tooltip title="Optional - Soft Logic">
+                          <Tooltip title="Tùy chọn - Ràng buộc mềm">
                             <Chip
-                              label="✏️ Optional"
+                              label="✏️ Tùy chọn"
                               size="small"
                               sx={{
                                 height: 18,
@@ -928,10 +990,10 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             border: '1px dashed #e8e9eb'
           }}>
             <Typography fontSize="14px" color="text.secondary">
-              Not blocking any tasks
+              Không chặn công việc nào
             </Typography>
             <Typography fontSize="12px" color="text.secondary" sx={{ mt: 0.5 }}>
-              No other tasks are waiting for this task to be completed
+              Không có công việc nào khác đang chờ công việc này hoàn thành
             </Typography>
           </Box>
         )}
@@ -946,7 +1008,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
         border: '1px solid #e8e9eb'
       }}>
         <Typography fontSize="12px" fontWeight={700} color="#6b7280" sx={{ mb: 1.5 }}>
-          DEPENDENCY TYPES
+          CÁC LOẠI PHỤ THUỘC
         </Typography>
         <Stack spacing={1}>
           {['FS', 'FF', 'SS', 'SF', 'relates_to'].map((type) => {

@@ -1,12 +1,35 @@
 // Status options for tasks, features, functions, and milestones
 export const STATUS_OPTIONS = [
-  { _id: "Planning", name: "Planning", value: "planning", description: "Đang lên kế hoạch" },
-  { _id: "In Progress", name: "In Progress", value: "in-progress", description: "Đang thực hiện" },
-  { _id: "Testing", name: "Testing", value: "testing", description: "Đang kiểm thử" },
-  { _id: "Completed", name: "Completed", value: "completed", description: "Đã hoàn thành" },
-  { _id: "Cancelled", name: "Cancelled", value: "cancelled", description: "Đã hủy bỏ" },
-  { _id: "On Hold", name: "On Hold", value: "on-hold", description: "Tạm dừng" },
+  { _id: "To Do", name: "To Do", value: "to-do", description: "Cần thực hiện" },
+  { _id: "Doing", name: "Doing", value: "doing", description: "Đang thực hiện" },
+  { _id: "Done", name: "Done", value: "done", description: "Đã hoàn thành" },
 ];
+
+const STATUS_NORMALIZE_MAP: Record<string, "To Do" | "Doing" | "Done"> = {
+  "To Do": "To Do",
+  "Doing": "Doing",
+  "Done": "Done",
+  "Planning": "To Do",
+  "Planned": "To Do",
+  "Pending": "To Do",
+  "Backlog": "To Do",
+  "In Progress": "Doing",
+  "Review": "Doing",
+  "Testing": "Doing",
+  "On Hold": "Doing",
+  "In Review": "Doing",
+  "Blocked": "Doing",
+  "Completed": "Done",
+  "Resolved": "Done",
+  "Closed": "Done",
+  "Cancelled": "Done",
+};
+
+export const normalizeStatusValue = (status?: string | null) => {
+  if (!status) return "To Do";
+  const trimmed = status.trim();
+  return STATUS_NORMALIZE_MAP[trimmed] || "To Do";
+};
 
 // Priority options for tasks, features, functions, and milestones
 export const PRIORITY_OPTIONS = [

@@ -167,6 +167,11 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-100">
       <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64 space-y-8">
+        {/* QuickNav - Always at the top */}
+        <div>
+          <QuickNav selectedProject={projectId} />
+        </div>
+
         {/* Header with gradient background */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 p-8 shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
@@ -185,11 +190,6 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           </div>
-        </div>
-
-        {/* Quick Navigation */}
-        <div className="flex justify-end">
-          <QuickNav selectedProject={projectId} />
         </div>
 
         {/* Meta Cards with improved styling */}

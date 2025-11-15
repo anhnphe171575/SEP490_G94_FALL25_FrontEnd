@@ -195,6 +195,68 @@ export default function DashboardPage() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
 
+  // Warning dialog for existing project
+  const [openWarningDialog, setOpenWarningDialog] = useState(false);
+  const [existingProject, setExistingProject] = useState<Project | null>(null);
+  const [currentSemester, setCurrentSemester] = useState<string | null>(null);
+
+  // Check if user has project in current semester (for create project)
+  const checkExistingProject = async (): Promise<Project | null> => {
+    try {
+      const response = await axiosInstance.get('/api/projects');
+      const data = response.data;
+      
+      // Get current semester from API response
+      const semester = data.currentSemester?.semester || data.currentSemester;
+      if (semester) {
+        setCurrentSemester(semester);
+      }
+      
+      // Check if user has any project in current semester
+      const allProjects = data.projects || [];
+      const currentSemesterProject = allProjects.find((p: Project) => p.semester === semester);
+      
+      return currentSemesterProject || null;
+    } catch (error) {
+      console.error('Error checking existing project:', error);
+      return null;
+    }
+  };
+
+  // Check if user has any project (for join project - check all semesters)
+  const checkAnyExistingProject = async (): Promise<Project | null> => {
+    try {
+      const response = await axiosInstance.get('/api/projects');
+      const data = response.data;
+      
+      // Check if user has any project at all
+      const allProjects = data.projects || [];
+      if (allProjects.length > 0) {
+        // Return the most recent project
+        return allProjects.sort((a: Project, b: Project) => {
+          const dateA = new Date(a.createAt || a.updateAt || 0);
+          const dateB = new Date(b.createAt || b.updateAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        })[0];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error checking any existing project:', error);
+      return null;
+    }
+  };
+
+  // Handle create project button click
+  const handleCreateProjectClick = async () => {
+    const existing = await checkExistingProject();
+    if (existing) {
+      setExistingProject(existing);
+      setOpenWarningDialog(true);
+    } else {
+      router.push('/projects/new');
+    }
+  };
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
@@ -207,6 +269,12 @@ export default function DashboardPage() {
         // Assuming endpoint exists: /api/projects (adjust if different)
         const response = await axiosInstance.get('/api/projects');
         const data = response.data;
+
+        // Get current semester from API response
+        const semester = data.currentSemester?.semester || data.currentSemester;
+        if (semester) {
+          setCurrentSemester(semester);
+        }
 
         // Xử lý dữ liệu từ API
         if (data.statistics?.bySemester) {
@@ -428,7 +496,15 @@ export default function DashboardPage() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => setOpenJoinDialog(true)}
+                onClick={async () => {
+                  const existing = await checkAnyExistingProject();
+                  if (existing) {
+                    setExistingProject(existing);
+                    setOpenWarningDialog(true);
+                  } else {
+                    setOpenJoinDialog(true);
+                  }
+                }}
                 className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,7 +513,7 @@ export default function DashboardPage() {
                 Tham gia dự án
               </button>
               <button
-                onClick={() => router.push('/projects/new')}
+                onClick={handleCreateProjectClick}
                 className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -564,7 +640,15 @@ export default function DashboardPage() {
             {!searchTerm && (
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
-                  onClick={() => setOpenJoinDialog(true)}
+                  onClick={async () => {
+                    const existing = await checkAnyExistingProject();
+                    if (existing) {
+                      setExistingProject(existing);
+                      setOpenWarningDialog(true);
+                    } else {
+                      setOpenJoinDialog(true);
+                    }
+                  }}
                   className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 justify-center"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -573,7 +657,7 @@ export default function DashboardPage() {
                   Tham gia dự án
                 </button>
                 <button
-                  onClick={() => router.push('/projects/new')}
+                  onClick={handleCreateProjectClick}
                   className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
                 >
                   Tạo dự án đầu tiên
@@ -816,6 +900,96 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {/* Warning Dialog for Existing Project */}
+      <Dialog open={openWarningDialog} onClose={() => setOpenWarningDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <span>Không thể {existingProject?.semester === currentSemester ? 'tạo dự án mới' : 'thực hiện thao tác này'}</span>
+          </div>
+          <IconButton onClick={() => setOpenWarningDialog(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <div className="space-y-4 pt-4">
+            <Alert severity="warning">
+              <Typography variant="body1" className="font-semibold mb-2">
+                {existingProject?.semester === currentSemester 
+                  ? 'Bạn đã tham gia dự án trong kỳ học hiện tại'
+                  : 'Bạn đã tham gia một dự án'}
+              </Typography>
+              <Typography variant="body2">
+                {existingProject?.semester === currentSemester
+                  ? 'Mỗi sinh viên chỉ được tham gia 1 dự án duy nhất trong 1 học kỳ.'
+                  : 'Mỗi người dùng chỉ được tham gia 1 dự án duy nhất.'}
+              </Typography>
+            </Alert>
+
+            {existingProject && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <Typography variant="subtitle2" className="font-semibold text-blue-900 mb-2">
+                  Dự án hiện tại của bạn:
+                </Typography>
+                <div className="space-y-2">
+                  <div>
+                    <Typography variant="body2" className="text-gray-600">
+                      Tên dự án:
+                    </Typography>
+                    <Typography variant="body1" className="font-medium text-gray-900">
+                      {existingProject.topic}
+                    </Typography>
+                  </div>
+                  <div>
+                    <Typography variant="body2" className="text-gray-600">
+                      Mã dự án:
+                    </Typography>
+                    <Typography variant="body1" className="font-mono font-medium text-gray-900">
+                      {existingProject.code}
+                    </Typography>
+                  </div>
+                  {existingProject.semester && (
+                    <div>
+                      <Typography variant="body2" className="text-gray-600">
+                        Kỳ học:
+                      </Typography>
+                      <Typography variant="body1" className="font-medium text-gray-900">
+                        {existingProject.semester}
+                      </Typography>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <Typography variant="body2" color="text.secondary">
+                <strong>Lưu ý:</strong> Nếu bạn muốn tạo dự án mới, vui lòng hoàn thành hoặc rời khỏi dự án hiện tại trước.
+              </Typography>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenWarningDialog(false)}>
+            Đóng
+          </Button>
+          {existingProject && (
+            <Button
+              onClick={() => {
+                setOpenWarningDialog(false);
+                router.push(`/projects/${existingProject._id}/details`);
+              }}
+              variant="contained"
+              color="primary"
+            >
+              Mở dự án hiện tại
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
       {/* Join Project Dialog */}
       <Dialog open={openJoinDialog} onClose={handleCloseJoinDialog} maxWidth="sm" fullWidth>
         <DialogTitle className="flex items-center justify-between">

@@ -32,6 +32,7 @@ import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import FunctionDetailsComments from "./FunctionDetails/FunctionDetailsComments";
 import FunctionDetailsActivity from "./FunctionDetails/FunctionDetailsActivity";
 import FunctionDetailsTasks from "./FunctionDetails/FunctionDetailsTasks";
+import { toast } from "sonner";
 
 type FunctionType = {
   _id: string;
@@ -106,6 +107,9 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
       setDescription(response.data?.description || '');
     } catch (error: any) {
       console.error("Error loading function:", error);
+      toast.error("Không thể tải thông tin function", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     } finally {
       setLoading(false);
     }
@@ -116,8 +120,11 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
       await axiosInstance.patch(`/api/functions/${functionId}`, updates);
       await loadFunctionDetails();
       if (onUpdate) onUpdate();
+      toast.success("Đã cập nhật thành công");
     } catch (error: any) {
       console.error("Error updating function:", error);
+      const errorMessage = error?.response?.data?.message || "Không thể cập nhật function";
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -128,6 +135,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
       setEditing(false);
     } catch (error) {
       console.error("Error saving description:", error);
+      // Error already shown in handleFunctionUpdate
     }
   };
 
@@ -200,7 +208,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                 padding: 0
               }}
             >
-              {func?.feature_id && typeof func.feature_id === 'object' ? func.feature_id.title : 'Functions'}
+              {func?.feature_id && typeof func.feature_id === 'object' ? func.feature_id.title : 'Chức năng'}
             </Link>
             <Typography 
               fontSize="13px" 
@@ -213,7 +221,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                 whiteSpace: 'nowrap'
               }}
             >
-              {func?.title || 'Function Details'}
+              {func?.title || 'Chi tiết chức năng'}
             </Typography>
           </Breadcrumbs>
 
@@ -251,6 +259,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                         await handleFunctionUpdate({ title: title.trim() });
                       } catch (error) {
                         console.error('Error updating title:', error);
+                        // Error already shown in handleFunctionUpdate
                       }
                     }
                     setEditingTitle(false);
@@ -376,10 +385,10 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
               }
             }}
           >
-            <Tab label="Overview" />
-            <Tab label="Tasks" icon={<AssignmentIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab label="Comments" icon={<ChatBubbleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab label="Activity" icon={<TimelineIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
+            <Tab label="Tổng quan" />
+            <Tab label="Công việc" icon={<AssignmentIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
+            <Tab label="Bình luận" icon={<ChatBubbleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
+            <Tab label="Hoạt động" icon={<TimelineIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
           </Tabs>
         </Box>
       </Box>
@@ -406,7 +415,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
               {getTabContent(currentTab) === 'overview' && (
                 <Box>
                   <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase" sx={{ mb: 2 }}>
-                    Description
+                    Mô tả
                   </Typography>
                   
                   {editing ? (
@@ -417,7 +426,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                         rows={8}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Add a description..."
+                        placeholder="Thêm mô tả..."
                         sx={{ 
                           mb: 2,
                           '& .MuiOutlinedInput-root': { 
@@ -441,12 +450,12 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                             '&:hover': { color: '#374151' }
                           }}
                         >
-                          Cancel
+                          Hủy
                         </Typography>
                         <Typography
                           component="button"
                           onClick={handleSaveDescription}
-                          sx={{ 
+                          sx={{
                             border: 'none',
                             background: '#7b68ee',
                             cursor: 'pointer',
@@ -458,7 +467,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                             '&:hover': { background: '#6952d6' }
                           }}
                         >
-                          Save
+                          Lưu
                         </Typography>
                       </Stack>
                     </Box>
@@ -488,7 +497,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                         </Typography>
                       ) : (
                         <Typography fontSize="14px" color="text.secondary" fontStyle="italic">
-                          Click to add a description...
+                          Nhấp để thêm mô tả...
                         </Typography>
                       )}
                     </Box>
@@ -527,14 +536,14 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
             fontWeight={700} 
             sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
           >
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Status */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Status
+                Trạng thái
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -544,12 +553,13 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                       await handleFunctionUpdate({ status: e.target.value });
                     } catch (error) {
                       console.error('Error updating status:', error);
+                      // Error already shown in handleFunctionUpdate
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
                     const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Select status';
+                    return statusObj?.name || 'Chọn trạng thái';
                   }}
                   sx={{ fontSize: '13px', fontWeight: 500 }}
                 >
@@ -563,7 +573,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
             {/* Priority */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Priority
+                Ưu tiên
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -573,11 +583,12 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                       await handleFunctionUpdate({ priority_id: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
+                      // Error already shown in handleFunctionUpdate
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'No priority';
+                    if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -588,7 +599,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                   }}
                   sx={{ fontSize: '13px', fontWeight: 500 }}
                 >
-                  <MenuItem value="">No Priority</MenuItem>
+                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -609,7 +620,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
             {/* Feature */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Feature
+                Tính năng
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -619,18 +630,19 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                       await handleFunctionUpdate({ feature_id: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating feature:', error);
+                      // Error already shown in handleFunctionUpdate
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Select feature</em>;
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn tính năng</em>;
                     const selected = allFeatures.find((f: any) => f._id === value);
-                    return selected?.title || 'Unknown';
+                    return selected?.title || 'Không xác định';
                   }}
                   sx={{ fontSize: '13px', fontWeight: 500 }}
                 >
                   <MenuItem value="">
-                    <em>No Feature</em>
+                    <em>Không có tính năng</em>
                   </MenuItem>
                   {allFeatures.map((f: any) => (
                     <MenuItem key={f._id} value={f._id}>{f.title}</MenuItem>
@@ -644,7 +656,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
             {/* Start Date */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Start Date
+                Ngày bắt đầu
               </Typography>
               <TextField
                 type="date"
@@ -656,6 +668,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                     await handleFunctionUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating start date:', error);
+                    // Error already shown in handleFunctionUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -666,7 +679,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
             {/* Deadline */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Deadline
+                Hạn chót
               </Typography>
               <TextField
                 type="date"
@@ -678,6 +691,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                     await handleFunctionUpdate({ deadline: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating deadline:', error);
+                    // Error already shown in handleFunctionUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}

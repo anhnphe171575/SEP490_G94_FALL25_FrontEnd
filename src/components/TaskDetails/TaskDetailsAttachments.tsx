@@ -21,6 +21,7 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
+  Tooltip,
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import LinkIcon from "@mui/icons-material/Link";
@@ -88,6 +89,14 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   // Validate file
@@ -161,22 +170,9 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
 
       try {
         await axiosInstance.post(`/api/tasks/${taskId}/attachments`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / (progressEvent.total || 1)
-            );
-            setUploadProgress(prev => ({
-              ...prev,
-              [fileId]: {
-                fileName: file.name,
-                progress: percentCompleted,
-                status: 'uploading'
-              }
-            }));
-          }
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
-
+        
         setUploadProgress(prev => ({
           ...prev,
           [fileId]: {
@@ -185,16 +181,8 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
             status: 'success'
           }
         }));
-
-        // Remove progress after 2 seconds
-        setTimeout(() => {
-          setUploadProgress(prev => {
-            const newPrev = { ...prev };
-            delete newPrev[fileId];
-            return newPrev;
-          });
-        }, 2000);
-
+        
+        await loadAttachments();
       } catch (error: any) {
         console.error("Error uploading file:", error);
         setUploadProgress(prev => ({
@@ -206,40 +194,10 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
             error: error?.response?.data?.message || 'Failed to upload file'
           }
         }));
-
-        setSnackbar({
-          open: true,
-          message: `Failed to upload ${file.name}: ${error?.response?.data?.message || 'Unknown error'}`,
-          severity: 'error'
-        });
       }
     }
 
     setUploading(false);
-    await loadAttachments();
-
-    if (validFiles.length > 0 && errors.length === 0) {
-      setSnackbar({
-        open: true,
-        message: `Successfully uploaded ${validFiles.length} file(s)`,
-        severity: 'success'
-      });
-    }
-  };
-
-  // Handle input file change
-  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleFileUpload(event.target.files);
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // Drag and drop handlers
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
   };
 
   const handleDragIn = (e: React.DragEvent) => {
@@ -249,6 +207,11 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       setDragActive(true);
     }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleDragOut = (e: React.DragEvent) => {
@@ -268,6 +231,12 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFileUpload(e.dataTransfer.files);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileUpload(e.target.files);
     }
   };
 
@@ -302,7 +271,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
 
   // Delete attachment
   const deleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Delete this attachment?')) return;
+    if (!confirm('Xóa tệp đính kèm này?')) return;
     
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/attachments/${attachmentId}`);
@@ -417,14 +386,6 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
     return <InsertDriveFileIcon />;
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto' }}>
       {/* Header */}
@@ -442,11 +403,11 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
             <AttachFileIcon sx={{ fontSize: 18, color: '#3b82f6' }} />
           </Box>
           <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ color: '#1f2937' }}>
-              Attachments
+            <Typography variant="h6" fontWeight={700}>
+              Tệp đính kèm
             </Typography>
-            <Typography fontSize="12px" sx={{ color: '#666' }}>
-              {attachments.length} {attachments.length === 1 ? 'file' : 'files'}
+            <Typography fontSize="12px" color="text.secondary">
+              {attachments.length} {attachments.length === 1 ? 'tệp' : 'tệp'}
             </Typography>
           </Box>
         </Stack>
@@ -470,7 +431,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               }
             }}
           >
-            {uploading ? 'Uploading...' : 'Upload File'}
+            Tải lên tệp
             <input
               ref={fileInputRef}
               type="file"
@@ -500,7 +461,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               }
             }}
           >
-            Add Link
+            Thêm liên kết
           </Button>
         </Stack>
       </Box>
@@ -617,8 +578,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
       {/* Attachments List */}
       {loading ? (
         <Box sx={{ p: 4, textAlign: 'center' }}>
-          <CircularProgress size={32} sx={{ color: '#7b68ee', mb: 2 }} />
-          <Typography sx={{ color: '#666' }}>Loading attachments...</Typography>
+          <Typography color="text.secondary">Đang tải tệp đính kèm...</Typography>
         </Box>
       ) : attachments.length === 0 ? (
         <Box sx={{ 
@@ -628,13 +588,34 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
           borderRadius: 2,
           border: '1px solid #e8e9eb'
         }}>
-          <AttachFileIcon sx={{ fontSize: 48, color: '#d1d5db', mb: 2 }} />
-          <Typography fontSize="14px" fontWeight={600} sx={{ color: '#666', mb: 0.5 }}>
-            No attachments yet
+          <CloudUploadIcon sx={{ fontSize: 64, color: '#d1d5db', mb: 2 }} />
+          <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
+            Chưa có tệp đính kèm nào
           </Typography>
-          <Typography fontSize="12px" sx={{ color: '#666', mb: 3 }}>
-            Upload files or add links to keep everything organized
+          <Typography fontSize="12px" color="text.secondary" sx={{ mb: 3 }}>
+            Tải lên tệp hoặc thêm liên kết để giữ mọi thứ được tổ chức
           </Typography>
+          <Stack direction="row" spacing={1} justifyContent="center">
+            <Button
+              component="label"
+              size="small"
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              Tải lên tệp
+              <input type="file" hidden multiple onChange={handleInputChange} />
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<LinkIcon />}
+              onClick={() => setOpenLinkDialog(true)}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              Thêm liên kết
+            </Button>
+          </Stack>
         </Box>
       ) : (
         <Box sx={{ 
@@ -777,9 +758,10 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
                     )}
                   </Box>
 
-                  {/* Actions */}
-                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
-                    {attachment.file_url && (
+                {/* Actions */}
+                <Stack direction="row" spacing={0.5}>
+                  {attachment.file_url && (
+                    <Tooltip title="Tải xuống">
                       <IconButton
                         size="small"
                         onClick={() => {
@@ -801,17 +783,18 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
                           <DownloadIcon sx={{ fontSize: 18 }} />
                         )}
                       </IconButton>
-                    )}
-                    <IconButton
-                      size="small"
-                      onClick={() => deleteAttachment(attachment._id)}
-                      sx={{ 
-                        color: '#9ca3af'
-                      }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </Stack>
+                    </Tooltip>
+                  )}
+                  <IconButton
+                    size="small"
+                    onClick={() => deleteAttachment(attachment._id)}
+                    sx={{ 
+                      color: '#9ca3af'
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Stack>
                 </Stack>
               </Paper>
             );
@@ -830,24 +813,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
         fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle sx={{ fontWeight: 700, pb: 2, color: '#1f2937' }}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Box sx={{ 
-              width: 40, 
-              height: 40, 
-              borderRadius: 2, 
-              bgcolor: '#eff6ff', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center' 
-            }}>
-              <LinkIcon sx={{ fontSize: 20, color: '#3b82f6' }} />
-            </Box>
-            <Typography variant="h6" fontWeight={700}>
-              Add Link Attachment
-            </Typography>
-          </Stack>
-        </DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Thêm liên kết</DialogTitle>
         <DialogContent>
           <Stack spacing={2.5} sx={{ mt: 1 }}>
             <TextField
@@ -878,18 +844,13 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               helperText="Optional: Custom name for this link"
             />
             <TextField
-              label="Description"
+              label="Mô tả"
               fullWidth
               multiline
               rows={3}
               value={linkForm.description}
               onChange={(e) => setLinkForm({ ...linkForm, description: e.target.value })}
-              placeholder="Optional description"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2
-                }
-              }}
+              placeholder="Mô tả tùy chọn"
             />
           </Stack>
         </DialogContent>
@@ -907,7 +868,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               px: 2
             }}
           >
-            Cancel
+            Hủy
           </Button>
           <Button
             variant="contained"
@@ -917,17 +878,10 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
               textTransform: 'none',
               fontWeight: 600,
               bgcolor: '#7b68ee',
-              borderRadius: 2,
-              px: 3,
-              '&:hover': { bgcolor: '#6952d6' },
-              '&:disabled': {
-                bgcolor: '#e5e7eb',
-                color: '#9ca3af'
-              }
+              '&:hover': { bgcolor: '#6952d6' }
             }}
-            startIcon={<LinkIcon />}
           >
-            Add Link
+            Thêm liên kết
           </Button>
         </DialogActions>
       </Dialog>

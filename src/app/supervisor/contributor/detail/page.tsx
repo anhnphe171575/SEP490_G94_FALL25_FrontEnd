@@ -271,8 +271,8 @@ export default function ContributorDetailPage() {
               </Link>
             </div>
 
-            {/* Quick Navigation */}
-            <div className="flex justify-end mb-6">
+            {/* QuickNav - Always at the top */}
+            <div className="mb-6">
               <QuickNav selectedProject={projectId} />
             </div>
 
