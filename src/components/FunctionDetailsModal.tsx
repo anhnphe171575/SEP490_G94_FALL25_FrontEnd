@@ -32,6 +32,7 @@ import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import FunctionDetailsComments from "./FunctionDetails/FunctionDetailsComments";
 import FunctionDetailsActivity from "./FunctionDetails/FunctionDetailsActivity";
 import FunctionDetailsTasks from "./FunctionDetails/FunctionDetailsTasks";
+import { toast } from "sonner";
 
 type FunctionType = {
   _id: string;
@@ -106,6 +107,9 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
       setDescription(response.data?.description || '');
     } catch (error: any) {
       console.error("Error loading function:", error);
+      toast.error("Không thể tải thông tin function", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     } finally {
       setLoading(false);
     }
@@ -116,8 +120,11 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
       await axiosInstance.patch(`/api/functions/${functionId}`, updates);
       await loadFunctionDetails();
       if (onUpdate) onUpdate();
+      toast.success("Đã cập nhật thành công");
     } catch (error: any) {
       console.error("Error updating function:", error);
+      const errorMessage = error?.response?.data?.message || "Không thể cập nhật function";
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -128,6 +135,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
       setEditing(false);
     } catch (error) {
       console.error("Error saving description:", error);
+      // Error already shown in handleFunctionUpdate
     }
   };
 
@@ -251,6 +259,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                         await handleFunctionUpdate({ title: title.trim() });
                       } catch (error) {
                         console.error('Error updating title:', error);
+                        // Error already shown in handleFunctionUpdate
                       }
                     }
                     setEditingTitle(false);
@@ -544,6 +553,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                       await handleFunctionUpdate({ status: e.target.value });
                     } catch (error) {
                       console.error('Error updating status:', error);
+                      // Error already shown in handleFunctionUpdate
                     }
                   }}
                   displayEmpty
@@ -573,6 +583,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                       await handleFunctionUpdate({ priority_id: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
+                      // Error already shown in handleFunctionUpdate
                     }
                   }}
                   displayEmpty
@@ -619,6 +630,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                       await handleFunctionUpdate({ feature_id: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating feature:', error);
+                      // Error already shown in handleFunctionUpdate
                     }
                   }}
                   displayEmpty
@@ -656,6 +668,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                     await handleFunctionUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating start date:', error);
+                    // Error already shown in handleFunctionUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -678,6 +691,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                     await handleFunctionUpdate({ deadline: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating deadline:', error);
+                    // Error already shown in handleFunctionUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}

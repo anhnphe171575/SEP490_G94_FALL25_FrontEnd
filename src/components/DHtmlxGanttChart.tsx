@@ -75,16 +75,6 @@ export default function DHtmlxGanttChart({
     // Configure Gantt
     gantt.config.date_format = "%Y-%m-%d";
 
-    const getAssigneeInitial = (assignee: string) => {
-      if (!assignee) return "";
-      return assignee.trim().charAt(0).toUpperCase();
-    };
-    const getAssigneeName = (assignee: string) => {
-      if (!assignee) return "";
-      const parts = assignee.trim().split(/\s+/);
-      return parts[0];
-    };
-
     // Beautiful columns with icons
     gantt.config.columns = [
       {
@@ -99,7 +89,8 @@ export default function DHtmlxGanttChart({
           if (isFunction || task.type === "project") {
             return `
               <div class="gantt-grid-cell gantt-grid-cell--project">
-                <span class="gantt-grid-cell__title gantt-grid-cell__title--project">${task.text}</span>
+                <span class="gantt-grid-cell__icon"></span>
+                <span class="gantt-grid-cell__title gantt-grid-cell__title--project">Task Group</span>
               </div>
             `;
           }
@@ -107,7 +98,7 @@ export default function DHtmlxGanttChart({
           return `
             <div class="gantt-grid-cell">
               <span class="gantt-grid-status" style="background:${color}; box-shadow:0 0 0 3px ${color}22;"></span>
-              <span class="gantt-grid-cell__title">${task.text}</span>
+              <span class="gantt-grid-cell__title">${task.text} </span>
             </div>
           `;
         }
@@ -256,8 +247,7 @@ export default function DHtmlxGanttChart({
       if (task.isFunction === true) {
         return `<strong>${task.text}</strong>`;
       }
-      const percent = Math.round((task.progress || 0) * 100);
-      return `<span style="display: inline-block;">${task.text}</span> <span style="opacity: 0.85; font-size: 11px; margin-left: 4px;">${percent}%</span>`;
+      return `<span style="display: inline-block;">${task.text}</span>`;
     };
     
     // Tooltip

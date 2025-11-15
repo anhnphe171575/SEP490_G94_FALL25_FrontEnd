@@ -173,9 +173,8 @@ export default function DashboardSupervisorPage() {
         });
 
         // Then get projects by mentor
-        const response = await axiosInstance.get(`/api/projects/mentor/${userData._id}`);
+        const response = await axiosInstance.get(`/api/projects/supervisor/${userData._id}`);
         const data = response.data;
-
         if (data.success && data.data) {
           const projectsList = Array.isArray(data.data) ? data.data : [];
           
@@ -315,10 +314,7 @@ export default function DashboardSupervisorPage() {
             </div>
           </div>
 
-          {/* Quick Navigation */}
-          <div className="flex justify-end mb-6">
-            <QuickNav />
-          </div>
+          
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

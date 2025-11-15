@@ -151,120 +151,13 @@ export default function DependencyDateConflictDialog({
             )}
           </Alert>
 
-          {/* Current Dates */}
-          <Box sx={{ 
-            bgcolor: '#f5f5f5', 
-            p: 2, 
-            borderRadius: 2,
-            border: '1px solid #e0e0e0',
-          }}>
-            <Typography fontSize="12px" fontWeight={700} color="text.secondary" sx={{ mb: 1.5 }}>
-              📅 NGÀY HIỆN TẠI
-            </Typography>
-            <Stack spacing={1}>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography fontSize="13px" color="text.secondary">
-                  Bắt đầu:
-                </Typography>
-                <Typography fontSize="13px" fontWeight={600} color="text.primary">
-                  {formatDate(violation.current_start_date)}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography fontSize="13px" color="text.secondary">
-                  Kết thúc:
-                </Typography>
-                <Typography fontSize="13px" fontWeight={600} color="text.primary">
-                  {formatDate(violation.current_deadline)}
-                </Typography>
-              </Stack>
-              {duration > 0 && (
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography fontSize="13px" color="text.secondary">
-                    Thời lượng:
-                  </Typography>
-                  <Chip
-                    label={`${duration} ngày`}
-                    size="small"
-                    sx={{ 
-                      height: 20,
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      bgcolor: '#e3f2fd',
-                      color: '#1976d2',
-                    }}
-                  />
-                </Stack>
-              )}
-            </Stack>
-          </Box>
-
-          {/* Required Dates */}
-          <Box sx={{ 
-            bgcolor: '#e8f5e9', 
-            p: 2, 
-            borderRadius: 2,
-            border: '1px solid #a5d6a7',
-          }}>
-            <Typography fontSize="12px" fontWeight={700} color="#2e7d32" sx={{ mb: 1.5 }}>
-              ✅ NGÀY SAU KHI ĐIỀU CHỈNH
-            </Typography>
-            <Stack spacing={1}>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography fontSize="13px" color="text.secondary">
-                  Bắt đầu:
-                </Typography>
-                <Typography fontSize="13px" fontWeight={600} color="#2e7d32">
-                  {formatDate(violation.required_start_date)}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography fontSize="13px" color="text.secondary">
-                  Kết thúc:
-                </Typography>
-                <Typography fontSize="13px" fontWeight={600} color="#2e7d32">
-                  {newEndDate}
-                </Typography>
-              </Stack>
-              {duration > 0 && (
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography fontSize="13px" color="text.secondary">
-                    Thời lượng:
-                  </Typography>
-                  <Chip
-                    label={`${duration} ngày (giữ nguyên)`}
-                    size="small"
-                    sx={{ 
-                      height: 20,
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      bgcolor: '#c8e6c9',
-                      color: '#2e7d32',
-                    }}
-                  />
-                </Stack>
-              )}
-            </Stack>
-          </Box>
-
           <Divider />
-
-          {/* Action Options */}
-          <Box>
-            <Typography fontSize="12px" fontWeight={700} color="text.secondary" sx={{ mb: 1.5 }}>
-              🎯 CHỌN HÀNH ĐỘNG
-            </Typography>
-            <Typography fontSize="13px" color="text.secondary">
-              Bạn có thể tự động điều chỉnh ngày hoặc chỉnh sửa thủ công.
-            </Typography>
-          </Box>
         </Stack>
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2.5, gap: 1 }}>
         <Button
           onClick={onClose}
-          startIcon={<CloseIcon />}
           sx={{ 
             color: 'text.secondary',
             textTransform: 'none',
@@ -272,46 +165,14 @@ export default function DependencyDateConflictDialog({
             fontWeight: 600,
           }}
         >
-          Hủy Bỏ
+          Hủy
         </Button>
 
         <Box sx={{ flex: 1 }} />
 
-        <Button
-          onClick={onManualEdit}
-          variant="outlined"
-          startIcon={<EditIcon />}
-          sx={{ 
-            textTransform: 'none',
-            fontSize: '13px',
-            fontWeight: 600,
-            borderColor: '#7b68ee',
-            color: '#7b68ee',
-            '&:hover': {
-              borderColor: '#6952d6',
-              bgcolor: '#f5f3ff',
-            }
-          }}
-        >
-          Chỉnh Thủ Công
-        </Button>
+       
 
-        <Button
-          onClick={onAutoFix}
-          variant="contained"
-          startIcon={<AutoFixIcon />}
-          sx={{ 
-            textTransform: 'none',
-            fontSize: '13px',
-            fontWeight: 600,
-            bgcolor: '#7b68ee',
-            '&:hover': {
-              bgcolor: '#6952d6',
-            }
-          }}
-        >
-          Tự Động Điều Chỉnh
-        </Button>
+        
       </DialogActions>
     </Dialog>
   );

@@ -21,6 +21,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import axiosInstance from "../../../ultis/axios";
+import { toast } from "sonner";
 
 interface TaskDetailsCommentsProps {
   taskId: string | null;
@@ -64,8 +65,12 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
       });
       setNewComment("");
       await loadComments();
+      toast.success('Đã thêm bình luận thành công');
     } catch (error: any) {
       console.error("Error adding comment:", error);
+      toast.error('Không thể thêm bình luận', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -79,8 +84,12 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
       setEditingCommentId(null);
       setEditText("");
       await loadComments();
+      toast.success('Đã cập nhật bình luận thành công');
     } catch (error: any) {
       console.error("Error updating comment:", error);
+      toast.error('Không thể cập nhật bình luận', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -90,8 +99,12 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/comments/${commentId}`);
       await loadComments();
+      toast.success('Đã xóa bình luận thành công');
     } catch (error: any) {
       console.error("Error deleting comment:", error);
+      toast.error('Không thể xóa bình luận', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -155,7 +168,7 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
               fullWidth
               multiline
               rows={3}
-              placeholder="Thêm bình luận... (Sử dụng @ để đề cập ai đó)"
+              placeholder="Thêm bình luận..."
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               sx={{

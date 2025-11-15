@@ -35,6 +35,7 @@ import {
   InputAdornment,
   Tooltip,
   Alert,
+  Link,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -55,6 +56,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
+import { toast } from "sonner";
 
 type Setting = {
   _id: string;
@@ -204,7 +206,9 @@ export default function ProjectFunctionsPage() {
       // Note: Effort warnings removed
     } catch (e: any) {
       console.error('Error in loadAllData:', e);
-      setError(e?.response?.data?.message || "Không thể tải dữ liệu");
+      const errorMessage = e?.response?.data?.message || "Không thể tải dữ liệu";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -257,21 +261,26 @@ export default function ProjectFunctionsPage() {
       }
       
       handleCloseDialog();
-      loadAllData();
+      await loadAllData();
+      toast.success(editingFunction ? "Đã cập nhật function thành công" : "Đã tạo function thành công");
     } catch (e: any) {
       const errorData = e?.response?.data;
       const errorMessage = errorData?.message || "Không thể lưu function";
       setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
   const handleDeleteFunction = async (id: string) => {
-    if (!confirm("Bạn có chắc muốn xóa function này?")) return;
+    if (!window.confirm("Bạn có chắc muốn xóa function này?")) return;
     try {
       await axiosInstance.delete(`/api/functions/${id}`);
-      loadAllData();
+      await loadAllData();
+      toast.success("Đã xóa function thành công");
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể xóa function");
+      const errorMessage = e?.response?.data?.message || "Không thể xóa function";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -311,8 +320,11 @@ export default function ProjectFunctionsPage() {
       await loadAllData();
       
       cancelEdit();
+      toast.success(`Đã cập nhật ${field === 'priority_id' ? 'ưu tiên' : field === 'status' ? 'trạng thái' : field} thành công`);
     } catch (e: any) {
-      setError(e?.response?.data?.message || `Không thể cập nhật ${field}`);
+      const errorMessage = e?.response?.data?.message || `Không thể cập nhật ${field}`;
+      setError(errorMessage);
+      toast.error(errorMessage);
       cancelEdit();
     } finally {
       setIsSaving(false);
@@ -616,11 +628,6 @@ export default function ProjectFunctionsPage() {
             </Typography>
           </Box>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
 
           {/* Feature Filter Alert */}
           {featureIdFromUrl && filterFeature === featureIdFromUrl && (
@@ -880,7 +887,6 @@ export default function ProjectFunctionsPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', width: '60px' }}>STT</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tên Function</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tính năng</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Ưu tiên</TableCell>
@@ -903,43 +909,27 @@ export default function ProjectFunctionsPage() {
                         key={func._id} 
                         hover
                       >
-                        {/* STT */}
-                        <TableCell 
-                          onClick={() => setFunctionModal({ open: true, functionId: func._id })}
-                          sx={{ 
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: '#f3f4f6',
-                            },
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          <Box
+                        {/* Title */}
+                        <TableCell>
+                          <Link
+                            component="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFunctionModal({ open: true, functionId: func._id });
+                            }}
                             sx={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                              fontWeight: 700,
-                              fontSize: '14px',
-                              boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                              transition: 'all 0.2s ease',
+                              fontWeight: 'medium',
+                              color: '#7b68ee',
+                              textDecoration: 'none',
+                              cursor: 'pointer',
                               '&:hover': {
-                                transform: 'scale(1.1)',
-                                boxShadow: '0 4px 12px rgba(123, 104, 238, 0.5)',
+                                textDecoration: 'underline',
+                                color: '#6952d6',
                               }
                             }}
                           >
-                            {index + 1}
-                          </Box>
-                        </TableCell>
-                        {/* Title */}
-                        <TableCell>
-                          <Typography fontWeight="medium">{func.title}</Typography>
+                            {func.title}
+                          </Link>
                           {func.description && (
                             <Typography 
                               variant="caption" 

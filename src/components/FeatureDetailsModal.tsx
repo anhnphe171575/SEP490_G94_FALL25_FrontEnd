@@ -33,6 +33,7 @@ import FeatureDetailsOverview from "./FeatureDetails/FeatureDetailsOverview";
 import FeatureDetailsFunctions from "./FeatureDetails/FeatureDetailsFunctions";
 import FeatureDetailsComments from "./FeatureDetails/FeatureDetailsComments";
 import FeatureDetailsActivity from "./FeatureDetails/FeatureDetailsActivity";
+import { toast } from "sonner";
 
 type Feature = {
   _id: string;
@@ -67,6 +68,8 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [featureMilestoneIds, setFeatureMilestoneIds] = useState<string[]>([]);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState('');
 
   const tabMap = ['overview', 'functions', 'comments', 'activity'];
 
@@ -111,8 +114,11 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       });
       
       setAvailableTags(Array.from(tagsSet).sort());
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading project tags:', error);
+      toast.error("Không thể tải nhãn", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -120,8 +126,11 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
     try {
       const response = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
       setMilestones(response.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading milestones:', error);
+      toast.error("Không thể tải cột mốc", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -130,9 +139,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       const response = await axiosInstance.get(`/api/features/${featureId}/milestones`);
       const uniqueIds = Array.isArray(response.data) ? [...new Set(response.data)] : [];
       setFeatureMilestoneIds(uniqueIds);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading feature milestones:', error);
       setFeatureMilestoneIds([]);
+      // Don't show error toast for this as it's not critical
     }
   };
 
@@ -143,8 +153,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setLoading(true);
       const response = await axiosInstance.get(`/api/features/${featureId}`);
       setFeature(response.data);
+      setTitle(response.data?.title || '');
     } catch (error: any) {
       console.error("Error loading feature:", error);
+      toast.error("Không thể tải thông tin feature", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     } finally {
       setLoading(false);
     }
@@ -163,8 +177,11 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setFeature(response.data);
       
       if (onUpdate) onUpdate();
+      toast.success("Đã cập nhật thành công");
     } catch (error: any) {
       console.error("Error updating feature:", error);
+      const errorMessage = error?.response?.data?.message || "Không thể cập nhật feature";
+      toast.error(errorMessage);
       // Reload on error to restore correct state
       await loadFeatureDetails();
       throw error;
@@ -279,17 +296,69 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
 
             {/* Title */}
             <Box sx={{ flex: 1 }}>
-              <Typography 
-                variant="h5" 
-                fontWeight={700}
-                sx={{ 
-                  mb: 1.5,
-                  color: '#1f2937',
-                  lineHeight: 1.3,
-                }}
-              >
-                {feature?.title || 'Loading...'}
-              </Typography>
+              {editingTitle ? (
+                <TextField
+                  fullWidth
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={async () => {
+                    if (title.trim() && title !== feature?.title) {
+                      try {
+                        await handleFeatureUpdate({ title: title.trim() });
+                      } catch (error) {
+                        console.error('Error updating title:', error);
+                        // Error already shown in handleFeatureUpdate
+                      }
+                    }
+                    setEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    } else if (e.key === 'Escape') {
+                      setTitle(feature?.title || '');
+                      setEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  sx={{
+                    mb: 1.5,
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      '&:hover fieldset': {
+                        borderColor: '#7b68ee',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#7b68ee',
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <Typography 
+                  variant="h5" 
+                  fontWeight={700}
+                  onClick={() => {
+                    setTitle(feature?.title || '');
+                    setEditingTitle(true);
+                  }}
+                  sx={{ 
+                    mb: 1.5,
+                    color: '#1f2937',
+                    lineHeight: 1.3,
+                    cursor: 'text',
+                    '&:hover': {
+                      bgcolor: '#f9fafb',
+                      borderRadius: 1,
+                      px: 1,
+                      mx: -1,
+                    }
+                  }}
+                >
+                  {feature?.title || 'Loading...'}
+                </Typography>
+              )}
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
@@ -447,6 +516,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       await handleFeatureUpdate({ status_id: e.target.value });
                     } catch (error) {
                       console.error('Error updating status:', error);
+                      // Error already shown in handleFeatureUpdate
                     }
                   }}
                   displayEmpty
@@ -485,6 +555,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       await handleFeatureUpdate({ priority_id: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
+                      // Error already shown in handleFeatureUpdate
                     }
                   }}
                   displayEmpty
@@ -542,6 +613,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     await handleFeatureUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating start date:', error);
+                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -574,6 +646,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     await handleFeatureUpdate({ end_date: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating end date:', error);
+                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -621,8 +694,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       if (onUpdate) {
                         await onUpdate();
                       }
-                    } catch (error) {
+                      toast.success("Đã cập nhật cột mốc thành công");
+                    } catch (error: any) {
                       console.error('Error updating milestones:', error);
+                      toast.error(error?.response?.data?.message || "Không thể cập nhật cột mốc");
                     }
                   }}
                   renderValue={(selected) => (
@@ -719,6 +794,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     }
                   } catch (error) {
                     console.error('Error updating tags:', error);
+                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 filterOptions={(options, params) => {
