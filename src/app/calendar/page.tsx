@@ -323,7 +323,7 @@ export default function CalendarPage() {
     return (
       <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <div className="flex justify-center items-center min-h-screen">
             <CircularProgress />
           </div>
@@ -336,7 +336,7 @@ export default function CalendarPage() {
     return (
       <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Alert severity="error">{error}</Alert>
         </main>
       </div>
@@ -475,7 +475,7 @@ export default function CalendarPage() {
         .gc-all-day-chip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       `}</style>
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           {/* Header */}
           <div className="mb-6 md:mb-8 flex items-center justify-between">

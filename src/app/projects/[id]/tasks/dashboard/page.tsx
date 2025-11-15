@@ -386,7 +386,7 @@ export default function TaskDashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
             <CircularProgress size={40} />
         </Box>
@@ -398,17 +398,11 @@ export default function TaskDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           {/* Header */}
           <Box sx={{ mb: 3 }}>
-            <ProjectBreadcrumb 
-              projectId={projectId}
-              items={[
-                { label: 'Tasks', href: `/projects/${projectId}/tasks` },
-                { label: 'Dashboard', icon: <DashboardIcon sx={{ fontSize: 16 }} /> }
-              ]}
-            />
+           
       
       <Box sx={{ 
               bgcolor: 'white', 

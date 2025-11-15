@@ -145,7 +145,7 @@ export default function TeamManagementPage() {
     return (
       <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <div className="mx-auto w-full max-w-7xl">
             <div className="rounded-xl border border-[var(--border)] p-6 bg-[color-mix(in_olab,_var(--accent)_10%,_var(--background))] animate-pulse">
               <div className="h-6 w-32 rounded bg-foreground/10 mb-4"></div>
@@ -162,7 +162,7 @@ export default function TeamManagementPage() {
     return (
       <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <div className="mx-auto w-full max-w-7xl">
             <div className="rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 p-4">
               {error}
@@ -176,7 +176,7 @@ export default function TeamManagementPage() {
   return (
     <div className="min-h-screen bg-white">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           {/* Header */}
           <div className="mb-6 md:mb-8 flex items-center justify-between">
