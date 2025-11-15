@@ -1014,7 +1014,7 @@ export default function MessagesPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
             <Stack spacing={2} alignItems="center">
               <CircularProgress size={40} sx={{ color: '#FF6B6B' }} />
@@ -1031,7 +1031,7 @@ export default function MessagesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 via-purple-50 to-pink-50">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64 transition-all duration-300">
+      <main className="p-4 md:p-6 md:ml-56 transition-all duration-300">
         <div className="mx-auto w-full max-w-7xl">
           {/* Header */}
           <Fade in timeout={600}>

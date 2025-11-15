@@ -1058,28 +1058,7 @@ export default function ProjectTasksPage() {
             }}
           >
             <Stack direction="row" spacing={0.5}>
-              <Button
-                onClick={() => router.push(`/projects/${projectId}/tasks/dashboard`)}
-                startIcon={<DashboardIcon fontSize="small" />}
-                sx={{
-                  minWidth: 'auto',
-                  px: 2,
-                  py: 0.75,
-                  color: '#49516f',
-                  bgcolor: 'transparent',
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: 1.5,
-                  '&:hover': {
-                    bgcolor: '#f3f4f6',
-                  }
-                }}
-              >
-                Dashboard
-              </Button>
-              <Box sx={{ width: '1px', height: 24, bgcolor: '#e8e9eb', mx: 0.5 }} />
-              <Button
+                <Button
                 onClick={() => setView('table')}
                 startIcon={<ListIcon fontSize="small" />}
                 sx={{
