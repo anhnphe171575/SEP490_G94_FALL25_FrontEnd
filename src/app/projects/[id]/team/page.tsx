@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import TeamManagement from "@/components/TeamManagement";
+import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import { 
   Button, 
   Typography, 
@@ -15,10 +16,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton
+  IconButton,
+  Stack,
+  Divider
 } from "@mui/material";
 import { 
-  ArrowBack as ArrowBackIcon,
   ExitToApp as ExitToAppIcon,
   Close as CloseIcon,
   Group as GroupIcon
@@ -46,6 +48,7 @@ type Team = {
   team_code?: string;
   createAt: string;
   updateAt: string;
+  supervisor?: Supervisor | null;
 };
 
 type Project = {
@@ -54,6 +57,15 @@ type Project = {
   code: string;
   description?: string;
   status: string;
+};
+
+type Supervisor = {
+  _id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  major?: string;
+  avatar: string;
 };
 
 export default function TeamManagementPage() {
@@ -143,16 +155,12 @@ export default function TeamManagementPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-[#f8f9fb]">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
-          <div className="mx-auto w-full max-w-7xl">
-            <div className="rounded-xl border border-[var(--border)] p-6 bg-[color-mix(in_olab,_var(--accent)_10%,_var(--background))] animate-pulse">
-              <div className="h-6 w-32 rounded bg-foreground/10 mb-4"></div>
-              <div className="h-4 w-48 rounded bg-foreground/10 mb-2"></div>
-              <div className="h-72 w-full rounded bg-foreground/10"></div>
-            </div>
-          </div>
+        <main>
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <CircularProgress size={28} />
+          </Box>
         </main>
       </div>
     );
@@ -160,70 +168,171 @@ export default function TeamManagementPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-[#f8f9fb]">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
-          <div className="mx-auto w-full max-w-7xl">
-            <div className="rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 p-4">
+        <main>
+          <Box sx={{ px: 3, py: 3 }}>
+            <Alert severity="error">
               {error}
-            </div>
-          </div>
+            </Alert>
+          </Box>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f8f9fb]">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
-        <div className="mx-auto w-full max-w-7xl">
-          {/* Header */}
-          <div className="mb-6 md:mb-8 flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="text-[10px] md:text-xs uppercase tracking-wider text-foreground/60">
-                Dự án
-              </div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
-                Quản lý thành viên nhóm
-              </h1>
-              {project && (
-                <p className="text-sm text-foreground/70">
-                  {project.code} - {project.topic}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outlined"
-                size="medium"
-                startIcon={<ArrowBackIcon />}
-                onClick={() => router.back()}
-              >
-                Quay lại
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                size="medium"
-                startIcon={<ExitToAppIcon />}
-                onClick={() => setOpenLeaveTeam(true)}
-                disabled={leaveLoading}
-              >
-                Rời nhóm
-              </Button>
-            </div>
-          </div>
+      <main>
+        <div className="w-full">
+          {/* Breadcrumb Navigation */}
+          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
+            <ProjectBreadcrumb 
+              projectId={projectId} 
+              items={[
+                { label: 'Quản lý nhóm', icon: <GroupIcon sx={{ fontSize: 16 }} /> }
+              ]} 
+            />
+          </Box>
+
+          {/* ClickUp-style Top Bar (standardized) */}
+          <Box 
+            sx={{ 
+              bgcolor: 'white',
+              borderBottom: '1px solid #e8e9eb',
+              px: 3,
+              py: 2,
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Title with Icon */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 2.5,
+                  background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(123, 104, 238, 0.25)',
+                }}>
+                  <GroupIcon sx={{ fontSize: 28, color: 'white' }} />
+                </Box>
+                <Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700,
+                      color: '#1f2937',
+                      fontSize: '24px',
+                      mb: 0.5
+                    }}
+                  >
+                    Quản lý nhóm
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                    Quản lý thành viên và thông tin nhóm
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Right Actions */}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                {/* Quick Navigation */}
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Cột mốc
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/features`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Tính năng
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Công việc
+                </Button>
+                
+                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={() => setOpenLeaveTeam(true)}
+                  disabled={leaveLoading}
+                  startIcon={<ExitToAppIcon />}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#fee2e2',
+                    color: '#dc2626',
+                    '&:hover': {
+                      borderColor: '#dc2626',
+                      bgcolor: '#fef2f2',
+                    }
+                  }}
+                >
+                  Rời nhóm
+                </Button>
+              </Stack>
+            </Box>
+          </Box>
 
           {/* Team Management Component */}
-          {team && (
-            <TeamManagement
-              team={team}
-              projectId={projectId}
-              currentUserId={currentUserId || undefined}
-              onTeamUpdate={handleTeamUpdate}
-            />
-          )}
+          <Box sx={{ px: 3, py: 3 }}>
+            {team && (
+              <TeamManagement
+                team={team}
+                projectId={projectId}
+                currentUserId={currentUserId || undefined}
+                onTeamUpdate={handleTeamUpdate}
+              />
+            )}
+          </Box>
         </div>
       </main>
 

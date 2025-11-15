@@ -37,9 +37,11 @@ import {
   ExitToApp as ExitToAppIcon,
   Visibility as VisibilityIcon,
   Delete as DeleteIcon,
+  PersonAdd as PersonAddIcon,
 } from "@mui/icons-material";
 import axiosInstance from "../../ultis/axios";
 import MemberDetail from "./MemberDetail";
+import SupervisorDetail from "./SupervisorDetail";
 
 type TeamMember = {
   _id: string;
@@ -54,6 +56,15 @@ type TeamMember = {
   team_leader: number;
 };
 
+type Supervisor = {
+  _id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  major?: string;
+  avatar: string;
+};
+
 type Team = {
   _id: string;
   name: string;
@@ -63,6 +74,7 @@ type Team = {
   team_code?: string;
   createAt: string;
   updateAt: string;
+  supervisor?: Supervisor | null;
 };
 
 type User = {
@@ -122,6 +134,7 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [openMemberDetail, setOpenMemberDetail] = useState(false);
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<TeamMember | null>(null);
+  const [openSupervisorDetail, setOpenSupervisorDetail] = useState(false);
   
   // Edit team form
   const [teamName, setTeamName] = useState(safeTeam.name);
@@ -363,13 +376,99 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
         </CardContent>
       </Card>
 
-      {/* Team Members */}
+      {/* Team Members and Supervisor - Combined Card */}
       <Card className="shadow-sm">
         <CardContent>
-        <Typography variant="h6" className="font-medium">
-              <PersonIcon />
+          {/* Supervisor Section */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <SupervisorAccountIcon className="text-purple-600" />
+              <Typography variant="h6" className="font-medium">
+                Giảng viên hướng dẫn
+              </Typography>
+            </div>
+          </div>
+          
+          {team?.supervisor ? (
+            <>
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg mb-6 border-l-4 border-purple-500">
+                <Avatar
+                  src={team?.supervisor?.avatar}
+                  className="w-16 h-16 border-2 border-purple-300"
+                  sx={{ bgcolor: '#7b68ee' }}
+                >
+                  {team?.supervisor?.full_name ? getInitials(team?.supervisor?.full_name) : "?"}
+                </Avatar>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Typography variant="h6" className="font-medium">
+                      {team?.supervisor?.full_name}
+                    </Typography>
+                    <Chip
+                      label="Giảng viên hướng dẫn"
+                      size="small"
+                      sx={{
+                        bgcolor: '#7b68ee',
+                        color: 'white',
+                        fontWeight: 600,
+                      }}
+                      icon={<SupervisorAccountIcon sx={{ color: 'white !important' }} />}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <EmailIcon className="w-4 h-4" />
+                      <span>{team?.supervisor?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <PhoneIcon className="w-4 h-4" />
+                      <span>{team?.supervisor?.phone || "N/A"}</span>
+                    </div>
+                    {team?.supervisor?.major && (
+                      <div className="flex items-center gap-1">
+                        <SchoolIcon className="w-4 h-4" />
+                        <span>{team?.supervisor?.major}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<VisibilityIcon />}
+                  onClick={() => setOpenSupervisorDetail(true)}
+                  sx={{
+                    borderColor: '#7b68ee',
+                    color: '#7b68ee',
+                    '&:hover': {
+                      borderColor: '#6952d6',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Xem chi tiết
+                </Button>
+              </div>
+              <Divider className="my-4" />
+            </>
+          ) : (
+            <>
+              <Alert severity="info" className="mb-4">
+                <Typography variant="body2">
+                  Dự án chưa có giảng viên hướng dẫn. Trưởng nhóm có thể mời giảng viên bằng email.
+                </Typography>
+              </Alert>
+              <Divider className="my-4" />
+            </>
+          )}
+
+          {/* Team Members Section */}
+          <div className="flex items-center gap-2 mb-4">
+            <PersonIcon />
+            <Typography variant="h6" className="font-medium">
               Thành viên nhóm
             </Typography>
+          </div>
           {validMembers.length === 0 ? (
             <div className="text-center py-8">
               <GroupIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
@@ -615,6 +714,16 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
         projectId={projectId}
         memberName={selectedMemberForDetail?.user_id.full_name || ""}
       />
+
+      {/* Supervisor Detail Dialog */}
+      {team?.supervisor && (
+        <SupervisorDetail
+          open={openSupervisorDetail}
+          onClose={() => setOpenSupervisorDetail(false)}
+          projectId={projectId}
+          supervisorName={team.supervisor.full_name}
+        />
+      )}
 
       {/* Member Menu */}
       <Menu
