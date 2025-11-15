@@ -1,423 +1,625 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import axiosInstance from "../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import ResponsiveSidebar from "../../../components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from "recharts";
 
-type Contributor = {
-  assignee_id: string;
-  user: {
-    _id: string;
-    full_name: string;
-    email: string;
-  };
+type TypeKey = "Simple" | "Medium" | "Complex" | "Very Complex";
+
+type TypeCounts = Record<TypeKey, number>;
+
+type MemberInfo = {
+  user_id: string | null;
+  full_name: string;
+  email: string | null;
+  avatar: string | null;
+};
+
+type MemberContribution = {
+  member: MemberInfo;
   total_tasks: number;
-  breakdown: Array<{
-    task_type_id: string;
-    task_type_name: string;
-    task_type_value: number;
-    count: number;
-  }>;
+  completed_tasks: number;
+  in_progress_tasks: number;
+  todo_tasks: number;
+  estimate_hours: number;
+  actual_hours: number;
+  type_counts: TypeCounts;
+  completion_rate: number;
+  workload_share: number;
+  type_complexity_score?: number;
 };
 
-type ContributionData = {
-  filters: {
-    project_id?: string;
+type ContributionResponse = {
+  project_id: string;
+  totals: {
+    total_tasks: number;
+    completed_tasks: number;
+    in_progress_tasks: number;
+    todo_tasks: number;
+    total_estimate_hours: number;
+    total_actual_hours: number;
+    type_counts: TypeCounts;
   };
-  contributors: Contributor[];
+  members: MemberContribution[];
+  unassigned: (MemberContribution & { member: MemberInfo }) | null;
+  metadata: {
+    feature_count: number;
+    function_count: number;
+    team_members: number;
+  };
 };
 
-type Statistics = {
-  filters: {
-    project_id: string;
-  };
-  statistics: {
-    total: number;
-    not_assigned: number;
-    status: {
-      [key: string]: number;
-    };
-  };
+type ProjectOption = {
+  value: string;
+  label: string;
+  code?: string;
 };
 
-type Project = {
+type ProjectInfo = {
   _id: string;
-  topic: string;
-  code: string;
+  topic?: string;
+  code?: string;
+  description?: string;
+  semester?: string;
+  status?: string;
 };
 
-// (Removed) ContributionCalendar component and related UI
+const TYPE_DISPLAY_ORDER: TypeKey[] = ["Very Complex", "Complex", "Medium", "Simple"];
 
-export default function ContributorPage() {
+const TYPE_BAR_COLOR: Record<TypeKey, string> = {
+  Simple: "bg-slate-300",
+  Medium: "bg-slate-400",
+  Complex: "bg-slate-500",
+  "Very Complex": "bg-slate-600",
+};
+
+const TYPE_BADGE_COLOR: Record<TypeKey, string> = {
+  Simple: "bg-slate-100 text-slate-700",
+  Medium: "bg-slate-200 text-slate-700",
+  Complex: "bg-slate-300 text-slate-800",
+  "Very Complex": "bg-slate-400 text-slate-900",
+};
+
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  active: "bg-slate-200 text-slate-700",
+  completed: "bg-slate-300 text-slate-800",
+  "on-hold": "bg-slate-100 text-slate-600",
+  planned: "bg-slate-100 text-slate-700",
+  cancelled: "bg-slate-100 text-slate-600",
+};
+
+const formatNumber = (value: number | undefined) => {
+  if (value === undefined || value === null || Number.isNaN(value)) return "0";
+  return value.toLocaleString("vi-VN");
+};
+
+const formatPercent = (value: number | undefined) => {
+  if (value === undefined || value === null || Number.isNaN(value)) return "0%";
+  return `${value.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+};
+
+const getInitials = (fullName: string) => {
+  if (!fullName) return "U";
+  const parts = fullName.split(" ").filter(Boolean);
+  if (parts.length === 0) return fullName.charAt(0).toUpperCase();
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+};
+
+const ContributionPlaceholder = ({ message }: { message: string }) => (
+  <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-center">
+    <svg className="mb-4 h-12 w-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+    </svg>
+    <p className="max-w-md text-sm text-slate-500">{message}</p>
+  </div>
+);
+
+export default function ContributorDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [contributionData, setContributionData] = useState<ContributionData | null>(null);
-  const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const projectId = searchParams.get("project_id");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>("");
-  
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>("Completed");
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
+  const [contribution, setContribution] = useState<ContributionResponse | null>(null);
+  const [isFetchingProjects, setIsFetchingProjects] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("token") || localStorage.getItem("token") : null;
     if (!token) {
-      router.replace('/login');
+      router.replace("/login");
       return;
     }
 
-    // Get project_id from query params
-    const projectIdFromUrl = searchParams.get('project_id');
-    if (projectIdFromUrl) {
-      setSelectedProject(projectIdFromUrl);
-    }
+    let ignore = false;
 
-    // Fetch projects for filter
-    (async () => {
+    const fetchProjects = async () => {
       try {
-        const projectsRes = await axiosInstance.get('/api/projects');
-        if (projectsRes.data.projects) {
-          setProjects(projectsRes.data.projects);
+        setIsFetchingProjects(true);
+        const profileResponse = await axiosInstance.get("/api/users/profile");
+        const currentUser = profileResponse.data;
+
+        const projectResponse = await axiosInstance.get(`/api/projects/supervisor/${currentUser._id}`);
+        const data = projectResponse.data;
+
+        const projectList: ProjectOption[] = Array.isArray(data?.data)
+          ? data.data.map((proj: any) => ({
+              value: proj._id,
+              label: proj.topic || "Dự án không tên",
+              code: proj.code,
+            }))
+          : [];
+
+        if (!ignore) {
+          setProjects(projectList);
         }
-      } catch (e) {
-        console.error('Error fetching projects:', e);
+
+        // Auto-select first project if none provided and list not empty
+        if (!projectId && projectList.length > 0) {
+          router.replace(`/supervisor/contributor?project_id=${projectList[0].value}`, { scroll: false });
+        }
+      } catch (err: any) {
+        console.error("Error loading projects:", err);
+        if (!ignore) {
+          setProjects([]);
+        }
+      } finally {
+        if (!ignore) {
+          setIsFetchingProjects(false);
+        }
       }
-    })();
-  }, [router, searchParams]);
+    };
+
+    fetchProjects();
+    return () => {
+      ignore = true;
+    };
+  }, [router]);
 
   useEffect(() => {
-    fetchData();
-  }, [selectedProject, statusFilter]);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch contribution data
-      const contributionParams = new URLSearchParams();
-      if (selectedProject) contributionParams.append('project_id', selectedProject);
-      
-      const contributionRes = await axiosInstance.get(`/api/tasks/dashboard/contribution?${contributionParams.toString()}`);
-      setContributionData(contributionRes.data);
-
-      // Fetch statistics
-      const statsParams = new URLSearchParams();
-      if (selectedProject) statsParams.append('project_id', selectedProject);
-      
-      const statsRes = await axiosInstance.get(`/api/tasks/statistics?${statsParams.toString()}`);
-      setStatistics(statsRes.data);
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { message?: string } } };
-      setError(error?.response?.data?.message || 'Không thể tải dữ liệu');
-    } finally {
+    if (!projectId) {
+      setContribution(null);
+      setProjectInfo(null);
       setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchContribution = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [contributionRes, projectRes] = await Promise.all([
+          axiosInstance.get(`/api/tasks/dashboard/contribution`, { params: { project_id: projectId } }),
+          axiosInstance
+            .get(`/api/projects/${projectId}`)
+            .catch(() => ({ data: null })), // project info optional
+        ]);
+
+        if (cancelled) return;
+
+        const contributionData = contributionRes.data as ContributionResponse;
+        setContribution(contributionData);
+        setProjectInfo(projectRes?.data || null);
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error("Error fetching contribution:", err);
+          setError(err?.response?.data?.message || "Không thể tải dữ liệu đóng góp");
+          setContribution(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchContribution();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const typeDistribution = useMemo(() => {
+    if (!contribution) {
+      return {
+        entries: [] as Array<{ type: TypeKey; count: number }>,
+        total: 0,
+      };
+    }
+    const entries = TYPE_DISPLAY_ORDER.map((type) => ({
+      type,
+      count: contribution.totals.type_counts[type],
+    }));
+    const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+    return {
+      entries,
+      total,
+    };
+  }, [contribution]);
+
+  const handleProjectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value;
+    if (!value) {
+      router.replace(`/supervisor/contributor`, { scroll: false });
+    } else {
+      router.replace(`/supervisor/contributor?project_id=${value}`, { scroll: false });
     }
   };
 
-  // Get top contributors
-  const topContributors = contributionData?.contributors?.slice(0, 5) || [];
-  
-  // Get task type stats
-  const getTaskTypeStats = () => {
-    if (!contributionData?.contributors) return { Simple: 0, Medium: 0, Complex: 0 };
-    const stats: { [key: string]: number } = {};
-    contributionData.contributors.forEach(contributor => {
-      contributor.breakdown.forEach(item => {
-        const name = item.task_type_name || 'Unknown';
-        stats[name] = (stats[name] || 0) + item.count;
-      });
-    });
-    return stats;
-  };
+  const renderMemberRow = (member: MemberContribution, index: number) => {
+    const avatarLetter = getInitials(member.member.full_name);
+    const detailHref =
+      member.member.user_id && projectId
+        ? `/supervisor/contributor/detail?userId=${member.member.user_id}&project_id=${projectId}`
+        : null;
 
-  const taskTypeStats = getTaskTypeStats();
+    const topTypes = TYPE_DISPLAY_ORDER.filter((type) => member.type_counts[type] > 0).slice(0, 3);
 
-  // Prepare chart data
-  const comparisonData = contributionData?.contributors?.slice(0, 10).map((c) => {
-    const simple = c.breakdown.find(b => b.task_type_name?.toLowerCase().includes('simple'))?.count || 0;
-    const medium = c.breakdown.find(b => b.task_type_name?.toLowerCase().includes('medium'))?.count || 0;
-    const complex = c.breakdown.find(b => b.task_type_name?.toLowerCase().includes('complex'))?.count || 0;
-    
-    return {
-      name: c.user?.full_name?.split(' ').pop() || 'N/A',
-      Simple: simple,
-      Medium: medium,
-      Complex: complex,
-    };
-  }) || [];
-
-  const summaryData = [
-    { name: "Simple", value: taskTypeStats['Simple'] || 0, color: "#22c55e" },
-    { name: "Medium", value: taskTypeStats['Medium'] || 0, color: "#f59e0b" },
-    { name: "Complex", value: taskTypeStats['Complex'] || 0, color: "#ef4444" },
-  ].filter(item => item.value > 0);
-
-  const COLORS = {
-    simple: "#22c55e",
-    medium: "#f59e0b",
-    complex: "#ef4444",
-  };
-
-  if (loading) {
     return (
-      <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
-          <div className="flex items-center justify-center h-96">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-              <p className="text-gray-600">Đang tải thống kê đóng góp...</p>
+      <tr key={`${member.member.user_id || "unassigned"}-${index}`} className="border-b last:border-b-0 border-slate-100">
+        <td className="px-4 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-700 font-semibold">
+              {avatarLetter}
             </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
-          <div className="flex items-center justify-center h-96">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Có lỗi xảy ra</h3>
-              <p className="text-red-600 mb-4">{error}</p>
-              <button
-                onClick={fetchData}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"
-              >
-                Thử lại
-              </button>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const totalTasks = contributionData?.contributors?.reduce((sum, c) => sum + c.total_tasks, 0) || 0;
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-      <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Thống kê Đóng góp 📊</h1>
-              <p className="text-gray-600">Theo dõi và phân tích đóng góp của các thành viên trong dự án</p>
+              <p className="font-medium text-slate-900">{member.member.full_name || "Chưa cập nhật"}</p>
+              <p className="text-sm text-slate-500">{member.member.email || "Không có email"}</p>
             </div>
-            {/* Quick Nav */}
-            <QuickNav selectedProject={selectedProject} />
           </div>
-        </div>
+        </td>
 
-    
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg p-6 text-white">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-blue-200 text-sm">Tổng Task</p>
-                <p className="text-3xl font-bold">{statistics?.statistics?.total || 0}</p>
-              </div>
-              <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+        <td className="px-4 py-4">
+          <div className="flex items-end gap-3">
+            <div>
+              <p className="text-lg font-semibold text-slate-900">{formatNumber(member.completed_tasks)}</p>
+              <p className="text-xs text-slate-500">Hoàn thành</p>
             </div>
-            <p className="text-sm text-blue-200">
-              {contributionData?.contributors?.length || 0} thành viên đóng góp
-            </p>
-          </div>
-
-          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-lg p-6 text-white">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-green-200 text-sm">Simple Tasks</p>
-                <p className="text-3xl font-bold">{summaryData.find(s => s.name === 'Simple')?.value || 0}</p>
-              </div>
+            <div className="text-sm text-slate-500">/</div>
+            <div>
+              <p className="text-lg font-semibold text-slate-900">{formatNumber(member.total_tasks)}</p>
+              <p className="text-xs text-slate-500">Tổng task</p>
             </div>
-            <p className="text-sm text-green-200">Công việc đơn giản</p>
           </div>
+        </td>
 
-          <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-lg p-6 text-white">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-amber-200 text-sm">Medium Tasks</p>
-                <p className="text-3xl font-bold">{summaryData.find(s => s.name === 'Medium')?.value || 0}</p>
-              </div>
+        <td className="px-4 py-4">
+          <p className="text-lg font-semibold text-slate-900">{formatPercent(member.completion_rate)}</p>
+          <p className="text-xs text-slate-500">Tỉ lệ hoàn thành</p>
+        </td>
+
+        <td className="px-4 py-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-700">Chiếm</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                {formatPercent(member.workload_share)}
+              </span>
             </div>
-            <p className="text-sm text-amber-200">Công việc trung bình</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-lg p-6 text-white">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-red-200 text-sm">Complex Tasks</p>
-                <p className="text-3xl font-bold">{summaryData.find(s => s.name === 'Complex')?.value || 0}</p>
-              </div>
-            </div>
-            <p className="text-sm text-red-200">Công việc phức tạp</p>
-          </div>
-        </div>
-
-        {/* Charts Row */}
-        {comparisonData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Comparison Chart */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Phân bố Task theo Thành viên</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "12px" }} />
-                  <YAxis stroke="#64748b" style={{ fontSize: "12px" }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
-                    labelStyle={{ color: "#0f172a" }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Simple" fill={COLORS.simple} name="Simple" />
-                  <Bar dataKey="Medium" fill={COLORS.medium} name="Medium" />
-                  <Bar dataKey="Complex" fill={COLORS.complex} name="Complex" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Task Distribution Pie Chart */}
-            {summaryData.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Tỷ lệ Task</h2>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={summaryData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {summaryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#f8fafc", border: "1px solid #cbd5e1" }}
-                      labelStyle={{ color: "#0f172a" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Contributors with Calendar */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Chi tiết từng Thành viên</h2>
-          {contributionData?.contributors && contributionData.contributors.length > 0 ? (
-            <div className="space-y-4">
-              {contributionData.contributors.map((contributor, index) => {
-                const simpleCount = contributor.breakdown.find(b => 
-                  b.task_type_name?.toLowerCase().includes('simple') || 
-                  b.task_type_value === 1
-                )?.count || 0;
-                const mediumCount = contributor.breakdown.find(b => 
-                  b.task_type_name?.toLowerCase().includes('medium') || 
-                  b.task_type_value === 2
-                )?.count || 0;
-                const complexCount = contributor.breakdown.find(b => 
-                  b.task_type_name?.toLowerCase().includes('complex') || 
-                  b.task_type_value >= 3
-                )?.count || 0;
-
+            <div className="flex h-2 w-40 overflow-hidden rounded-full bg-slate-100">
+              {TYPE_DISPLAY_ORDER.map((type) => {
+                const total = member.total_tasks || 1;
+                const share = member.type_counts[type] / total;
+                if (share <= 0) return null;
                 return (
                   <div
-                    key={contributor.assignee_id}
-                    className="bg-white rounded-xl border border-gray-200 p-6 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                    onClick={() => {
-                      const params = new URLSearchParams();
-                      params.set('userId', contributor.user?._id || contributor.assignee_id);
-                      if (selectedProject) params.set('project_id', selectedProject);
-                      router.push(`/supervisor/contributor/detail?${params.toString()}`);
-                    }}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-                      {/* Member Info */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
-                          {index + 1 <= 3 ? (index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉') : `${index + 1}`}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{contributor.user?.full_name || 'Không có tên'}</p>
-                          <p className="text-sm text-gray-500">{contributor.user?.email || ''}</p>
-                        </div>
-                      </div>
-
-                      {/* Task Counts */}
-                      <div className="flex gap-2">
-                        <div className="flex-1 bg-green-50 rounded p-3 border border-green-200">
-                          <p className="text-xs text-gray-500">Simple</p>
-                          <p className="text-xl font-bold text-green-600">{simpleCount}</p>
-                        </div>
-                        <div className="flex-1 bg-amber-50 rounded p-3 border border-amber-200">
-                          <p className="text-xs text-gray-500">Medium</p>
-                          <p className="text-xl font-bold text-amber-600">{mediumCount}</p>
-                        </div>
-                        <div className="flex-1 bg-red-50 rounded p-3 border border-red-200">
-                          <p className="text-xs text-gray-500">Complex</p>
-                          <p className="text-xl font-bold text-red-600">{complexCount}</p>
-                        </div>
-                      </div>
-
-                      {/* Total */}
-                      <div className="bg-blue-50 rounded p-3 border border-blue-200">
-                        <p className="text-xs text-gray-500">Tổng Task</p>
-                        <p className="text-2xl font-bold text-blue-600">{contributor.total_tasks}</p>
-                      </div>
-
-                      
-                    </div>
-                  </div>
+                    key={type}
+                    className={TYPE_BAR_COLOR[type]}
+                    style={{ width: `${Math.max(share * 100, 4)}%` }}
+                    title={`${type}: ${member.type_counts[type]}`}
+                  />
                 );
               })}
             </div>
+            <div className="flex flex-wrap gap-1">
+              {topTypes.length === 0 ? (
+                <span className="text-xs text-slate-400">Chưa có task theo loại</span>
+              ) : (
+                topTypes.map((type) => (
+                  <span key={type} className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE_COLOR[type]}`}>
+                    {type}: {member.type_counts[type]}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        </td>
+
+        <td className="px-4 py-4">
+          <div className="space-y-1 text-sm text-slate-500">
+            <div>Ước tính: <span className="font-medium text-slate-700">{formatNumber(member.estimate_hours)}h</span></div>
+            <div>Thực tế: <span className="font-medium text-slate-700">{formatNumber(member.actual_hours)}h</span></div>
+          </div>
+        </td>
+
+        <td className="px-4 py-4 text-right">
+          {detailHref ? (
+            <Link
+              href={detailHref}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Chi tiết
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           ) : (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-              <p className="text-gray-600">Chưa có dữ liệu đóng góp</p>
+            <span className="text-xs text-slate-400">Không khả dụng</span>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <ResponsiveSidebar />
+      <div className="mx-auto w-full max-w-7xl px-6 py-8 md:ml-64">
+          {/* QuickNav - Always at the top */}
+          <div className="mb-6">
+            <QuickNav selectedProject={projectId ?? undefined} />
+          </div>
+          
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Supervisor Dashboard</p>
+              <h1 className="text-3xl font-bold text-slate-900">Bảng theo dõi đóng góp</h1>
+              <p className="mt-2 text-sm text-slate-500">
+                Giám sát hiệu suất của từng thành viên, phân bổ khối lượng công việc và chất lượng hoàn thành trong dự án.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div>
+                <label className="sr-only" htmlFor="project-select">
+                  Chọn dự án
+                </label>
+                <select
+                  id="project-select"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  value={projectId ?? ""}
+                  onChange={handleProjectChange}
+                  disabled={isFetchingProjects}
+                >
+                  <option value="">{isFetchingProjects ? "Đang tải dự án..." : "Chọn dự án"}</option>
+                  {projects.map((project) => (
+                    <option key={project.value} value={project.value}>
+                      {project.label} {project.code ? `(${project.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Không thể tải dữ liệu</h2>
+                  <p className="mt-1 text-sm text-slate-600">{error}</p>
+                </div>
+              </div>
             </div>
           )}
+
+          {!projectId && !loading && (
+            <ContributionPlaceholder message="Hãy chọn một dự án để xem thông tin đóng góp của các thành viên." />
+          )}
+
+          {loading ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-8">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
+                <p className="text-sm font-medium text-slate-500">Đang tải dữ liệu đóng góp...</p>
+              </div>
+            </div>
+          ) : contribution ? (
+            <div className="space-y-6">
+              <section className="rounded-lg border border-slate-200 bg-white p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      {projectInfo?.topic || "Thông tin dự án"}
+                    </h2>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                      {projectInfo?.code && <span>Mã: <strong className="text-slate-700">{projectInfo.code}</strong></span>}
+                      {projectInfo?.semester && (
+                        <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          {projectInfo.semester}
+                        </span>
+                      )}
+                      {projectInfo?.status && (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            STATUS_BADGE_CLASSES[String(projectInfo.status).toLowerCase()] || "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {projectInfo.status}
+                        </span>
+                      )}
+                    </div>
+                    {projectInfo?.description && (
+                      <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                        {projectInfo.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Thành viên</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">
+                        {formatNumber(contribution.metadata.team_members)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Tính năng</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">
+                        {formatNumber(contribution.metadata.feature_count)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Chức năng</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">
+                        {formatNumber(contribution.metadata.function_count)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="rounded-lg border border-slate-200 bg-white p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">Tổng quan công việc</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Số lượng task, thời gian ước tính và trạng thái hoàn thành toàn dự án.
+                    </p>
+                    <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Tổng task</p>
+                        <p className="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(contribution.totals.total_tasks)}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Hoàn thành</p>
+                        <p className="mt-3 text-2xl font-semibold text-slate-900">
+                          {formatNumber(contribution.totals.completed_tasks)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Đang xử lý</p>
+                        <p className="mt-3 text-2xl font-semibold text-slate-900">
+                          {formatNumber(contribution.totals.in_progress_tasks)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Chưa bắt đầu</p>
+                        <p className="mt-3 text-2xl font-semibold text-slate-900">
+                          {formatNumber(contribution.totals.todo_tasks)}
+                        </p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-6">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">Đóng góp theo thành viên</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Sắp xếp theo số lượng task hoàn thành, tổng task và độ phức tạp đảm nhiệm.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {formatNumber(contribution.members.length)} thành viên có task
+                      </span>
+                    </div>
+
+                    {contribution.members.length === 0 ? (
+                      <ContributionPlaceholder message="Chưa có thành viên nào được giao task trong dự án này." />
+                    ) : (
+                      <div className="overflow-hidden rounded-xl border border-slate-100">
+                        <div className="max-h-[560px] overflow-auto">
+                          <table className="min-w-full divide-y divide-slate-100">
+                            <thead className="bg-slate-50/80 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              <tr>
+                                <th className="px-4 py-3">Thành viên</th>
+                                <th className="px-4 py-3">Task</th>
+                                <th className="px-4 py-3">Hoàn thành</th>
+                                <th className="px-4 py-3">Tỉ lệ & loại task</th>
+                                <th className="px-4 py-3">Thời gian</th>
+                                <th className="px-4 py-3 text-right">Hành động</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {contribution.members.map((member, idx) => renderMemberRow(member, idx))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                
+                
+              </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-6">
+              
+              <div className="rounded-lg border border-slate-200 bg-white p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">Task chưa được phân công</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Theo dõi các công việc chưa có người phụ trách để tránh tồn đọng.
+                    </p>
+                    {contribution.unassigned ? (
+                      <div className="mt-4 space-y-4">
+                        <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-600 font-semibold">
+                            UA
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900">Unassigned</p>
+                            <p className="text-sm text-slate-500">Chưa có thành viên nhận task</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
+                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Tổng task</p>
+                            <p className="mt-1 text-lg font-semibold text-slate-800">
+                              {formatNumber(contribution.unassigned.total_tasks)}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Estimate giờ</p>
+                            <p className="mt-1 text-lg font-semibold text-slate-800">
+                              {formatNumber(contribution.unassigned.estimate_hours)}h
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Actual giờ</p>
+                            <p className="mt-1 text-lg font-semibold text-slate-800">
+                              {formatNumber(contribution.unassigned.actual_hours)}h
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Tỉ lệ hoàn thành</p>
+                            <p className="mt-1 text-lg font-semibold text-slate-800">
+                              {formatPercent(contribution.unassigned.completion_rate)}
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loại task</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {TYPE_DISPLAY_ORDER.map((type) => (
+                              <span key={type} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_BADGE_COLOR[type]}`}>
+                                {type}: {formatNumber(contribution.unassigned?.type_counts[type] ?? 0)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <ContributionPlaceholder message="Hiện tất cả task đều đã có người phụ trách." />
+                    )}
+                  </div></section>
+              
+            </div>
+          ) : null}
         </div>
-      </main>
-    </div>
+      </div>
   );
 }

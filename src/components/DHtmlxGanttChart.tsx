@@ -57,16 +57,6 @@ export default function DHtmlxGanttChart({
     // Configure Gantt
     gantt.config.date_format = "%Y-%m-%d";
 
-    const getAssigneeInitial = (assignee: string) => {
-      if (!assignee) return "";
-      return assignee.trim().charAt(0).toUpperCase();
-    };
-    const getAssigneeName = (assignee: string) => {
-      if (!assignee) return "";
-      const parts = assignee.trim().split(/\s+/);
-      return parts[0];
-    };
-
     // Beautiful columns with icons
     gantt.config.columns = [
       {
@@ -78,8 +68,8 @@ export default function DHtmlxGanttChart({
           if (task.type === "project") {
             return `
               <div class="gantt-grid-cell gantt-grid-cell--project">
-                <span class="gantt-grid-cell__icon">📁</span>
-                <span class="gantt-grid-cell__title gantt-grid-cell__title--project">${task.text}</span>
+                <span class="gantt-grid-cell__icon"></span>
+                <span class="gantt-grid-cell__title gantt-grid-cell__title--project">Task Group</span>
               </div>
             `;
           }
@@ -87,7 +77,7 @@ export default function DHtmlxGanttChart({
           return `
             <div class="gantt-grid-cell">
               <span class="gantt-grid-status" style="background:${color}; box-shadow:0 0 0 3px ${color}22;"></span>
-              <span class="gantt-grid-cell__title">${task.text}</span>
+              <span class="gantt-grid-cell__title">${task.text} </span>
             </div>
           `;
         }
@@ -103,45 +93,6 @@ export default function DHtmlxGanttChart({
             <div class="gantt-grid-tag">
               <span class="gantt-grid-tag__value">${duration}</span>
               <span class="gantt-grid-tag__unit">days</span>
-            </div>
-          `;
-        }
-      },
-      {
-        name: "assignee",
-        label: "ASSIGNEE",
-        align: "center",
-        width: 140,
-        template: function (task: any) {
-          if (!task.assignee) {
-            return `<span class="gantt-grid-empty">Unassigned</span>`;
-          }
-          const name = getAssigneeName(task.assignee);
-          const initial = getAssigneeInitial(task.assignee);
-          const palette = ['#00c875', '#00d4ff', '#a25ddc', '#579bfc', '#fdab3d'];
-          const color = palette[(task.assignee.length || 0) % palette.length];
-          return `
-            <div class="gantt-grid-assignee" style="background:${color}12;">
-              <span class="gantt-grid-assignee__avatar" style="background:${color}; box-shadow:0 2px 4px ${color}40;">${initial}</span>
-              <span class="gantt-grid-assignee__name">${name}</span>
-            </div>
-          `;
-        }
-      },
-      {
-        name: "progress",
-        label: "PROGRESS",
-        align: "center",
-        width: 120,
-        template: function (task: any) {
-          const percent = Math.round((task.progress || 0) * 100);
-          const color = percent === 100 ? '#00c875' : percent >= 50 ? '#00d4ff' : '#6b7280';
-          return `
-            <div class="gantt-grid-progress">
-              <div class="gantt-grid-progress__bar">
-                <div class="gantt-grid-progress__fill" style="width:${percent}%; background:${color};"></div>
-              </div>
-              <span class="gantt-grid-progress__value" style="color:${color};">${percent}%</span>
             </div>
           `;
         }
@@ -231,8 +182,7 @@ export default function DHtmlxGanttChart({
       if (task.type === "project") {
         return `<strong>${task.text}</strong>`;
       }
-      const percent = Math.round((task.progress || 0) * 100);
-      return `<span style="display: inline-block;">${task.text}</span> <span style="opacity: 0.85; font-size: 11px; margin-left: 4px;">${percent}%</span>`;
+      return `<span style="display: inline-block;">${task.text}</span>`;
     };
     
     // Tooltip

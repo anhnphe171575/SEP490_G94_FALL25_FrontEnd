@@ -480,24 +480,10 @@ export default function ProjectDetailsPage() {
                   </div>
                 )}
 
-                {project.type_id && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Loại dự án</label>
-                    <p className="text-gray-900">{project.type_id.name}</p>
-                  </div>
-                )}
-
                 {project.dep_id && (
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Khoa</label>
                     <p className="text-gray-900">{project.dep_id.name}</p>
-                  </div>
-                )}
-
-                {project.est_effort && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Ước tính công sức</label>
-                    <p className="text-gray-900">{project.est_effort} giờ</p>
                   </div>
                 )}
               </div>

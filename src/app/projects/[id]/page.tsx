@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar"; // Import ResponsiveSidebar để sử dụng cho sidebar
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover } from "@mui/material";
+import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -18,17 +18,12 @@ import ClearIcon from "@mui/icons-material/Clear";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import EditIcon from "@mui/icons-material/Edit";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import DateRangeIcon from "@mui/icons-material/DateRange";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import ListIcon from "@mui/icons-material/List";
 import FlagIcon from "@mui/icons-material/Flag";
 import TuneIcon from "@mui/icons-material/Tune";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
@@ -39,33 +34,16 @@ type User = {
   email?: string;
 };
 
-type SuccessCriteria = {
-  _id?: string;
-  title: string;
-  description?: string;
-  status: "pending" | "in-review" | "verified" | "rejected";
-  verified_by?: User;
-  verified_at?: string;
-};
 
 type Milestone = {
   _id: string;
   title: string;
-  code?: string;
   start_date?: string;
   deadline?: string;
-  actual_date?: string;
-  status?: string;
   description?: string;
-  notes?: string;
-  estimated_effort?: number;
-  actual_effort?: number;
-  delay_days?: number;
   tags?: string[];
-  approved_by?: User;
   created_by?: User;
   last_updated_by?: User;
-  success_criteria?: SuccessCriteria[];
   createdAt?: string;
   updatedAt?: string;
   progress?: {
@@ -111,6 +89,7 @@ export default function ProjectDetailPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMilestones, setSelectedMilestones] = useState<Set<string>>(new Set());
   const [showToolbar, setShowToolbar] = useState(false);
+  const [viewTab, setViewTab] = useState<'list' | 'timeline'>('list');
 
   // Advanced filter states
   const [statusFilter, setStatusFilter] = useState<Record<string, boolean>>({
@@ -128,17 +107,9 @@ export default function ProjectDetailPage() {
     endDate: '',
     enabled: false,
   });
-  const [progressFilter, setProgressFilter] = useState<{
-    min: number;
-    max: number;
-    enabled: boolean;
-  }>({
-    min: 0,
-    max: 100,
-    enabled: false,
-  });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
 
   useEffect(() => {
     if (!projectId) return;
@@ -241,11 +212,7 @@ export default function ProjectDetailPage() {
       filtered = filtered.filter(milestone => filteredMilestoneIds.has(milestone._id));
     }
 
-    // Apply status filter
-    filtered = filtered.filter(milestone => {
-      const status = milestone.status || 'Planned';
-      return statusFilter[status] !== false;
-    });
+    // Status filter is no longer applicable as milestone model doesn't have status field
 
     // Apply date range filter
     if (dateRangeFilter.enabled && (dateRangeFilter.startDate || dateRangeFilter.endDate)) {
@@ -264,14 +231,6 @@ export default function ProjectDetailPage() {
         }
 
         return true;
-      });
-    }
-
-    // Apply progress filter
-    if (progressFilter.enabled) {
-      filtered = filtered.filter(milestone => {
-        const progress = milestone.progress?.overall || 0;
-        return progress >= progressFilter.min && progress <= progressFilter.max;
       });
     }
 
@@ -551,7 +510,7 @@ export default function ProjectDetailPage() {
             <ProjectBreadcrumb 
               projectId={projectId}
               items={[
-                { label: 'Milestones', icon: <FlagIcon sx={{ fontSize: 16 }} /> }
+                { label: 'Cột mốc', icon: <FlagIcon sx={{ fontSize: 16 }} /> }
               ]}
             />
             
@@ -587,15 +546,68 @@ export default function ProjectDetailPage() {
                   </Box>
                   <Box>
                     <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                      Milestones
+                      Cột mốc
                     </Typography>
                     <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                      Quản lý các milestone trong dự án
+                      Quản lý các cột mốc trong dự án
                     </Typography>
                   </Box>
                 </Box>
 
                 <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                  {/* Quick Navigation like other screens */}
+                  <Button
+                    variant="outlined"
+                    onClick={() => router.push(`/projects/${projectId}/features`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Tính năng
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => router.push(`/projects/${projectId}/functions`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Chức năng
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => router.push(`/projects/${projectId}/tasks`)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Công việc
+                  </Button>
+                  <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                   <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -617,7 +629,7 @@ export default function ProjectDetailPage() {
                       transition: 'all 0.2s ease',
                     }}
                   >
-                Thêm Milestone
+                Thêm cột mốc
               </Button>
                 </Stack>
               </Box>
@@ -634,7 +646,7 @@ export default function ProjectDetailPage() {
               }}>
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
                   <TextField
-                    placeholder="Quick search milestones..."
+                    placeholder="Tìm kiếm cột mốc..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     size="small"
@@ -664,9 +676,8 @@ export default function ProjectDetailPage() {
                       ) 
                     }}
                   />
-
                   <Badge 
-                    badgeContent={searchTerm || showAdvancedFilters ? 1 : 0}
+                    badgeContent={[dateRangeFilter.enabled, searchTerm].filter(Boolean).length || 0}
                     color="primary"
                     sx={{
                       '& .MuiBadge-badge': {
@@ -705,19 +716,19 @@ export default function ProjectDetailPage() {
                         transition: 'all 0.2s ease',
                       }}
                     >
-                      Quick Nav
+                      Bộ lọc
               </Button>
                   </Badge>
                 </Stack>
 
                 <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                  Showing: {getFilteredMilestones().length} milestones
+                  Hiển thị: {getFilteredMilestones().length} cột mốc
                 </Typography>
               </Box>
             </Box>
           </Box>
 
-          {/* Quick Navigation Popover */}
+          {/* Filters Popover (aligned with other screens) */}
           <Popover
             open={Boolean(filterAnchorEl)}
             anchorEl={filterAnchorEl}
@@ -734,132 +745,57 @@ export default function ProjectDetailPage() {
               paper: {
                 sx: {
                   mt: 1.5,
-                  width: 300,
-                  borderRadius: 3,
+                  width: 400,
+                  maxHeight: 500,
+                  borderRadius: 4,
                   boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
                   overflow: 'hidden',
                   background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }
               }
             }}
           >
-            <Box sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: '#2d3748' }}>
-                Quick Navigation
+            <Box sx={{ 
+              px: 3.5,
+              pt: 3,
+              pb: 2.5,
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              position: 'relative'
+            }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white' }}>
+                Bộ lọc cột mốc
               </Typography>
-              <Stack spacing={1}>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/features`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  ⭐ Features
+            </Box>
+            <Box sx={{ px: 3.5, py: 3 }}>
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={2}>
+                  <TextField
+                    type="date"
+                    size="small"
+                    label="Từ ngày"
+                    value={dateRangeFilter.startDate}
+                    onChange={(e) => setDateRangeFilter((prev) => ({ ...prev, startDate: e.target.value, enabled: true }))}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  <TextField
+                    type="date"
+                    size="small"
+                    label="Đến ngày"
+                    value={dateRangeFilter.endDate}
+                    onChange={(e) => setDateRangeFilter((prev) => ({ ...prev, endDate: e.target.value, enabled: true }))}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Stack>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  <Button size="small" variant="outlined" onClick={() => setDateRangeFilter({ startDate: '', endDate: '', enabled: false })}>
+                    Đặt lại
               </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/functions`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  🔧 Functions
+                  <Button size="small" variant="contained" onClick={() => setFilterAnchorEl(null)}>
+                    Áp dụng
               </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/tasks`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  ✅ Tasks
-                </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/team`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  👥 Team
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/documents`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  📄 Documents
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/defect`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  🐛 Defects
-                </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/monitoring`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                  📊 Monitoring
-                </Button>
+                </Box>
               </Stack>
             </Box>
           </Popover>
@@ -900,7 +836,7 @@ export default function ProjectDetailPage() {
                       {selectedMilestones.size}
                     </Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      Milestone{selectedMilestones.size !== 1 ? 's' : ''} selected
+                      {selectedMilestones.size} cột mốc đã chọn
                     </Typography>
                   </Box>
 
@@ -912,7 +848,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Duplicate
+                      Nhân bản
                     </Typography>
                   </Button>
 
@@ -924,7 +860,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Export
+                      Xuất
                     </Typography>
                   </Button>
 
@@ -936,7 +872,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Archive
+                      Lưu trữ
                     </Typography>
                   </Button>
 
@@ -948,7 +884,7 @@ export default function ProjectDetailPage() {
                     sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
                   >
                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Delete
+                      Xóa
                     </Typography>
                   </Button>
 
@@ -1003,38 +939,154 @@ export default function ProjectDetailPage() {
                 </Card>
               ) : (
                 <>
-                  <Timeline
-                    milestones={getFilteredMilestones()}
-                    projectId={projectId}
-                    onLocalUpdate={setMilestones}
-                    searchTerm={searchTerm}
-                  />
-                  <MilestoneFeaturesTable
-                    milestones={getFilteredMilestones()}
-                    milestoneFeatures={getFilteredMilestoneFeatures()}
-                    searchTerm={searchTerm}
-                    highlightText={highlightText}
-                    projectId={projectId}
-                  />
-                  <MilestonesList
-                    milestones={getFilteredMilestones()}
-                    projectId={projectId}
-                    searchTerm={searchTerm}
-                    highlightText={highlightText}
-                    selectedMilestones={selectedMilestones}
-                    setSelectedMilestones={setSelectedMilestones}
-                    statusFilter={statusFilter}
-                    setStatusFilter={setStatusFilter}
-                    dateRangeFilter={dateRangeFilter}
-                    setDateRangeFilter={setDateRangeFilter}
-                    progressFilter={progressFilter}
-                    setProgressFilter={setProgressFilter}
-                    showAdvancedFilters={showAdvancedFilters}
-                    setShowAdvancedFilters={setShowAdvancedFilters}
-                    getFilteredMilestones={getFilteredMilestones}
-                    getFilteredMilestoneFeatures={getFilteredMilestoneFeatures}
-                    setSearchTerm={setSearchTerm}
-                  />
+                  {/* Tabs */}
+                    <Tabs 
+                      value={viewTab === 'list' ? 0 : 1} 
+                      onChange={(e, newValue) => setViewTab(newValue === 0 ? 'list' : 'timeline')}
+                      sx={{
+                        borderBottom: '1px solid #e2e8f0',
+                        px: 2,
+                        '& .MuiTab-root': {
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          minHeight: 48,
+                          color: '#6b7280',
+                          '&.Mui-selected': {
+                            color: '#7b68ee',
+                          }
+                        },
+                        '& .MuiTabs-indicator': {
+                          backgroundColor: '#7b68ee',
+                          height: 3,
+                          borderRadius: '3px 3px 0 0',
+                        }
+                      }}
+                    >
+                      <Tab
+                        icon={<ListIcon fontSize="small" />}
+                        iconPosition="start"
+                        label="Danh sách"
+                        value={0}
+                        sx={{
+                          minHeight: 48,
+                          '&.Mui-selected': {
+                            color: '#7b68ee',
+                          }
+                        }}
+                      />
+                      <Tab
+                        icon={
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        }
+                        iconPosition="start"
+                        label="Gantt"
+                        value={1}
+                        sx={{
+                          minHeight: 48,
+                          '&.Mui-selected': {
+                            color: '#7b68ee',
+                          }
+                        }}
+                      />
+                    </Tabs>
+
+                  {/* Tab Content */}
+                  {viewTab === 'list' && (
+                    <Paper variant="outlined" sx={{ borderRadius: 3 }}>
+                      <Table size="small" sx={{ '& td, & th': { borderColor: 'var(--border)' } }}>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Tiêu đề</TableCell>
+                            <TableCell>Bắt đầu - Hết hạn</TableCell>
+                            <TableCell sx={{ width: 120 }}>Thao tác</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {getFilteredMilestones().map((m, idx) => (
+                            <TableRow key={m._id} hover>
+                              <TableCell>
+                                <Link
+                                  component="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMilestoneModal({ open: true, milestoneId: m._id });
+                                  }}
+                                  sx={{
+                                    fontWeight: 600,
+                                    color: '#7b68ee',
+                                    textDecoration: 'none',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      textDecoration: 'underline',
+                                      color: '#6952d6',
+                                    }
+                                  }}
+                                >
+                                  {m.title}
+                                </Link>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {m.start_date ? new Date(m.start_date).toLocaleDateString('vi-VN') : '—'} {m.deadline ? `→ ${new Date(m.deadline).toLocaleDateString('vi-VN')}` : ''}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Stack direction="row" spacing={0.5}>
+                                  <Tooltip title="Chỉnh sửa milestone">
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMilestoneModal({ open: true, milestoneId: m._id });
+                                      }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Paper>
+                  )}
+                  {milestoneModal.open && milestoneModal.milestoneId && (
+                    <ModalMilestone
+                      open={milestoneModal.open}
+                      onClose={() => setMilestoneModal({ open: false })}
+                      projectId={projectId}
+                      milestoneId={milestoneModal.milestoneId}
+                      onUpdate={async () => {
+                        try {
+                          const [milestoneRes, progressRes] = await Promise.all([
+                            axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneModal.milestoneId}`),
+                            axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneModal.milestoneId}/progress`).catch(() => ({ data: { progress: null } }))
+                          ]);
+                          const updatedMilestone = { ...milestoneRes.data, progress: progressRes.data?.progress || null };
+                          setMilestones((prev) =>
+                            prev
+                              ? prev.map((ms) => (ms._id === milestoneModal.milestoneId ? updatedMilestone : ms))
+                              : prev
+                          );
+                        } catch (e) {
+                          console.error('Failed to refresh milestone:', e);
+                        }
+                      }}
+                    />
+                  )}
+
+                  {viewTab === 'timeline' && (
+                    <Timeline
+                      milestones={getFilteredMilestones()}
+                      projectId={projectId}
+                      onLocalUpdate={setMilestones}
+                      searchTerm={searchTerm}
+                    />
+                  )}
                 </>
               )}
             </>
@@ -1064,16 +1116,12 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
             size="small"
             sx={{ minWidth: 140 }}
           >
-            <MenuItem value="Days">Days</MenuItem>
-            <MenuItem value="Weeks">Weeks</MenuItem>
-            <MenuItem value="Months">Months</MenuItem>
-            <MenuItem value="Quarters">Quarters</MenuItem>
+            <MenuItem value="Days">Ngày</MenuItem>
+            <MenuItem value="Weeks">Tuần</MenuItem>
+            <MenuItem value="Months">Tháng</MenuItem>
+            <MenuItem value="Quarters">Quý</MenuItem>
           </MUISelect>
-          <FormControlLabel
-            className="ml-2"
-            control={<MUICheckbox size="small" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} />}
-            label={<Typography variant="body2">Auto Fit</Typography>}
-          />
+         
         </div>
       </div>
 
@@ -1137,361 +1185,6 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
   );
 }
 
-function MilestoneFeaturesTable({
-  milestones,
-  milestoneFeatures,
-  searchTerm,
-  highlightText,
-  projectId
-}: {
-  milestones: Milestone[];
-  milestoneFeatures: Record<string, Array<{
-    feature_id: string;
-    feature_title: string;
-    task_count: number;
-    function_count: number;
-    completed_tasks: number;
-    completed_functions: number;
-    percentage: number;
-  }>>;
-  searchTerm?: string;
-  highlightText?: (text: string, searchTerm: string) => React.ReactNode;
-  projectId: string;
-}) {
-  const router = useRouter();
-  const [featureSearchTerm, setFeatureSearchTerm] = useState("");
-  const [featureStatusFilter, setFeatureStatusFilter] = useState<Record<string, boolean>>({
-    '0-25': true,
-    '26-50': true,
-    '51-75': true,
-    '76-100': true,
-  });
-  const [showFeatureFilters, setShowFeatureFilters] = useState(false);
-
-  // Filter functions for features
-  const getFilteredFeatures = (features: Array<{
-    feature_id: string;
-    feature_title: string;
-    task_count: number;
-    function_count: number;
-    completed_tasks: number;
-    completed_functions: number;
-    percentage: number;
-  }>) => {
-    let filtered = [...features];
-
-    // Apply search filter
-    if (featureSearchTerm) {
-      const term = featureSearchTerm.toLowerCase();
-      filtered = filtered.filter(feature =>
-        feature.feature_title.toLowerCase().includes(term)
-      );
-    }
-
-    // Apply progress filter
-    filtered = filtered.filter(feature => {
-      const progress = feature.percentage || 0;
-      if (progress >= 0 && progress <= 25) return featureStatusFilter['0-25'];
-      if (progress >= 26 && progress <= 50) return featureStatusFilter['26-50'];
-      if (progress >= 51 && progress <= 75) return featureStatusFilter['51-75'];
-      if (progress >= 76 && progress <= 100) return featureStatusFilter['76-100'];
-      return true;
-    });
-
-    return filtered;
-  };
-
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 80) return "success";
-    if (percentage >= 50) return "warning";
-    return "error";
-  };
-
-  const getStatusColor = (status?: string) => {
-    switch (status) {
-      case "Completed": return "success";
-      case "In Progress": return "warning";
-      case "Overdue": return "error";
-      default: return "default";
-    }
-  };
-
-  // Tính tổng số features
-  const totalFeatures = Object.values(milestoneFeatures).reduce((sum, features) => sum + features.length, 0);
-
-  if (totalFeatures === 0) {
-    return (
-      <Card sx={{ mt: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Chi tiết Features theo Milestone
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" py={4}>
-            Chưa có feature nào được liên kết với milestone
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card sx={{ mt: 3 }}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-          Chi tiết Features theo Milestone
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Tổng cộng {totalFeatures} features được phân bổ trong {milestones.length} milestones
-        </Typography>
-
-        {/* Feature Search and Filter Bar */}
-        <Box sx={{ mb: 3 }}>
-          <Stack spacing={2}>
-            {/* Main Search Row */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-              <Tooltip title="Tìm kiếm trong features">
-                <TextField
-                  fullWidth
-                  placeholder="Tìm kiếm feature..."
-                  value={featureSearchTerm}
-                  onChange={(e) => setFeatureSearchTerm(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
-                    endAdornment: featureSearchTerm && (
-                      <InputAdornment position="end">
-                        <Button
-                          size="small"
-                          onClick={() => setFeatureSearchTerm("")}
-                          sx={{ minWidth: 'auto', p: 0.5 }}
-                        >
-                          <ClearIcon fontSize="small" />
-                        </Button>
-                      </InputAdornment>
-                    ),
-                  }}
-                  size="small"
-                />
-              </Tooltip>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FilterListIcon />}
-                endIcon={showFeatureFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                onClick={() => setShowFeatureFilters(!showFeatureFilters)}
-                sx={{ minWidth: 'auto' }}
-              >
-                <Typography variant="body2">Lọc tiến độ</Typography>
-              </Button>
-            </Stack>
-
-            {/* Advanced Filters */}
-            <Collapse in={showFeatureFilters}>
-              <Box sx={{ pt: 2 }}>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={2}>
-                  {/* Progress Range Filter */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                      <TrendingUpIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Khoảng tiến độ (%)
-                    </Typography>
-                    <Stack direction="row" spacing={2} flexWrap="wrap">
-                      {[
-                        { key: '0-25', label: '0-25%', color: 'error' },
-                        { key: '26-50', label: '26-50%', color: 'warning' },
-                        { key: '51-75', label: '51-75%', color: 'info' },
-                        { key: '76-100', label: '76-100%', color: 'success' }
-                      ].map(range => (
-                        <FormControlLabel
-                          key={range.key}
-                          control={
-                            <MUICheckbox
-                              size="small"
-                              checked={featureStatusFilter[range.key] !== false}
-                              onChange={(e) => setFeatureStatusFilter((prev: Record<string, boolean>) => ({ ...prev, [range.key]: e.target.checked }))}
-                            />
-                          }
-                          label={range.label}
-                          sx={{ minWidth: 'auto' }}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-
-                  {/* Filter Actions */}
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => {
-                        setFeatureStatusFilter({ '0-25': true, '26-50': true, '51-75': true, '76-100': true });
-                      }}
-                    >
-                      Reset
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={() => setShowFeatureFilters(false)}
-                    >
-                      Áp dụng
-                    </Button>
-                  </Box>
-                </Stack>
-              </Box>
-            </Collapse>
-
-            {/* Search Results Summary */}
-            {(featureSearchTerm || showFeatureFilters) && (
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                <Typography variant="body2" color="text.secondary">
-                  Kết quả: {Object.values(milestoneFeatures).flat().filter(feature => {
-                    const filtered = getFilteredFeatures([feature]);
-                    return filtered.length > 0;
-                  }).length} feature{Object.values(milestoneFeatures).flat().filter(feature => {
-                    const filtered = getFilteredFeatures([feature]);
-                    return filtered.length > 0;
-                  }).length !== 1 ? 's' : ''}
-                </Typography>
-                {(featureSearchTerm || Object.values(featureStatusFilter).some(v => !v)) && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => {
-                      setFeatureSearchTerm("");
-                      setFeatureStatusFilter({ '0-25': true, '26-50': true, '51-75': true, '76-100': true });
-                    }}
-                    startIcon={<ClearIcon />}
-                  >
-                    Xóa bộ lọc
-                  </Button>
-                )}
-              </Stack>
-            )}
-          </Stack>
-        </Box>
-
-        {milestones.map((milestone) => {
-          const features = milestoneFeatures[milestone._id] || [];
-          const filteredFeatures = getFilteredFeatures(features);
-
-          if (features.length === 0) return null;
-
-          return (
-            <Box key={milestone._id} sx={{ mb: 4 }}>
-              <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                  {milestone.title}
-                </Typography>
-                <Chip
-                  label={milestone.status || "Planning"}
-                  color={getStatusColor(milestone.status)}
-                  size="small"
-                />
-                <Chip
-                  label={`${filteredFeatures.length}/${features.length} features`}
-                  variant="outlined"
-                  size="small"
-                />
-                {milestone.progress && (
-                  <Chip
-                    label={`${milestone.progress.overall}%`}
-                    color={getProgressColor(milestone.progress.overall)}
-                    size="small"
-                  />
-                )}
-                {milestone.progress && milestone.progress.overall === 0 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    (Chưa có task/function)
-                  </Typography>
-                )}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => router.push(`/projects/${projectId}/milestones/${milestone._id}/features`)}
-                  sx={{ ml: 'auto' }}
-                >
-                  Xem Features
-                </Button>
-              </Stack>
-
-              {filteredFeatures.length === 0 ? (
-                <Box textAlign="center" py={4}>
-                  <Typography variant="body2" color="text.secondary">
-                    Không có feature nào khớp với bộ lọc
-                  </Typography>
-                </Box>
-              ) : (
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 600 }}>Feature Title</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }} align="center">Tasks</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }} align="center">Functions</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }} align="center">Tiến độ</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }} align="center">Progress Bar</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredFeatures.map((feature) => (
-                        <TableRow key={feature.feature_id} hover>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                              {(searchTerm || featureSearchTerm) && highlightText ?
-                                highlightText(feature.feature_title, searchTerm || featureSearchTerm) :
-                                feature.feature_title}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Stack direction="row" alignItems="center" spacing={1} justifyContent="center">
-                              <AssignmentIcon fontSize="small" color="info" />
-                              <Typography variant="body2">
-                                {feature.task_count > 0 ? `${feature.completed_tasks}/${feature.task_count}` : 'Chưa có task'}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Stack direction="row" alignItems="center" spacing={1} justifyContent="center">
-                              <FunctionsIcon fontSize="small" color="secondary" />
-                              <Typography variant="body2">
-                                {feature.function_count > 0 ? `${feature.completed_functions}/${feature.function_count}` : 'Chưa có function'}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip
-                              label={`${feature.percentage}%`}
-                              color={getProgressColor(feature.percentage)}
-                              size="small"
-                              sx={{ fontWeight: 600 }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <LinearProgress
-                              variant="determinate"
-                              value={feature.percentage}
-                              color={getProgressColor(feature.percentage)}
-                              sx={{ height: 6, borderRadius: 3 }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </Box>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
 
 function MilestonesList({
   milestones,
@@ -1504,12 +1197,9 @@ function MilestonesList({
   setStatusFilter,
   dateRangeFilter,
   setDateRangeFilter,
-  progressFilter,
-  setProgressFilter,
   showAdvancedFilters,
   setShowAdvancedFilters,
   getFilteredMilestones,
-  getFilteredMilestoneFeatures,
   setSearchTerm
 }: {
   milestones: Milestone[];
@@ -1522,20 +1212,9 @@ function MilestonesList({
   setStatusFilter: (filter: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void;
   dateRangeFilter: { startDate: string; endDate: string; enabled: boolean };
   setDateRangeFilter: (filter: { startDate: string; endDate: string; enabled: boolean } | ((prev: { startDate: string; endDate: string; enabled: boolean }) => { startDate: string; endDate: string; enabled: boolean })) => void;
-  progressFilter: { min: number; max: number; enabled: boolean };
-  setProgressFilter: (filter: { min: number; max: number; enabled: boolean } | ((prev: { min: number; max: number; enabled: boolean }) => { min: number; max: number; enabled: boolean })) => void;
   showAdvancedFilters: boolean;
   setShowAdvancedFilters: (show: boolean) => void;
   getFilteredMilestones: () => Milestone[];
-  getFilteredMilestoneFeatures: () => Record<string, Array<{
-    feature_id: string;
-    feature_title: string;
-    task_count: number;
-    function_count: number;
-    completed_tasks: number;
-    completed_functions: number;
-    percentage: number;
-  }>>;
   setSearchTerm: (term: string) => void;
 }) {
   const router = useRouter();
@@ -1588,212 +1267,7 @@ function MilestonesList({
   return (
     <Card sx={{ mt: 4 }}>
       <CardContent>
-        {/* Search and Filter Bar */}
-        <Box sx={{ mb: 3 }}>
-          <Stack spacing={2}>
-            {/* Main Search Row */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-              <Tooltip title="Ctrl+K để focus, Esc để xóa">
-                <TextField
-                  fullWidth
-                  placeholder="Tìm kiếm milestone hoặc feature... (Ctrl+K)"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
-                    endAdornment: searchTerm && (
-                      <InputAdornment position="end">
-                        <Button
-                          size="small"
-                          onClick={() => setSearchTerm("")}
-                          sx={{ minWidth: 'auto', p: 0.5 }}
-                        >
-                          <ClearIcon fontSize="small" />
-                        </Button>
-                      </InputAdornment>
-                    ),
-                  }}
-                  size="small"
-                />
-              </Tooltip>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FilterListIcon />}
-                endIcon={showAdvancedFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                sx={{ minWidth: 'auto' }}
-              >
-                <Typography variant="body2">Bộ lọc</Typography>
-              </Button>
-            </Stack>
-
-            {/* Advanced Filters */}
-            <Collapse in={showAdvancedFilters}>
-              <Box sx={{ pt: 2 }}>
-                <Divider sx={{ mb: 2 }} />
-                <Stack spacing={3}>
-                  {/* Status Filter */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                      <FilterListIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Trạng thái
-                    </Typography>
-                    <Stack direction="row" spacing={2} flexWrap="wrap">
-                      {['Planned', 'In Progress', 'Completed', 'Overdue'].map(status => (
-                        <FormControlLabel
-                          key={status}
-                          control={
-                            <MUICheckbox
-                              size="small"
-                              checked={statusFilter[status] !== false}
-                              onChange={(e) => setStatusFilter((prev: Record<string, boolean>) => ({ ...prev, [status]: e.target.checked }))}
-                            />
-                          }
-                          label={status}
-                          sx={{ minWidth: 'auto' }}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-
-                  {/* Date Range Filter */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                      <DateRangeIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Khoảng thời gian
-                    </Typography>
-                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                      <FormControlLabel
-                        control={
-                          <MUICheckbox
-                            size="small"
-                            checked={dateRangeFilter.enabled}
-                            onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, enabled: e.target.checked }))}
-                          />
-                        }
-                        label="Bật lọc theo ngày"
-                      />
-                      <TextField
-                        type="date"
-                        size="small"
-                        label="Từ ngày"
-                        value={dateRangeFilter.startDate}
-                        onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, startDate: e.target.value }))}
-                        disabled={!dateRangeFilter.enabled}
-                        sx={{ minWidth: 150 }}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                      <TextField
-                        type="date"
-                        size="small"
-                        label="Đến ngày"
-                        value={dateRangeFilter.endDate}
-                        onChange={(e) => setDateRangeFilter((prev: { startDate: string; endDate: string; enabled: boolean }) => ({ ...prev, endDate: e.target.value }))}
-                        disabled={!dateRangeFilter.enabled}
-                        sx={{ minWidth: 150 }}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                    </Stack>
-                  </Box>
-
-                  {/* Progress Filter */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                      <TrendingUpIcon sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Tiến độ (%)
-                    </Typography>
-                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                      <FormControlLabel
-                        control={
-                          <MUICheckbox
-                            size="small"
-                            checked={progressFilter.enabled}
-                            onChange={(e) => setProgressFilter((prev: { min: number; max: number; enabled: boolean }) => ({ ...prev, enabled: e.target.checked }))}
-                          />
-                        }
-                        label="Bật lọc theo tiến độ"
-                      />
-                      <Box sx={{ minWidth: 200 }}>
-                        <Slider
-                          value={[progressFilter.min, progressFilter.max]}
-                          onChange={(_, newValue) => {
-                            const [min, max] = newValue as number[];
-                            setProgressFilter((prev: { min: number; max: number; enabled: boolean }) => ({ ...prev, min, max }));
-                          }}
-                          valueLabelDisplay="auto"
-                          min={0}
-                          max={100}
-                          step={5}
-                          disabled={!progressFilter.enabled}
-                          sx={{ mt: 1 }}
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                          {progressFilter.min}% - {progressFilter.max}%
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </Box>
-
-                  {/* Filter Actions */}
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => {
-                        setStatusFilter({ Planned: true, 'In Progress': true, Completed: true, Overdue: true });
-                        setDateRangeFilter({ startDate: '', endDate: '', enabled: false });
-                        setProgressFilter({ min: 0, max: 100, enabled: false });
-                      }}
-                    >
-                      Reset
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={() => setShowAdvancedFilters(false)}
-                    >
-                      Áp dụng
-                    </Button>
-                  </Box>
-                </Stack>
-              </Box>
-            </Collapse>
-
-            {/* Search Results Summary */}
-            {(searchTerm || showAdvancedFilters) && (
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                <Typography variant="body2" color="text.secondary">
-                  Kết quả: {getFilteredMilestones().length} milestone{getFilteredMilestones().length !== 1 ? 's' : ''}
-                </Typography>
-                <Chip
-                  label={`${Object.values(getFilteredMilestoneFeatures()).flat().length} feature${Object.values(getFilteredMilestoneFeatures()).flat().length !== 1 ? 's' : ''}`}
-                  size="small"
-                  variant="outlined"
-                />
-                {(searchTerm || dateRangeFilter.enabled || progressFilter.enabled || Object.values(statusFilter).some(v => !v)) && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => {
-                      setSearchTerm("");
-                      setStatusFilter({ Planned: true, 'In Progress': true, Completed: true, Overdue: true });
-                      setDateRangeFilter({ startDate: '', endDate: '', enabled: false });
-                      setProgressFilter({ min: 0, max: 100, enabled: false });
-                    }}
-                    startIcon={<ClearIcon />}
-                  >
-                    Xóa tất cả bộ lọc
-                  </Button>
-                )}
-              </Stack>
-            )}
-          </Stack>
-        </Box>
+        {/* Top-level toolbar now contains search & filters; removed duplicate in list */}
 
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Box>
@@ -1853,20 +1327,6 @@ function MilestonesList({
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" gap={1} mb={1}>
-                        {milestone.code && (
-                          <Chip
-                            label={milestone.code}
-                            size="small"
-                            variant="outlined"
-                          />
-                        )}
-                        {milestone.status && (
-                          <Chip
-                            label={milestone.status}
-                            size="small"
-                            color={getStatusColor(milestone.status)}
-                          />
-                        )}
                         {milestone.tags && milestone.tags.slice(0, 3).map((tag, idx) => (
                           <Chip
                             key={idx}
@@ -1914,19 +1374,6 @@ function MilestonesList({
                         Edit
                       </Button>
                     </Tooltip>
-                    <Tooltip title="Xem chi tiết features">
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<VisibilityIcon />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/projects/${projectId}/milestones/${milestone._id}/features`);
-                        }}
-                      >
-                        Detail
-                      </Button>
-                    </Tooltip>
                   </Stack>
                 </Box>
 
@@ -1934,25 +1381,9 @@ function MilestonesList({
                   <Box display="flex" alignItems="center" gap={1}>
                     <CalendarTodayIcon fontSize="small" color="action" />
                     <Typography variant="caption" color="text.secondary">
-                      {formatDate(milestone.start_date)} - {formatDate(milestone.deadline)}
+                      {formatDate(milestone.start_date)} {milestone.deadline ? ` → ${formatDate(milestone.deadline)}` : ''}
                     </Typography>
                   </Box>
-                  {milestone.estimated_effort && milestone.estimated_effort > 0 && (
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <AccessTimeIcon fontSize="small" color="info" />
-                      <Typography variant="caption" color="text.secondary">
-                        Ước tính: {milestone.estimated_effort}h
-                      </Typography>
-                    </Box>
-                  )}
-                  {milestone.actual_effort && milestone.actual_effort > 0 && (
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <AccessTimeIcon fontSize="small" color="warning" />
-                      <Typography variant="caption" color="text.secondary">
-                        Thực tế: {milestone.actual_effort}h
-                      </Typography>
-                    </Box>
-                  )}
                   {milestone.progress && milestone.progress.by_feature && (
                     <Box display="flex" alignItems="center" gap={1}>
                       <AssignmentIcon fontSize="small" color="info" />
@@ -1963,24 +1394,6 @@ function MilestonesList({
                   )}
                 </Box>
 
-                {milestone.progress && (
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                      <Typography variant="caption" color="text.secondary">
-                        Tiến độ tổng thể
-                      </Typography>
-                      <Typography variant="caption" fontWeight={600}>
-                        {milestone.progress.overall}%
-                      </Typography>
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={milestone.progress.overall}
-                      color={getProgressColor(milestone.progress.overall)}
-                      sx={{ height: 8, borderRadius: 4 }}
-                    />
-                  </Box>
-                )}
               </Paper>
             ))}
           </Stack>

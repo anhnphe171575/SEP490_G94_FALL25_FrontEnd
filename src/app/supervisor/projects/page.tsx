@@ -173,9 +173,8 @@ export default function DashboardSupervisorPage() {
         });
 
         // Then get projects by mentor
-        const response = await axiosInstance.get(`/api/projects/mentor/${userData._id}`);
+        const response = await axiosInstance.get(`/api/projects/supervisor/${userData._id}`);
         const data = response.data;
-
         if (data.success && data.data) {
           const projectsList = Array.isArray(data.data) ? data.data : [];
           
@@ -291,22 +290,31 @@ export default function DashboardSupervisorPage() {
       <main className="p-4 md:p-6 md:ml-64">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 p-8 shadow-xl mb-6">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-32 -mb-32"></div>
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-medium mb-3">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Supervisor Dashboard
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
                 Dashboard Giảng viên 👨‍🏫
               </h1>
-              <p className="text-gray-600">
+              <p className="text-purple-100">
                 Quản lý và theo dõi các dự án bạn đang hướng dẫn
               </p>
               {userInfo && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-purple-200 mt-2">
                   {userInfo.full_name} ({userInfo.email})
                 </p>
               )}
             </div>
-            <QuickNav />
           </div>
+
+          
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -334,38 +342,6 @@ export default function DashboardSupervisorPage() {
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{semesterGroups.length}</p>
                   <p className="text-sm text-gray-600">Kỳ học</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {projects.filter(p => p.status === 'completed' || p.status === 'cancelled').length}
-                  </p>
-                  <p className="text-sm text-gray-600">Đã hoàn thành</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {projects.filter(isProjectInProgress).length}
-                  </p>
-                  <p className="text-sm text-gray-600">Đang thực hiện</p>
                 </div>
               </div>
             </div>

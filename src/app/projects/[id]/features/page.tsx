@@ -4,11 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import GanttChart from "@/components/GanttChart";
-import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
-import ModalMilestone from "@/components/ModalMilestone";
+import FeatureDetailsModal from "@/components/FeatureDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import StarIcon from "@mui/icons-material/Star";
+import { PRIORITY_OPTIONS } from "@/constants/settings";
 import {
   Box,
   Button,
@@ -41,6 +40,7 @@ import {
   Alert,
   Tabs,
   Tab,
+  Link,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
@@ -53,6 +53,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import InputAdornment from "@mui/material/InputAdornment";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
+import { toast } from "sonner";
 
 type Milestone = {
   _id: string;
@@ -78,17 +79,12 @@ type Feature = {
   _id?: string;
   title: string;
   description?: string;
-  plan_effort?: string;
-  estimated_hours?: number;
-  actual_effort?: number;
   priority_id?: Setting | string;
   status_id?: Setting | string;
-  complexity_id?: Setting | string;
   created_by?: User | string;
-  reviewer_id?: User | string;
   last_updated_by?: User | string;
   start_date?: string;
-  due_date?: string;
+  end_date?: string;
   tags?: string[];
   createdAt?: string;
   updatedAt?: string;
@@ -112,7 +108,6 @@ export default function ProjectFeaturesPage() {
   // Settings for dropdowns
   const [priorities, setPriorities] = useState<Setting[]>([]);
   const [statuses, setStatuses] = useState<Setting[]>([]);
-  const [complexities, setComplexities] = useState<Setting[]>([]);
   
   // Project data with man_days
   const [projectData, setProjectData] = useState<{ man_days?: number; topic?: string; start_date?: string; end_date?: string } | null>(null);
@@ -124,31 +119,22 @@ export default function ProjectFeaturesPage() {
   const [form, setForm] = useState<Feature>({ 
     title: "", 
     description: "", 
-    plan_effort: "",
-    estimated_hours: 0,
     milestone_ids: [],
     start_date: "",
-    due_date: "",
+    end_date: "",
     tags: []
   });
 
-  // Chart controls
-  const [weekStart, setWeekStart] = useState<Date>(getStartOfWeekUTC(new Date()));
-  const [viewMode, setViewMode] = useState<'Days' | 'Weeks' | 'Months' | 'Quarters'>('Weeks');
-  const [autoFit, setAutoFit] = useState<boolean>(true);
-  const [detailMode, setDetailMode] = useState<boolean>(false);
-  const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
+  const [featureModal, setFeatureModal] = useState<{ open: boolean; featureId?: string | null }>({ open: false, featureId: null });
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
     title?: string;
     description?: string;
-    plan_effort?: string;
-    estimated_hours?: number;
     start_date?: string;
-    due_date?: string;
-  }>({ title: "", description: "", plan_effort: "", estimated_hours: 0, start_date: "", due_date: "" });
+    end_date?: string;
+  }>({ title: "", description: "", start_date: "", end_date: "" });
 
   // Feature selection for milestone creation
   const [selectedFeatureIds, setSelectedFeatureIds] = useState<string[]>([]);
@@ -158,37 +144,15 @@ export default function ProjectFeaturesPage() {
   const [selectedFeatureDetail, setSelectedFeatureDetail] = useState<Feature | null>(null);
   const [openFeatureDetail, setOpenFeatureDetail] = useState(false);
   
-  // Effort allocation suggestions
-  const [allocationSuggestions, setAllocationSuggestions] = useState<any>(null);
-  const [openAllocationDialog, setOpenAllocationDialog] = useState(false);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   
   // View tab state
   const [viewTab, setViewTab] = useState<'table' | 'gantt'>('table');
   
-  // Estimated hours suggestion based on complexity
-  const getEstimatedHoursByComplexity = (complexityId: string | Setting | undefined) => {
-    if (!complexityId) return 0;
-    
-    // Handle both string ID and Setting object
-    const id = typeof complexityId === 'string' ? complexityId : complexityId._id;
-    const complexity = complexities.find(c => c._id === id);
-    if (!complexity || !complexity.value) return 0;
-    
-    // Map complexity to estimated hours
-    const hoursByComplexity: { [key: string]: number } = {
-      'simple': 20,      // Simple: 20h (2-3 days)
-      'medium': 40,      // Medium: 40h (1 week)
-      'complex': 80,     // Complex: 80h (2 weeks)
-      'very-complex': 160 // Very Complex: 160h (4 weeks)
-    };
-    
-    return hoursByComplexity[complexity.value] || 0;
-  };
+  // Note: Complexity field removed from Feature model
 
   const formatRelative = (iso?: string) => {
     if (!iso) return '';
@@ -209,14 +173,11 @@ export default function ProjectFeaturesPage() {
     (async () => {
       try {
         setLoading(true);
-        const [projectRes, teamRes, milestoneRes, featureRes, priorityRes, statusRes, complexityRes] = await Promise.all([
+        const [projectRes, teamRes, milestoneRes, featureRes] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/team-members`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/milestones`).catch(() => ({ data: null })),
           axiosInstance.get(`/api/projects/${projectId}/features`).catch(() => ({ data: null })),
-          axiosInstance.get(`/api/settings/by-type/1`).catch(() => ({ data: [] })), // Priority
-          axiosInstance.get(`/api/settings/by-type/2`).catch(() => ({ data: [] })), // Status
-          axiosInstance.get(`/api/settings/by-type/3`).catch(() => ({ data: [] })), // Complexity
         ]);
         
         // Set project data
@@ -232,17 +193,13 @@ export default function ProjectFeaturesPage() {
         const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
         setMilestones(milestonesList);
 
-        // Set settings
-        setPriorities(Array.isArray(priorityRes.data) ? priorityRes.data : []);
-        setStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
-        setComplexities(Array.isArray(complexityRes.data) ? complexityRes.data : []);
-        
-        // Debug logging
-        console.log('Settings loaded:', {
-          priorities: priorityRes.data,
-          statuses: statusRes.data,
-          complexities: complexityRes.data
-        });
+        // Set settings: priority from constants, status from Feature model enum
+        setPriorities(PRIORITY_OPTIONS);
+        setStatuses([
+          { _id: "To Do", name: "To Do", value: "to-do" },
+          { _id: "Doing", name: "Doing", value: "doing" },
+          { _id: "Done", name: "Done", value: "done" },
+        ] as any);
 
         if (Array.isArray(featureRes.data)) {
           // Enrich features with linked milestone ids
@@ -291,34 +248,6 @@ export default function ProjectFeaturesPage() {
 
   const milestoneOptions = useMemo(() => milestones.map(m => ({ id: m._id, label: m.title })), [milestones]);
 
-  // Calculate project capacity and usage
-  const capacityInfo = useMemo(() => {
-    const hoursPerDay = projectData?.man_days || 0; // Giờ làm việc mỗi ngày của 1 người
-    const teamMemberCount = teamData?.team_members?.total || 0; // Số người trong team
-    
-    // Tính số ngày dự án
-    const projectDurationDays = projectData?.start_date && projectData?.end_date 
-      ? Math.ceil((new Date(projectData.end_date).getTime() - new Date(projectData.start_date).getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
-    
-    // Total Capacity = số người × giờ mỗi ngày × số ngày dự án
-    const totalCapacityHours = teamMemberCount * hoursPerDay * projectDurationDays;
-    
-    const usedHours = features.reduce((sum, f) => sum + (f.estimated_hours || 0), 0);
-    const remainingHours = totalCapacityHours - usedHours;
-    const usagePercentage = totalCapacityHours > 0 ? (usedHours / totalCapacityHours) * 100 : 0;
-    
-    return {
-      hoursPerDay,
-      teamMemberCount,
-      projectDurationDays,
-      totalCapacityHours,
-      usedHours,
-      remainingHours,
-      usagePercentage
-    };
-  }, [projectData, teamData, features]);
-
   // Compute progress per feature: % milestones completed
   const featureProgress = useMemo(() => {
     const statusById = new Map(milestones.map(m => [m._id, m.status] as const));
@@ -333,60 +262,42 @@ export default function ProjectFeaturesPage() {
     return map;
   }, [features, milestones]);
 
-  // Derive feature bars from linked milestones (min start -> max deadline)
-  const featureBars = useMemo(() => {
-    const byId = new Map(milestones.map(m => [m._id, m] as const));
-    return features.map((f) => {
-      const linked = (f.milestone_ids || []).map(id => byId.get(id)).filter(Boolean) as Milestone[];
-      const start = linked.reduce<string | undefined>((acc, m) => {
-        if (!m.start_date) return acc;
-        return !acc || new Date(m.start_date) < new Date(acc) ? m.start_date : acc;
-      }, undefined);
-      const end = linked.reduce<string | undefined>((acc, m) => {
-        if (!m.deadline) return acc;
-        return !acc || new Date(m.deadline) > new Date(acc) ? m.deadline : acc;
-      }, undefined);
-      const pct = featureProgress.get(f._id as string) ?? 0;
-      return {
-        _id: f._id as string,
-        title: `${f.title}${linked.length ? ` (${linked.length})` : ''} • ${pct}%`,
-        start_date: start,
-        deadline: end,
-      };
+  // Gantt-related derived data removed
+  // Filtered list aligned with Functions page behavior
+  const filteredFeatures = useMemo(() => {
+    if (!features || features.length === 0) return [];
+    
+    const normalizedSearchTerm = (searchTerm || '').trim().toLowerCase();
+    
+    return features.filter((f) => {
+      // Match search term
+      let matchSearch = true;
+      if (normalizedSearchTerm) {
+        const title = (f.title || '').toLowerCase();
+        const description = (f.description || '').toLowerCase();
+        const tags = (f.tags || []).map(tag => (tag || '').toLowerCase()).join(' ');
+        
+        matchSearch = 
+          title.includes(normalizedSearchTerm) 
+      }
+      
+      // Match status filter
+      const statusId = typeof f.status_id === 'object' 
+        ? (f.status_id as any)?._id 
+        : f.status_id;
+      const matchStatus = filterStatus === 'all' || String(statusId) === String(filterStatus);
+      
+      return matchSearch && matchStatus;
     });
-  }, [features, milestones, featureProgress]);
-
-  // Expand to detailed chart rows per milestone when detailMode is on
-  const chartRows = useMemo(() => {
-    if (!detailMode) return featureBars;
-    const byId = new Map(milestones.map(m => [m._id, m] as const));
-    const rows: { _id: string; title: string; start_date?: string; deadline?: string }[] = [];
-    features.forEach((f) => {
-      const ids = f.milestone_ids || [];
-      ids.forEach((mid) => {
-        const m = byId.get(mid);
-        if (m) {
-          rows.push({
-            _id: m._id,
-            title: `${f.title} • ${m.title}`,
-            start_date: m.start_date,
-            deadline: m.deadline,
-          });
-        }
-      });
-    });
-    return rows.length ? rows : featureBars;
-  }, [detailMode, featureBars, features, milestones]);
+  }, [features, searchTerm, filterStatus]);
 
   const handleOpenForm = () => {
     setForm({ 
       title: "", 
       description: "", 
-      plan_effort: "",
-      estimated_hours: 0,
       milestone_ids: [],
       start_date: "",
-      due_date: "",
+      end_date: "",
       tags: []
     });
     setOpenForm(true);
@@ -398,14 +309,10 @@ export default function ProjectFeaturesPage() {
       const payload = {
         title: form.title,
         description: form.description,
-        plan_effort: form.plan_effort,
-        estimated_hours: form.estimated_hours || 0,
         priority_id: form.priority_id,
         status_id: form.status_id,
-        complexity_id: form.complexity_id,
-        reviewer_id: form.reviewer_id,
         start_date: form.start_date,
-        due_date: form.due_date,
+        end_date: form.end_date,
         tags: form.tags || [],
         milestone_ids: form.milestone_ids || [],
       };
@@ -431,15 +338,16 @@ export default function ProjectFeaturesPage() {
       setForm({ 
         title: "", 
         description: "", 
-        plan_effort: "",
-        estimated_hours: 0,
         milestone_ids: [],
         start_date: "",
-        due_date: "",
+        end_date: "",
         tags: []
       });
+      toast.success("Đã tạo feature thành công");
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tạo feature");
+      const errorMessage = e?.response?.data?.message || "Không thể tạo feature";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -449,26 +357,22 @@ export default function ProjectFeaturesPage() {
     setEditDraft({
       title: f.title,
       description: f.description,
-      plan_effort: f.plan_effort,
-      estimated_hours: f.estimated_hours,
       start_date: f.start_date,
-      due_date: f.due_date
+      end_date: f.end_date
     });
   };
   const cancelEditRow = () => {
     setEditingId(null);
     setEditingField(null);
-    setEditDraft({ title: "", description: "", plan_effort: "", estimated_hours: 0, start_date: "", due_date: "" });
+    setEditDraft({ title: "", description: "", start_date: "", end_date: "" });
   };
   const saveEditRow = async (id: string) => {
     try {
       const all: any = {
         title: editDraft.title,
         description: editDraft.description,
-        plan_effort: editDraft.plan_effort,
-        estimated_hours: editDraft.estimated_hours,
         start_date: editDraft.start_date,
-        due_date: editDraft.due_date
+        end_date: editDraft.end_date
       };
       const payload: any = editingField ? { [editingField]: all[editingField] } : all;
       await axiosInstance.patch(`/api/features/${id}`, payload).catch(() => null);
@@ -483,7 +387,11 @@ export default function ProjectFeaturesPage() {
         return updated;
       }));
       cancelEditRow();
-    } catch {}
+      toast.success("Đã cập nhật thành công");
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.message || "Không thể cập nhật feature";
+      toast.error(errorMessage);
+    }
   };
 
   const handleToggleFeatureSelection = (featureId: string) => {
@@ -504,335 +412,259 @@ export default function ProjectFeaturesPage() {
 
   const selectedFeatures = features.filter(f => selectedFeatureIds.includes(f._id as string));
 
-  // Fetch effort allocation suggestions
-  const fetchAllocationSuggestions = async (mode: 'complexity' | 'hybrid' = 'complexity') => {
-    try {
-      setLoadingSuggestions(true);
-      const res = await axiosInstance.post(
-        `/api/projects/${projectId}/suggest-feature-allocation?mode=${mode}`
-      );
-      setAllocationSuggestions(res.data);
-      setOpenAllocationDialog(true);
-    } catch (err: any) {
-      const errorData = err?.response?.data;
-      let errorMessage = errorData?.message || 'Không thể lấy gợi ý phân bổ';
-      
-      // Add suggestion if available
-      if (errorData?.suggestion) {
-        errorMessage += `\n\n💡 ${errorData.suggestion}`;
-      }
-      
-      // Add details for debugging
-      if (errorData?.details) {
-        console.log('❌ Allocation Error Details:', errorData.details);
-      }
-      
-      setError(errorMessage);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  // Apply suggestion to a feature
-  const applySuggestion = async (featureId: string, suggestedHours: number) => {
-    try {
-      await axiosInstance.patch(`/api/features/${featureId}`, {
-        estimated_hours: suggestedHours
-      });
-      
-      // Update local state
-      setFeatures(prev => prev.map(f => 
-        f._id === featureId ? { ...f, estimated_hours: suggestedHours } : f
-      ));
-      
-      // Refresh suggestions
-      await fetchAllocationSuggestions();
-    } catch (err: any) {
-      console.error('❌ Error applying suggestion:', err?.response?.data || err);
-      setError(err?.response?.data?.message || err?.response?.data?.errors?.join(', ') || 'Không thể apply suggestion');
-    }
-  };
-
-  // Apply all suggestions
-  const applyAllSuggestions = async () => {
-    if (!allocationSuggestions?.suggestions) return;
-    
-    try {
-      setLoadingSuggestions(true);
-      
-      await Promise.all(
-        allocationSuggestions.suggestions.map((s: any) =>
-          axiosInstance.patch(`/api/features/${s.feature_id}`, {
-            estimated_hours: s.suggested_hours
-          })
-        )
-      );
-      
-      // Refresh features
-      const res = await axiosInstance.get(`/api/projects/${projectId}/features`);
-      if (Array.isArray(res.data)) {
-        const enriched: Feature[] = await Promise.all(
-          res.data.map(async (f: any) => {
-            try {
-              const linkRes = await axiosInstance.get(`/api/features/${f._id}/milestones`);
-              const uniqueMilestoneIds = Array.isArray(linkRes.data) ? [...new Set(linkRes.data)] : [];
-              return { ...f, milestone_ids: uniqueMilestoneIds } as Feature;
-            } catch {
-              return { ...f, milestone_ids: [] } as Feature;
-            }
-          })
-        );
-        setFeatures(enriched);
-      }
-      
-      setOpenAllocationDialog(false);
-      setAllocationSuggestions(null);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Không thể apply suggestions');
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f8f9fb]">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
-        <div className="mx-auto w-full max-w-7xl">
-          {/* Modern Header */}
-          <Box sx={{ mb: 3 }}>
-          <ProjectBreadcrumb 
-            projectId={projectId}
-            items={[
-              { label: 'Features', icon: <StarIcon sx={{ fontSize: 16 }} /> }
-            ]}
-          />
-          
-            <Box sx={{ 
-              bgcolor: 'white', 
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-              border: '1px solid #e8e9eb',
-              mb: 3
-            }}>
-              <Box sx={{ 
-                px: 3, 
-                py: 2.5, 
-                borderBottom: '1px solid #e8e9eb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 2.5,
-                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
-                  }}>
-                    <StarIcon sx={{ fontSize: 28, color: 'white' }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                      Features
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                      Quản lý các feature trong dự án
-                    </Typography>
-                  </Box>
-              {selectedFeatureIds.length > 0 && (
-                <Chip 
-                      label={`${selectedFeatureIds.length} đã chọn`} 
-                  color="primary" 
-                  size="small"
-                  onDelete={() => setSelectedFeatureIds([])}
-                      sx={{
-                        ml: 2,
-                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                        color: 'white',
-                        fontWeight: 600,
-                      }}
-                    />
-                  )}
-                </Box>
+      <main>
+        <div className="w-full">
+          {/* Breadcrumb Navigation */}
+          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
+            <ProjectBreadcrumb 
+              projectId={projectId}
+              items={[
+                { label: 'Tính năng', icon: <StarIcon sx={{ fontSize: 16 }} /> }
+              ]}
+            />
+          </Box>
 
-                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-              {selectedFeatureIds.length > 0 && (
+          {/* ClickUp-style Top Bar (standardized) */}
+          <Box 
+            sx={{ 
+              bgcolor: 'white',
+              borderBottom: '1px solid #e8e9eb',
+              px: 3,
+              py: 2,
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Title */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 700,
+                    color: '#1f2937',
+                    fontSize: '24px',
+                  }}
+                >
+                  Tính năng
+                </Typography>
+                {selectedFeatureIds.length > 0 && (
+                  <Chip 
+                    label={`${selectedFeatureIds.length} đã chọn`} 
+                    size="small"
+                    sx={{
+                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                      color: 'white',
+                      fontWeight: 600,
+                    }}
+                    onDelete={() => setSelectedFeatureIds([])}
+                  />
+                )}
+              </Box>
+
+              {/* Right Actions */}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                {/* Quick Navigation */}
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Cột mốc
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Công Việc
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/functions`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Chức năng
+                </Button>
+                
+                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                
+                {selectedFeatureIds.length > 0 && (
+                  <Button 
+                    variant="contained" 
+                    onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
+                    sx={{ 
+                      bgcolor: '#10b981',
+                      color: 'white',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      px: 2.5,
+                      py: 1,
+                      borderRadius: 1.5,
+                      boxShadow: 'none',
+                      '&:hover': { 
+                        bgcolor: '#059669',
+                      },
+                    }}
+                  >
+                    Tạo Milestone
+                  </Button>
+                )}
                 <Button 
                   variant="contained" 
-                      size="small"
-                  onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        height: 36,
-                        px: 2,
-                        borderRadius: 2.5,
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #059669, #047857)',
-                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      Tạo Milestone
+                  onClick={handleOpenForm}
+                  startIcon={<AddIcon />} 
+                  sx={{ 
+                    bgcolor: '#7b68ee',
+                    color: 'white',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    px: 2.5,
+                    py: 1,
+                    borderRadius: 1.5,
+                    boxShadow: 'none',
+                    '&:hover': { 
+                      bgcolor: '#6952d6',
+                    },
+                  }}
+                >
+                  Tạo Feature
                 </Button>
-              )}
-              <Button 
-                variant="outlined" 
-                    size="small"
-                onClick={() => fetchAllocationSuggestions('complexity')}
-                disabled={loadingSuggestions}
-                    sx={{
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      borderColor: '#e2e8f0',
-                      borderWidth: '1.5px',
-                      color: '#49516f',
-                      height: 36,
-                      px: 2,
-                      borderRadius: 2.5,
-                      '&:hover': {
-                        borderColor: '#7b68ee',
-                        bgcolor: '#f9fafb',
-                      }
-                    }}
-              >
-                💡 Gợi ý phân bổ
-              </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenForm}
-                    sx={{
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                      height: 36,
-                      px: 2.5,
-                      borderRadius: 2.5,
-                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
-                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
-                        transform: 'translateY(-1px)',
-                      },
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    Tạo Feature
-                  </Button>
-                </Stack>
-              </Box>
-
-              {/* Toolbar with Search and Filters */}
-              <Box sx={{ 
-                px: 3, 
-                py: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap',
-              }}>
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
-                  <TextField
-                    placeholder="Quick search features..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    size="small"
-                    sx={{ 
-                      width: 250,
-                      '& .MuiOutlinedInput-root': { 
-                        fontSize: '13px',
-                        borderRadius: 2,
-                        bgcolor: '#f8f9fb',
-                        height: 36,
-                        '& fieldset': { borderColor: 'transparent' },
-                        '&:hover': { 
-                          bgcolor: '#f3f4f6',
-                          '& fieldset': { borderColor: '#e8e9eb' }
-                        },
-                        '&.Mui-focused': { 
-                          bgcolor: 'white',
-                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
-                        }
-                      } 
-                    }}
-                    InputProps={{ 
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
-                        </InputAdornment>
-                      ) 
-                    }}
-                  />
-
-                  <Badge 
-                    badgeContent={searchTerm ? 1 : 0}
-                    color="primary"
-                    sx={{
-                      '& .MuiBadge-badge': {
-                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: '10px',
-                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                        border: '2px solid white',
-                      }
-                    }}
-                  >
-                    <Button
-                      variant={filterAnchorEl ? "contained" : "outlined"}
-                      size="small"
-                      startIcon={<TuneIcon fontSize="small" />}
-                      onClick={(e) => setFilterAnchorEl(e.currentTarget)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
-                        borderWidth: '1.5px',
-                        color: filterAnchorEl ? 'white' : '#49516f',
-                        background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
-                        height: 36,
-                        px: 2,
-                        borderRadius: 2.5,
-                        boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
-                        '&:hover': {
-                          borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
-                          background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
-                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      Quick Nav
-                    </Button>
-                  </Badge>
-                </Stack>
-
-                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                  Showing: {features.filter(f => !searchTerm || f.title.toLowerCase().includes(searchTerm.toLowerCase())).length} features
-                </Typography>
-              </Box>
+              </Stack>
             </Box>
           </Box>
 
-          {/* Quick Navigation Popover */}
+          {/* Toolbar with Search and Filters - matched to Functions page */}
+          <Box sx={{ 
+            bgcolor: 'white',
+            borderBottom: '1px solid #e8e9eb',
+            px: 3, py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 2,
+            flexWrap: 'wrap',
+          }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+              <TextField
+                placeholder="Tìm kiếm tính năng..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                size="small"
+                sx={{ 
+                  width: 250,
+                  '& .MuiOutlinedInput-root': { 
+                    fontSize: '13px',
+                    borderRadius: 2,
+                    bgcolor: '#f8f9fb',
+                    height: 36,
+                    '& fieldset': { borderColor: 'transparent' },
+                    '&:hover': { 
+                      bgcolor: '#f3f4f6',
+                      '& fieldset': { borderColor: '#e8e9eb' }
+                    },
+                    '&.Mui-focused': { 
+                      bgcolor: 'white',
+                      '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                    }
+                  } 
+                }}
+                InputProps={{ 
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                    </InputAdornment>
+                  ) 
+                }}
+              />
+
+              <Badge 
+                badgeContent={[filterStatus !== 'all', searchTerm].filter(Boolean).length || 0}
+                color="primary"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                    border: '2px solid white',
+                  }
+                }}
+              >
+                <Button
+                  variant={filterAnchorEl ? "contained" : "outlined"}
+                  size="small"
+                  startIcon={<TuneIcon fontSize="small" />}
+                  onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                    borderWidth: '1.5px',
+                    color: filterAnchorEl ? 'white' : '#49516f',
+                    background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                    height: 36,
+                    px: 2,
+                    borderRadius: 2.5,
+                    boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                    '&:hover': {
+                      borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                      background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Bộ lọc
+                </Button>
+              </Badge>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+              Hiển thị: {filteredFeatures.length} {filteredFeatures.length !== features.length && `trong ${features.length}`} tính năng
+            </Typography>
+          </Box>
+
+          {/* Filters Popover - matched to Functions page */}
           <Popover
             open={Boolean(filterAnchorEl)}
             anchorEl={filterAnchorEl}
@@ -849,70 +681,170 @@ export default function ProjectFeaturesPage() {
               paper: {
                 sx: {
                   mt: 1.5,
-                  width: 300,
-                  borderRadius: 3,
+                  width: 400,
+                  maxHeight: 500,
+                  borderRadius: 4,
                   boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
                   overflow: 'hidden',
                   background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }
               }
             }}
           >
-            <Box sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: '#2d3748' }}>
-                Quick Navigation
+            {/* Header */}
+            <Box sx={{ 
+              px: 3.5,
+              pt: 3,
+              pb: 2.5,
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent)',
+                pointerEvents: 'none',
+              }
+            }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ position: 'relative', zIndex: 1 }}>
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 0.5 }}>
+                    <Box sx={{ 
+                      width: 36, 
+                      height: 36, 
+                      borderRadius: 2, 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                    }}>
+                      <TuneIcon sx={{ fontSize: 20, color: 'white' }} />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white', letterSpacing: '-0.02em' }}>
+                      Bộ lọc tính năng
               </Typography>
-              <Stack spacing={1}>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}`);
-                    setFilterAnchorEl(null);
-                  }}
+                  </Stack>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', ml: 6 }}>
+                    Tinh chỉnh danh sách tính năng của bạn
+                  </Typography>
+                </Box>
+                <IconButton 
+                  size="small"
+                  onClick={() => setFilterAnchorEl(null)}
                   sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                    color: 'white',
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    '&:hover': { 
+                      bgcolor: 'rgba(255,255,255,0.25)',
+                      transform: 'rotate(90deg)',
+                      transition: 'all 0.3s ease'
+                    },
+                    transition: 'all 0.3s ease'
                   }}
                 >
-                🎯 Milestones
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/functions`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                🔧 Functions
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/tasks`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                ✅ Tasks
-              </Button>
+                  <span style={{ fontSize: '18px', fontWeight: 300 }}>×</span>
+                </IconButton>
               </Stack>
             </Box>
+
+            {/* Filter Content */}
+            <Box sx={{ 
+              px: 3.5,
+              py: 3,
+              flex: 1,
+              overflowY: 'auto',
+            }}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Status
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Trạng thái</InputLabel>
+                    <Select
+                      value={filterStatus}
+                      label="Trạng thái"
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                  sx={{
+                        borderRadius: 2.5,
+                        bgcolor: 'white',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#8b5cf6', borderWidth: '2px' },
+                      }}
+                    >
+                      <MenuItem value="all">Tất cả</MenuItem>
+                      {statuses.map((status) => (
+                        <MenuItem key={status._id} value={status._id}>
+                          {status.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Stack>
+            </Box>
+
+            {/* Footer */}
+            {filterStatus !== 'all' && (
+              <Box sx={{ 
+                px: 3.5,
+                py: 2.5,
+                borderTop: '1px solid #e2e8f0',
+                background: 'linear-gradient(to bottom, #fafbff, #f8f9fb)',
+                flexShrink: 0,
+              }}>
+                <Button 
+                  variant="contained"
+                  fullWidth
+                  onClick={() => {
+                    setFilterStatus('all');
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    color: 'white',
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    borderRadius: 2.5,
+                    py: 1.2,
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      boxShadow: '0 6px 16px rgba(239, 68, 68, 0.4)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                  startIcon={
+                    <Box sx={{ 
+                      width: 20, 
+                      height: 20, 
+                      borderRadius: '50%', 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px'
+                    }}>
+                      ✕
+                    </Box>
+                  }
+                  >
+                    Xóa tất cả bộ lọc
+              </Button>
+            </Box>
+            )}
           </Popover>
 
           {loading ? (
@@ -926,119 +858,7 @@ export default function ProjectFeaturesPage() {
           ) : (
             <Stack spacing={3}>
               {/* View Tabs */}
-              <Paper variant="outlined" sx={{ borderRadius: 3 }}>
-                <Tabs 
-                  value={viewTab} 
-                  onChange={(e, newValue) => setViewTab(newValue)}
-                  sx={{
-                    borderBottom: '1px solid #e2e8f0',
-                    px: 2,
-                    '& .MuiTab-root': {
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      minHeight: 48,
-                      color: '#6b7280',
-                      '&.Mui-selected': {
-                        color: '#7b68ee',
-                      }
-                    },
-                    '& .MuiTabs-indicator': {
-                      backgroundColor: '#7b68ee',
-                      height: 3,
-                      borderRadius: '3px 3px 0 0',
-                    }
-                  }}
-                >
-                  <Tab label="📋 Table View" value="table" />
-                  <Tab label="📊 Gantt Chart" value="gantt" />
-                </Tabs>
-
-                {/* Table View - see below */}
-
-                {/* Gantt View */}
-                {viewTab === 'gantt' && (
-                  <Box sx={{ p: 2 }}>
-                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
-                  <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <InputLabel id="view-mode-label">View</InputLabel>
-                    <Select labelId="view-mode-label" label="View" value={viewMode} onChange={(e) => setViewMode(e.target.value as any)}>
-                      <MenuItem value="Days">Days</MenuItem>
-                      <MenuItem value="Weeks">Weeks</MenuItem>
-                      <MenuItem value="Months">Months</MenuItem>
-                      <MenuItem value="Quarters">Quarters</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <Button size="small" variant="outlined" onClick={() => setAutoFit(a => !a)}>
-                    {autoFit ? 'Auto Fit: On' : 'Auto Fit: Off'}
-                  </Button>
-                  <Button size="small" variant="outlined" onClick={() => setDetailMode(d => !d)}>
-                    {detailMode ? 'Chi tiết milestone: Bật' : 'Chi tiết milestone: Tắt'}
-                  </Button>
-                </Stack>
-                <GanttChart
-                  milestones={chartRows}
-                  viewMode={viewMode as any}
-                  startDate={weekStart}
-                  autoFit={autoFit}
-                  pagingStepDays={viewMode === 'Quarters' ? 90 : viewMode === 'Months' ? 30 : viewMode === 'Weeks' ? 7 : 7}
-                  onRequestShift={(days) => setWeekStart(prev => addDays(prev, days))}
-                  onMilestoneShift={async (rowId, deltaDays) => {
-                    if (detailMode) {
-                      // Shift a single milestone row directly
-                      const m = milestones.find(x => x._id === rowId);
-                      if (!m) return;
-                      const toIso = (iso?: string) => {
-                        if (!iso) return undefined;
-                        const d = new Date(iso);
-                        d.setUTCDate(d.getUTCDate() + deltaDays);
-                        return d.toISOString();
-                      };
-                      setMilestones(prev => (prev || []).map(x => x._id === rowId ? ({ ...x, start_date: toIso(x.start_date), deadline: toIso(x.deadline) }) : x));
-                      await axiosInstance.patch(`/api/projects/${projectId}/milestones/${rowId}`, {
-                        start_date: toIso(m.start_date),
-                        deadline: toIso(m.deadline),
-                      }).catch(() => null);
-                    } else {
-                      // Shift all milestones linked to a feature bar
-                      const f = features.find(x => x._id === rowId);
-                      if (!f || !f.milestone_ids || f.milestone_ids.length === 0) return;
-                      setMilestones(prev => (prev || []).map(m => {
-                        if (!f.milestone_ids?.includes(m._id)) return m;
-                        const shiftDate = (iso?: string) => {
-                          if (!iso) return iso;
-                          const d = new Date(iso);
-                          d.setUTCDate(d.getUTCDate() + deltaDays);
-                          return d.toISOString();
-                        };
-                        return { ...m, start_date: shiftDate(m.start_date), deadline: shiftDate(m.deadline) };
-                      }));
-                      const updates = (f.milestone_ids || []).map(async (mid) => {
-                        const m = milestones.find(x => x._id === mid);
-                        if (!m) return;
-                        const toIso = (iso?: string) => {
-                          if (!iso) return undefined;
-                          const d = new Date(iso);
-                          d.setUTCDate(d.getUTCDate() + deltaDays);
-                          return d.toISOString();
-                        };
-                        await axiosInstance.patch(`/api/projects/${projectId}/milestones/${mid}`, {
-                          start_date: toIso(m.start_date),
-                          deadline: toIso(m.deadline),
-                        }).catch(() => null);
-                      });
-                      await Promise.all(updates);
-                    }
-                  }}
-                  onMilestoneClick={(rowId) => {
-                    if (detailMode) {
-                      setMilestoneModal({ open: true, milestoneId: rowId });
-                    }
-                  }}
-                />
-                  </Box>
-                )}
-              </Paper>
+            
 
               {/* Table View Content */}
               {viewTab === 'table' && (
@@ -1047,28 +867,16 @@ export default function ProjectFeaturesPage() {
                 <Table size="small" sx={{ minWidth: 1400, '& td, & th': { borderColor: 'var(--border)' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ width: 44 }}>
-                        <Checkbox 
-                          size="small" 
-                          checked={selectedFeatureIds.length === features.length && features.length > 0}
-                          indeterminate={selectedFeatureIds.length > 0 && selectedFeatureIds.length < features.length}
-                          onChange={handleToggleAllFeatures}
-                        />
-                      </TableCell>
-                      <TableCell sx={{ width: 60 }}>STT</TableCell>
-                      <TableCell>Title</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Priority</TableCell>
-                      <TableCell>Complexity</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Milestone</TableCell>
-                      <TableCell>Estimated hours</TableCell>
-                      <TableCell>Start - Due</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Actions</TableCell>
+                      <TableCell>Tiêu đề</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>Cột mốc</TableCell>
+                      <TableCell>Bắt đầu - Hết hạn</TableCell>
+                      <TableCell>Trạng thái</TableCell>
+                      <TableCell>Ưu tiên</TableCell>
+                      <TableCell>Thao tác</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(features || []).map((f, idx) => {
+                    {(filteredFeatures || []).map((f, idx) => {
                       const pct = featureProgress.get(f._id as string) ?? 0;
                       const owners = [
                         { id: '1', name: 'A' },
@@ -1085,51 +893,21 @@ export default function ProjectFeaturesPage() {
                         return latest;
                       })();
                       const dueDateText = due ? new Date(due).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
-                      const statusName = typeof f.status_id === 'object' ? f.status_id?.name : '';
-                      const priorityName = typeof f.priority_id === 'object' ? f.priority_id?.name : '';
+                      const statusName = typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? (f.status_id as any)?.name : '');
+                      const priorityName = typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?.name : '');
                       const statusChip = (
                         <Chip
                           size="small"
                           label={statusName || '-'}
                           sx={{
                             color: '#fff',
-                            bgcolor: statusName === 'completed' ? '#22c55e' : statusName === 'in-progress' ? '#f59e0b' : '#3b82f6',
+                            bgcolor: statusName === 'Done' ? '#22c55e' : statusName === 'Doing' ? '#f59e0b' : '#6b7280',
                             fontWeight: 600,
                           }}
                         />
                       );
                       return (
                         <TableRow key={f._id || idx} hover>
-                          <TableCell>
-                            <Checkbox 
-                              size="small" 
-                              checked={selectedFeatureIds.includes(f._id as string)}
-                              onChange={() => handleToggleFeatureSelection(f._id as string)}
-                            />
-                          </TableCell>
-                          <TableCell 
-                            sx={{ 
-                              fontWeight: 600, 
-                              cursor: 'pointer',
-                              color: 'primary.main',
-                              '&:hover': { textDecoration: 'underline' }
-                            }}
-                            onClick={async () => {
-                              try {
-                                // Gọi API để lấy feature detail với đầy đủ populate
-                                const res = await axiosInstance.get(`/api/features/${f._id}`);
-                                setSelectedFeatureDetail(res.data);
-                                setOpenFeatureDetail(true);
-                              } catch (err) {
-                                console.error('Error loading feature detail:', err);
-                                // Fallback to current data
-                                setSelectedFeatureDetail(f);
-                                setOpenFeatureDetail(true);
-                              }
-                            }}
-                          >
-                            {idx + 1}
-                          </TableCell>
                           <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => startEditCell(f, 'title')}>
                             {editingId === f._id && editingField === 'title' ? (
                               <TextField
@@ -1140,128 +918,36 @@ export default function ProjectFeaturesPage() {
                                 onBlur={() => saveEditRow(f._id as string)}
                               />
                             ) : (
-                              f.title
-                            )}
-                          </TableCell>
-                          
-                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'status_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.status_id === 'object' ? f.status_id?._id : (f.status_id || '')}
-                                onChange={async (e) => {
-                                  const newStatusId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, status_id: statuses.find(s => s._id === newStatusId) } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating status:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {statuses.map((s) => (
-                                  <MenuItem key={s._id} value={s._id}>
-                                    {s.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              statusChip
-                            )}
-                          </TableCell>
-                          
-                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'priority_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.priority_id === 'object' ? f.priority_id?._id : (f.priority_id || '')}
-                                onChange={async (e) => {
-                                  const newPriorityId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, priority_id: priorities.find(p => p._id === newPriorityId) } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating priority:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {priorities.map((p) => (
-                                  <MenuItem key={p._id} value={p._id}>
-                                    {p.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              <Chip
-                                label={priorityName || '-'}
-                                size="small"
-                                color={
-                                  priorityName === 'critical' ? 'error' :
-                                  priorityName === 'high' ? 'warning' :
-                                  priorityName === 'medium' ? 'primary' : 'default'
-                                }
-                                variant="outlined"
-                              />
-                            )}
-                          </TableCell>
-                          
-                          <TableCell onClick={() => startEditCell(f, 'complexity_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'complexity_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.complexity_id === 'object' ? f.complexity_id?._id : (f.complexity_id || '')}
-                                onChange={async (e) => {
-                                  const newComplexityId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { complexity_id: newComplexityId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, complexity_id: complexities.find(c => c._id === newComplexityId) } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating complexity:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {complexities.map((c) => (
-                                  <MenuItem key={c._id} value={c._id}>
-                                    {c.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              (() => {
-                                const complexityName = typeof f.complexity_id === 'object' ? f.complexity_id?.name : '';
-                                return (
-                                  <Chip
-                                    label={complexityName || '-'}
-                                    size="small"
-                                    color={
-                                      complexityName === 'Very Complex' ? 'error' :
-                                      complexityName === 'Complex' ? 'warning' :
-                                      complexityName === 'Medium' ? 'primary' : 'default'
+                              <Tooltip title={f.title || ''}>
+                                <Link
+                                  component="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFeatureModal({ open: true, featureId: f._id });
+                                  }}
+                                  sx={{
+                                    fontWeight: 600,
+                                    color: '#7b68ee',
+                                    textDecoration: 'none',
+                                    cursor: 'pointer',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: 100,
+                                    display: 'block',
+                                    '&:hover': {
+                                      textDecoration: 'underline',
+                                      color: '#6952d6',
                                     }
-                                    variant="outlined"
-                                  />
-                                );
-                              })()
+                                  }}
+                                >
+                                  {f.title || '...'}
+                                </Link>
+                              </Tooltip>
                             )}
                           </TableCell>
+                          
+                         
                           
                           <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
                             {editingId === f._id && editingField === 'milestone_ids' ? (
@@ -1284,8 +970,10 @@ export default function ProjectFeaturesPage() {
                                     ));
                                     setEditingId(null);
                                     setEditingField(null);
-                                  } catch (err) {
+                                    toast.success("Đã cập nhật cột mốc thành công");
+                                  } catch (err: any) {
                                     console.error('Error updating milestones:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật cột mốc");
                                   }
                                 }}
                                 renderValue={(selected) => (
@@ -1326,15 +1014,6 @@ export default function ProjectFeaturesPage() {
                             )}
                           </TableCell>
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'estimated_hours')}>
-                            {editingId === f._id && editingField === 'estimated_hours' ? (
-                              <TextField size="small" type="number" value={editDraft.estimated_hours || 0} onChange={(e) => setEditDraft(s => ({ ...s, estimated_hours: Number(e.target.value) }))} fullWidth onBlur={() => saveEditRow(f._id as string)} />
-                            ) : (
-                              <Typography variant="body2" fontWeight={600}>
-                                {f.estimated_hours !== undefined && f.estimated_hours !== null ? `${f.estimated_hours}h` : '-'}
-                              </Typography>
-                            )}
-                          </TableCell>
                           
                           <TableCell>
                             <Stack direction="column" spacing={0.5}>
@@ -1342,23 +1021,85 @@ export default function ProjectFeaturesPage() {
                                 {f.start_date ? new Date(f.start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {f.due_date ? new Date(f.due_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              {f.end_date ? new Date(f.end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                               </Typography>
                             </Stack>
                           </TableCell>
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'description')}>
-                            {editingId === f._id && editingField === 'description' ? (
-                              <TextField
+                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'status_id' ? (
+                              <Select
                                 size="small"
-                                value={editDraft.description || ''}
-                                onChange={(e) => setEditDraft(s => ({ ...s, description: e.target.value }))}
-                                fullWidth onBlur={() => saveEditRow(f._id as string)}
-                              />
+                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
+                                onChange={async (e) => {
+                                  const newStatusId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
+                                    ));
+                                    cancelEditRow();
+                                    toast.success("Đã cập nhật trạng thái thành công");
+                                  } catch (err: any) {
+                                    console.error('Error updating status:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật trạng thái");
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {statuses.map((s) => (
+                                  <MenuItem key={s._id} value={s._id}>
+                                    {s.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
                             ) : (
-                              <Typography variant="body2" sx={{ opacity: .9, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {f.description || '—'}
-                              </Typography>
+                              statusChip
+                            )}
+                          </TableCell>
+                          
+                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'priority_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
+                                onChange={async (e) => {
+                                  const newPriorityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
+                                    ));
+                                    cancelEditRow();
+                                    toast.success("Đã cập nhật ưu tiên thành công");
+                                  } catch (err: any) {
+                                    console.error('Error updating priority:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật ưu tiên");
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {priorities.map((p) => (
+                                  <MenuItem key={p._id} value={p._id}>
+                                    {p.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              <Chip
+                                label={priorityName || '-'}
+                                size="small"
+                                color={
+                                  priorityName === 'Critical' ? 'error' :
+                                  priorityName === 'High' ? 'warning' :
+                                  priorityName === 'Medium' ? 'primary' : 'default'
+                                }
+                                variant="outlined"
+                              />
                             )}
                           </TableCell>
                           
@@ -1384,28 +1125,6 @@ export default function ProjectFeaturesPage() {
                                   }}
                                 >
                                   <AssignmentIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Tự động tính effort từ Functions">
-                                <IconButton
-                                  size="small"
-                                  color="secondary"
-                                onClick={async () => {
-                                  try {
-                                    // Call API to calculate effort from functions
-                                    const res = await axiosInstance.post(`/api/features/${f._id}/calculate-effort`);
-                                    // Update local state
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id 
-                                        ? { ...x, estimated_hours: res.data.estimated_hours, actual_effort: res.data.actual_effort }
-                                        : x
-                                    ));
-                                  } catch (err) {
-                                    console.error('Error calculating effort:', err);
-                                  }
-                                }}
-                              >
-                                  <span style={{ fontSize: '14px' }}>🔄</span>
                               </IconButton>
                             </Tooltip>
                             </Stack>
@@ -1437,40 +1156,6 @@ export default function ProjectFeaturesPage() {
               </Box>
             </DialogTitle>
             <DialogContent>
-              {/* Capacity Info */}
-              {projectData && capacityInfo.totalCapacityHours > 0 && (
-                <Alert 
-                  severity={capacityInfo.usagePercentage > 100 ? "error" : capacityInfo.usagePercentage > 80 ? "warning" : "info"}
-                  sx={{ mb: 2, mt: 2 }}
-                >
-                  <Stack spacing={1}>
-                    <Typography variant="body2" fontWeight={600}>
-                      📊 Công suất dự án: {capacityInfo.teamMemberCount} người × {capacityInfo.hoursPerDay}h/ngày × {capacityInfo.projectDurationDays} ngày = {capacityInfo.totalCapacityHours} giờ
-                    </Typography>
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <Typography variant="caption">
-                        Đã phân bổ: <strong>{capacityInfo.usedHours}h</strong>
-                      </Typography>
-                      <Typography variant="caption">
-                        Còn lại: <strong style={{ color: capacityInfo.remainingHours < 0 ? 'red' : 'inherit' }}>
-                          {capacityInfo.remainingHours}h
-                        </strong>
-                      </Typography>
-                      <Typography variant="caption">
-                        Tỷ lệ: <strong>{capacityInfo.usagePercentage.toFixed(1)}%</strong>
-                      </Typography>
-                    </Stack>
-                    <Box sx={{ width: '100%', mt: 1 }}>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={Math.min(capacityInfo.usagePercentage, 100)} 
-                        color={capacityInfo.usagePercentage > 100 ? "error" : capacityInfo.usagePercentage > 80 ? "warning" : "primary"}
-                        sx={{ height: 8, borderRadius: 4 }}
-                      />
-                    </Box>
-                  </Stack>
-                </Alert>
-              )}
               <Stack spacing={3} sx={{ mt: 2 }}>
                 <TextField
                   label="Tiêu đề *"
@@ -1490,22 +1175,16 @@ export default function ProjectFeaturesPage() {
                   placeholder="Mô tả chi tiết về feature này..."
                 />
                 
-                <TextField
-                  label="Plan Effort"
-                  value={form.plan_effort || ''}
-                  onChange={(e) => setForm(prev => ({ ...prev, plan_effort: e.target.value }))}
-                  fullWidth
-                  placeholder="VD: Sprint 1, Q1 2024"
-                />
+                {/* Note: Plan Effort field removed - doesn't exist in model */}    
                 
                 <Divider />
                 
                 <Stack direction="row" spacing={2}>
                   <FormControl fullWidth>
-                    <InputLabel id="status-label">Status</InputLabel>
+                    <InputLabel id="status-label">Trạng thái</InputLabel>
                     <Select
                       labelId="status-label"
-                      label="Status"
+                      label="Trạng thái"
                       value={form.status_id || ''}
                       onChange={(e) => setForm(prev => ({ ...prev, status_id: e.target.value }))}
                     >
@@ -1520,15 +1199,15 @@ export default function ProjectFeaturesPage() {
                       )}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {statuses.length} options
+                      {statuses.length} tùy chọn
                     </Typography>
                   </FormControl>
                   
                   <FormControl fullWidth>
-                    <InputLabel id="priority-label">Priority</InputLabel>
+                    <InputLabel id="priority-label">Ưu tiên</InputLabel>
                     <Select
                       labelId="priority-label"
-                      label="Priority"
+                      label="Ưu tiên"
                       value={form.priority_id || ''}
                       onChange={(e) => setForm(prev => ({ ...prev, priority_id: e.target.value }))}
                     >
@@ -1543,76 +1222,18 @@ export default function ProjectFeaturesPage() {
                       )}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {priorities.length} options
+                      {priorities.length} tùy chọn
                     </Typography>
                   </FormControl>
                   
-                  <FormControl fullWidth>
-                    <InputLabel id="complexity-label">Complexity</InputLabel>
-                    <Select
-                      labelId="complexity-label"
-                      label="Complexity"
-                      value={form.complexity_id || ''}
-                      onChange={(e) => {
-                        const complexityId = e.target.value;
-                        const suggestedHours = getEstimatedHoursByComplexity(complexityId);
-                        setForm(prev => ({ 
-                          ...prev, 
-                          complexity_id: complexityId,
-                          // Auto-fill estimated hours if empty
-                          estimated_hours: prev.estimated_hours === 0 ? suggestedHours : prev.estimated_hours
-                        }));
-                      }}
-                    >
-                      {complexities.length === 0 ? (
-                        <MenuItem disabled>Đang tải...</MenuItem>
-                      ) : (
-                        complexities.map((c) => {
-                          const hours = getEstimatedHoursByComplexity(c._id);
-                          return (
-                            <MenuItem key={c._id} value={c._id}>
-                              {c.name} {hours > 0 && `(~${hours}h)`}
-                            </MenuItem>
-                          );
-                        })
-                      )}
-                    </Select>
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                      💡 Chọn complexity để tự động gợi ý giờ
-                    </Typography>
-                  </FormControl>
+                  {/* Note: Complexity and Estimated Hours fields removed - don't exist in model */}
                 </Stack>
                 
                 <Divider />
                 
                 <Stack direction="row" spacing={2}>
-                  <Box sx={{ flex: 1 }}>
-                    <TextField
-                      label="Estimated Hours (giờ) *"
-                      type="number"
-                      value={form.estimated_hours || 0}
-                      onChange={(e) => setForm(prev => ({ ...prev, estimated_hours: Number(e.target.value) }))}
-                      fullWidth
-                      placeholder="VD: 40"
-                      helperText={
-                        capacityInfo.remainingHours > 0 
-                          ? `💡 Còn ${capacityInfo.remainingHours}h trong công suất dự án` 
-                          : capacityInfo.remainingHours < 0 
-                            ? `⚠️ Vượt quá công suất ${Math.abs(capacityInfo.remainingHours)}h`
-                            : ''
-                      }
-                      error={Boolean(form.estimated_hours && form.estimated_hours > capacityInfo.remainingHours && capacityInfo.remainingHours > 0)}
-                    />
-                    {form.complexity_id && (
-                      <Alert severity="info" sx={{ mt: 1, py: 0.5 }}>
-                        <Typography variant="caption">
-                          💡 Gợi ý: {getEstimatedHoursByComplexity(form.complexity_id)}h (dựa vào complexity)
-                        </Typography>
-                      </Alert>
-                    )}
-                  </Box>
                   <TextField
-                    label="Start Date"
+                    label="Ngày bắt đầu"
                     type="date"
                     value={form.start_date || ''}
                     onChange={(e) => setForm(prev => ({ ...prev, start_date: e.target.value }))}
@@ -1620,10 +1241,10 @@ export default function ProjectFeaturesPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                   <TextField
-                    label="Due Date"
+                    label="Ngày kết thúc"
                     type="date"
-                    value={form.due_date || ''}
-                    onChange={(e) => setForm(prev => ({ ...prev, due_date: e.target.value }))}
+                    value={form.end_date || ''}
+                    onChange={(e) => setForm(prev => ({ ...prev, end_date: e.target.value }))}
                     fullWidth
                     InputLabelProps={{ shrink: true }}
                   />
@@ -1700,14 +1321,14 @@ export default function ProjectFeaturesPage() {
             fullWidth
           >
             <DialogTitle sx={{ fontWeight: 'bold' }}>
-              Chi tiết Feature
+              Chi tiết tính năng
             </DialogTitle>
             <DialogContent>
             {selectedFeatureDetail && (
               <Stack spacing={3} sx={{ mt: 1 }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Title
+                    Tiêu đề
                   </Typography>
                   <Typography variant="h6" fontWeight={600}>
                     {selectedFeatureDetail.title}
@@ -1716,7 +1337,7 @@ export default function ProjectFeaturesPage() {
 
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Description
+                    Mô tả
                   </Typography>
                   <Typography variant="body1">
                     {selectedFeatureDetail.description || '—'}
@@ -1726,75 +1347,42 @@ export default function ProjectFeaturesPage() {
                 <Stack direction="row" spacing={3}>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Status
+                      Trạng thái
                     </Typography>
                     <Chip
-                      label={typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-'}
+                      label={typeof selectedFeatureDetail.status_id === 'string' ? selectedFeatureDetail.status_id : (typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-')}
                       size="medium"
                       sx={{
                         color: '#fff',
-                        bgcolor: (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'completed') ? '#22c55e' : 
-                                 (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'in-progress') ? '#f59e0b' : 
-                                 (typeof selectedFeatureDetail.status_id === 'object' && selectedFeatureDetail.status_id?.name === 'testing') ? '#8b5cf6' : '#3b82f6',
+                        bgcolor: selectedFeatureDetail.status_id === 'Completed' ? '#22c55e' : 
+                                 selectedFeatureDetail.status_id === 'In Progress' ? '#f59e0b' : 
+                                 selectedFeatureDetail.status_id === 'Testing' ? '#8b5cf6' : '#3b82f6',
                         fontWeight: 600,
                       }}
                     />
                   </Box>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Priority
+                      Ưu tiên
                     </Typography>
                     <Chip
-                      label={typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-'}
+                      label={typeof selectedFeatureDetail.priority_id === 'string' ? selectedFeatureDetail.priority_id : (typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-')}
                       size="medium"
                       color={
-                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'critical') ? 'error' :
-                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'high') ? 'warning' :
-                        (typeof selectedFeatureDetail.priority_id === 'object' && selectedFeatureDetail.priority_id?.name === 'medium') ? 'primary' : 'default'
+                        selectedFeatureDetail.priority_id === 'Critical' ? 'error' :
+                        selectedFeatureDetail.priority_id === 'High' ? 'warning' :
+                        selectedFeatureDetail.priority_id === 'Medium' ? 'primary' : 'default'
                       }
                       variant="outlined"
                     />
                   </Box>
-                  <Box flex={1}>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Complexity
-                    </Typography>
-                    <Chip
-                      label={typeof selectedFeatureDetail.complexity_id === 'object' ? selectedFeatureDetail.complexity_id?.name : '-'}
-                      size="medium"
-                      color={
-                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Very Complex') ? 'error' :
-                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Complex') ? 'warning' :
-                        (typeof selectedFeatureDetail.complexity_id === 'object' && selectedFeatureDetail.complexity_id?.name === 'Medium') ? 'primary' : 'default'
-                      }
-                      variant="outlined"
-                    />
-                  </Box>
+                  {/* Note: Complexity, Estimated Hours, Actual Effort fields removed */}
                 </Stack>
 
                 <Stack direction="row" spacing={3}>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Estimated Hours
-                    </Typography>
-                    <Typography variant="h6" fontWeight={600}>
-                      {selectedFeatureDetail.estimated_hours ? `${selectedFeatureDetail.estimated_hours} giờ` : '—'}
-                    </Typography>
-                  </Box>
-                  <Box flex={1}>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Actual Effort
-                    </Typography>
-                    <Typography variant="h6" fontWeight={600}>
-                      {selectedFeatureDetail.actual_effort ? `${selectedFeatureDetail.actual_effort} giờ` : '—'}
-                    </Typography>
-                  </Box>
-                </Stack>
-
-                <Stack direction="row" spacing={3}>
-                  <Box flex={1}>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Start Date
+                      Ngày bắt đầu
                     </Typography>
                     <Typography variant="body1">
                       {selectedFeatureDetail.start_date ? new Date(selectedFeatureDetail.start_date).toLocaleDateString('vi-VN') : '—'}
@@ -1802,17 +1390,17 @@ export default function ProjectFeaturesPage() {
                   </Box>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Due Date
+                      Ngày kết thúc
                     </Typography>
                     <Typography variant="body1">
-                      {selectedFeatureDetail.due_date ? new Date(selectedFeatureDetail.due_date).toLocaleDateString('vi-VN') : '—'}
+                      {selectedFeatureDetail.end_date ? new Date(selectedFeatureDetail.end_date).toLocaleDateString('vi-VN') : '—'}
                     </Typography>
                   </Box>
                 </Stack>
 
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Creator
+                    Người tạo
                   </Typography>
                   <Typography variant="body1">
                     {typeof selectedFeatureDetail.created_by === 'object' ? selectedFeatureDetail.created_by?.full_name : '—'}
@@ -1822,7 +1410,7 @@ export default function ProjectFeaturesPage() {
                   <Stack direction="row" spacing={3}>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Created At
+                        Ngày tạo
                       </Typography>
                       <Typography variant="body2">
                         {selectedFeatureDetail.createdAt ? new Date(selectedFeatureDetail.createdAt).toLocaleString('vi-VN') : '—'}
@@ -1830,7 +1418,7 @@ export default function ProjectFeaturesPage() {
                     </Box>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Updated At
+                        Ngày cập nhật
                       </Typography>
                       <Typography variant="body2">
                         {selectedFeatureDetail.updatedAt ? new Date(selectedFeatureDetail.updatedAt).toLocaleString('vi-VN') : '—'}
@@ -1841,7 +1429,7 @@ export default function ProjectFeaturesPage() {
                   {selectedFeatureDetail.milestone_ids && selectedFeatureDetail.milestone_ids.length > 0 && (
                     <Box>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                        Linked Milestones
+                        Cột mốc liên kết
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
                         {[...new Set(selectedFeatureDetail.milestone_ids)].map((milestoneId) => {
@@ -1869,134 +1457,53 @@ export default function ProjectFeaturesPage() {
               }}>
                 Đóng
               </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Effort Allocation Suggestions Dialog */}
-          <Dialog
-            open={openAllocationDialog}
-            onClose={() => setOpenAllocationDialog(false)}
-            maxWidth="lg"
-            fullWidth
-          >
-            <DialogTitle sx={{ fontWeight: 'bold' }}>
-              💡 Gợi ý phân bổ Effort theo Complexity
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                Phân bổ capacity dựa trên độ phức tạp kỹ thuật của features
-              </Typography>
-            </DialogTitle>
-            <DialogContent>
-              {allocationSuggestions && (
-                <Stack spacing={3} sx={{ mt: 2 }}>
-                  {/* Summary */}
-                  <Alert severity="info">
-                    <Stack spacing={1}>
-                      <Typography variant="body2" fontWeight={600}>
-                        📊 Tổng capacity: {allocationSuggestions.total_capacity} giờ
-                      </Typography>
-                      <Typography variant="caption">
-                        Method: {allocationSuggestions.allocation_method} | 
-                        Total points: {allocationSuggestions.total_points || allocationSuggestions.total_weighted_points}
-                      </Typography>
-                      <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                        <Chip label={`${allocationSuggestions.summary?.total_features || 0} features`} size="small" />
-                        <Chip label={`Suggested: ${allocationSuggestions.summary?.total_suggested || 0}h`} color="primary" size="small" />
-                        <Chip label={`Current: ${allocationSuggestions.summary?.total_current || 0}h`} color="default" size="small" />
-                      </Stack>
-                    </Stack>
-                  </Alert>
-
-                  {/* Suggestions Table */}
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Feature</TableCell>
-                        <TableCell>Complexity</TableCell>
-                        <TableCell align="right">Points</TableCell>
-                        <TableCell align="right">%</TableCell>
-                        <TableCell align="right">Suggested</TableCell>
-                        <TableCell align="right">Current</TableCell>
-                        <TableCell align="right">Diff</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Action</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {allocationSuggestions.suggestions?.map((s: any) => (
-                        <TableRow key={s.feature_id}>
-                          <TableCell>{s.feature_title}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={s.complexity} 
-                              size="small"
-                              color={
-                                s.complexity === 'very-complex' ? 'error' :
-                                s.complexity === 'complex' ? 'warning' :
-                                s.complexity === 'medium' ? 'primary' : 'default'
-                              }
-                            />
-                          </TableCell>
-                          <TableCell align="right">{s.complexity_points || s.weighted_points}</TableCell>
-                          <TableCell align="right">{s.percentage}%</TableCell>
-                          <TableCell align="right">
-                            <Typography fontWeight={600} color="primary.main">
-                              {s.suggested_hours}h
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">{s.current_hours}h</TableCell>
-                          <TableCell align="right">
-                            <Typography 
-                              color={s.difference > 0 ? 'error.main' : s.difference < 0 ? 'success.main' : 'text.secondary'}
-                              fontWeight={600}
-                            >
-                              {s.difference > 0 ? '+' : ''}{s.difference}h
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={s.status}
-                              size="small"
-                              color={s.status === 'ok' ? 'success' : s.status === 'under-estimated' ? 'error' : 'warning'}
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => applySuggestion(s.feature_id, s.suggested_hours)}
-                              disabled={s.status === 'ok'}
-                            >
-                              Apply
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Stack>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenAllocationDialog(false)}>
-                Đóng
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => fetchAllocationSuggestions('hybrid')}
-                disabled={loadingSuggestions}
-              >
-                🔥 Hybrid Mode
-              </Button>
+              {selectedFeatureDetail && (
               <Button
                 variant="contained"
-                onClick={applyAllSuggestions}
-                disabled={loadingSuggestions || !allocationSuggestions?.suggestions?.length}
-              >
-                Apply Tất Cả
+                  onClick={() => {
+                    setOpenFeatureDetail(false);
+                    setFeatureModal({ open: true, featureId: selectedFeatureDetail._id });
+                  }}
+                >
+                  Xem chi tiết
               </Button>
+              )}
             </DialogActions>
           </Dialog>
+
+          {/* Feature Details Modal */}
+          {featureModal.open && featureModal.featureId && (
+            <FeatureDetailsModal
+              open={featureModal.open}
+              featureId={featureModal.featureId}
+              projectId={projectId}
+              onClose={() => setFeatureModal({ open: false, featureId: null })}
+              onUpdate={async () => {
+                // Reload features
+                try {
+                  const featureRes = await axiosInstance.get(`/api/projects/${projectId}/features`);
+                  if (Array.isArray(featureRes.data)) {
+                    const enriched: Feature[] = await Promise.all(
+                      featureRes.data.map(async (f: any) => {
+                        try {
+                          const linkRes = await axiosInstance.get(`/api/features/${f._id}/milestones`);
+                          const uniqueMilestoneIds = Array.isArray(linkRes.data) ? [...new Set(linkRes.data)] : [];
+                          return { ...f, milestone_ids: uniqueMilestoneIds } as Feature;
+                        } catch {
+                          return { ...f, milestone_ids: [] } as Feature;
+                        }
+                      })
+                    );
+                    setFeatures(enriched);
+                    toast.success("Đã tạo cột mốc từ features thành công");
+                  }
+                } catch (error: any) {
+                  console.error('Error reloading features:', error);
+                  toast.error(error?.response?.data?.message || "Không thể tải lại danh sách features");
+                }
+              }}
+            />
+          )}
         </div>
       </main>
     </div>
