@@ -46,7 +46,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
-            Description
+            Mô tả
           </Typography>
           {!editing && (
             <Button 
@@ -61,7 +61,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
                 '&:hover': { bgcolor: '#f3f4f6' }
               }}
             >
-              Edit
+              Chỉnh sửa
             </Button>
           )}
         </Box>
@@ -74,7 +74,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
               rows={8}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a more detailed description..."
+              placeholder="Thêm mô tả chi tiết hơn..."
               sx={{ 
                 mb: 2,
                 '& .MuiOutlinedInput-root': { 
@@ -100,7 +100,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
                   color: '#6b7280'
                 }}
               >
-                Cancel
+                Hủy
               </Button>
               <Button 
                 size="small"
@@ -114,7 +114,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
                   '&:hover': { bgcolor: '#6952d6' }
                 }}
               >
-                Save Changes
+                Lưu thay đổi
               </Button>
             </Stack>
           </Box>
@@ -144,7 +144,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
               </Typography>
             ) : (
               <Typography fontSize="14px" color="text.secondary" fontStyle="italic">
-                Click to add a description...
+                Nhấp để thêm mô tả...
               </Typography>
             )}
           </Box>
@@ -155,7 +155,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
       {(feature?.start_date || feature?.end_date) && (
         <Box>
           <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase" sx={{ mb: 2 }}>
-            Dates
+            Ngày tháng
           </Typography>
           
           <Box sx={{ 
@@ -171,7 +171,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
                 border: '1px solid #e8e9eb',
               }}>
                 <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                  Start Date
+                  Ngày bắt đầu
                 </Typography>
                 <Typography fontSize="14px" fontWeight={600} color="text.primary">
                   {new Date(feature.start_date).toLocaleDateString('en-US', { 
@@ -191,7 +191,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
                 border: `1px solid ${feature?.end_date && new Date(feature.end_date) < new Date() ? '#fbbf24' : '#e8e9eb'}`,
               }}>
                 <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                  End Date
+                  Ngày kết thúc
                 </Typography>
                 <Typography 
                   fontSize="14px" 

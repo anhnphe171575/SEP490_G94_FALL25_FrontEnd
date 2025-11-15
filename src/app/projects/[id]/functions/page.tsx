@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import FunctionDetailsModal from "@/components/FunctionDetailsModal";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
+import { PRIORITY_OPTIONS } from "@/constants/settings";
 import {
   Box,
   Button,
@@ -35,6 +35,7 @@ import {
   InputAdornment,
   Tooltip,
   Alert,
+  Link,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -55,6 +56,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
+import { toast } from "sonner";
 
 type Setting = {
   _id: string;
@@ -166,9 +168,13 @@ export default function ProjectFunctionsPage() {
       console.log('Functions response:', functionsRes?.data);
       console.log('Features response:', featuresRes?.data);
       
-      // Use constants instead of API
+      // Use constants for priority, derive statuses from Function model enum
       const prioritySettings = PRIORITY_OPTIONS;
-      const statusSettings = STATUS_OPTIONS;
+      const statusSettings = [
+        { _id: "To Do", name: "To Do", value: "to-do" },
+        { _id: "Doing", name: "Doing", value: "doing" },
+        { _id: "Done", name: "Done", value: "done" },
+      ];
 
       const rawFunctions = functionsRes?.data;
       const normalizedFunctions = Array.isArray(rawFunctions)
@@ -200,7 +206,9 @@ export default function ProjectFunctionsPage() {
       // Note: Effort warnings removed
     } catch (e: any) {
       console.error('Error in loadAllData:', e);
-      setError(e?.response?.data?.message || "Không thể tải dữ liệu");
+      const errorMessage = e?.response?.data?.message || "Không thể tải dữ liệu";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -242,7 +250,7 @@ export default function ProjectFunctionsPage() {
         title: functionForm.title,
         description: functionForm.description || undefined,
         priority_id: functionForm.priority_id || undefined,
-        feature_id: functionForm.feature_id || undefined,
+        feature_id: functionForm.feature_id,
         status: functionForm.status || undefined,
       };
 
@@ -253,21 +261,26 @@ export default function ProjectFunctionsPage() {
       }
       
       handleCloseDialog();
-      loadAllData();
+      await loadAllData();
+      toast.success(editingFunction ? "Đã cập nhật function thành công" : "Đã tạo function thành công");
     } catch (e: any) {
       const errorData = e?.response?.data;
       const errorMessage = errorData?.message || "Không thể lưu function";
       setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
   const handleDeleteFunction = async (id: string) => {
-    if (!confirm("Bạn có chắc muốn xóa function này?")) return;
+    if (!window.confirm("Bạn có chắc muốn xóa function này?")) return;
     try {
       await axiosInstance.delete(`/api/functions/${id}`);
-      loadAllData();
+      await loadAllData();
+      toast.success("Đã xóa function thành công");
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể xóa function");
+      const errorMessage = e?.response?.data?.message || "Không thể xóa function";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -307,8 +320,11 @@ export default function ProjectFunctionsPage() {
       await loadAllData();
       
       cancelEdit();
+      toast.success(`Đã cập nhật ${field === 'priority_id' ? 'ưu tiên' : field === 'status' ? 'trạng thái' : field} thành công`);
     } catch (e: any) {
-      setError(e?.response?.data?.message || `Không thể cập nhật ${field}`);
+      const errorMessage = e?.response?.data?.message || `Không thể cập nhật ${field}`;
+      setError(errorMessage);
+      toast.error(errorMessage);
       cancelEdit();
     } finally {
       setIsSaving(false);
@@ -397,208 +413,221 @@ export default function ProjectFunctionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f8f9fb]">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
-        <div className="mx-auto w-full max-w-7xl">
-          {/* Modern Header */}
-          <Box sx={{ mb: 3 }}>
+      <main>
+        <div className="w-full">
+          {/* Breadcrumb Navigation */}
+          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
             <ProjectBreadcrumb 
               projectId={projectId} 
               items={[
-                { label: 'Functions', active: true }
+                { label: 'Chức năng', icon: <FunctionsIcon sx={{ fontSize: 16 }} /> }
               ]} 
             />
-            
-            <Box sx={{ 
-              bgcolor: 'white', 
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-              border: '1px solid #e8e9eb',
-              mb: 3
-            }}>
-              <Box sx={{ 
-                px: 3, 
-                py: 2.5, 
-                borderBottom: '1px solid #e8e9eb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 2.5,
-                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)',
-                  }}>
-                    <FunctionsIcon sx={{ fontSize: 28, color: 'white' }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                      Functions
-                </Typography>
-                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                      Quản lý các function trong dự án
-                </Typography>
-                  </Box>
-                </Box>
+          </Box>
 
-                <Stack direction="row" spacing={1.5} alignItems="center">
-              <Button
-                variant="outlined"
-                    size="small"
-                onClick={() => router.push(`/projects/${projectId}/features`)}
-                    sx={{
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      borderColor: '#e2e8f0',
-                      borderWidth: '1.5px',
-                      color: '#49516f',
-                      height: 36,
-                      px: 2,
-                      borderRadius: 2.5,
-                      '&:hover': {
-                        borderColor: '#7b68ee',
-                        bgcolor: '#f9fafb',
-                      }
-                    }}
+          {/* ClickUp-style Top Bar (standardized) */}
+          <Box 
+            sx={{ 
+              bgcolor: 'white',
+              borderBottom: '1px solid #e8e9eb',
+              px: 3,
+              py: 2,
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Title */}
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700,
+                  color: '#1f2937',
+                  fontSize: '24px',
+                }}
               >
-                Features
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenDialog()}
-                    sx={{
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                      height: 36,
-                      px: 2.5,
-                      borderRadius: 2.5,
-                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
-                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
-                        transform: 'translateY(-1px)',
-                      },
-                      transition: 'all 0.2s ease',
-                    }}
-              >
-                Tạo Function
-              </Button>
-            </Stack>
-              </Box>
+                Chức năng
+              </Typography>
 
-              {/* Toolbar with Search and Filters */}
-              <Box sx={{ 
-                px: 3, 
-                py: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap',
-              }}>
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
-                  <TextField
-                    placeholder="Quick search functions..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    size="small"
-                    sx={{ 
-                      width: 250,
-                      '& .MuiOutlinedInput-root': { 
-                        fontSize: '13px',
-                        borderRadius: 2,
-                        bgcolor: '#f8f9fb',
-                        height: 36,
-                        '& fieldset': { borderColor: 'transparent' },
-                        '&:hover': { 
-                          bgcolor: '#f3f4f6',
-                          '& fieldset': { borderColor: '#e8e9eb' }
-                        },
-                        '&.Mui-focused': { 
-                          bgcolor: 'white',
-                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
-                        }
-                      } 
-                    }}
-                    InputProps={{ 
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
-                        </InputAdornment>
-                      ) 
-                    }}
-                  />
-
-                  <Badge 
-                    badgeContent={[filterStatus !== 'all', filterFeature !== 'all', searchTerm].filter(Boolean).length || 0}
-                    color="primary"
-                    sx={{
-                      '& .MuiBadge-badge': {
-                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: '10px',
-                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                        border: '2px solid white',
-                      }
-                    }}
-                  >
-                    <Button
-                      variant={filterAnchorEl ? "contained" : "outlined"}
-                      size="small"
-                      startIcon={<TuneIcon fontSize="small" />}
-                      onClick={(e) => setFilterAnchorEl(e.currentTarget)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
-                        borderWidth: '1.5px',
-                        color: filterAnchorEl ? 'white' : '#49516f',
-                        background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
-                        height: 36,
-                        px: 2,
-                        borderRadius: 2.5,
-                        boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
-                        '&:hover': {
-                          borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
-                          background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
-                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      Filters
-                    </Button>
-                  </Badge>
-                </Stack>
-
-                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                  Showing: {filteredFunctions.length} {filteredFunctions.length !== functions.length && `of ${functions.length}`} functions
-                </Typography>
-              </Box>
+              {/* Right Actions */}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                {/* Quick Navigation */}
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Cột mốc
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/features`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Tính năng
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Công việc
+                </Button>
+                
+                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                
+                <Button 
+                  variant="contained" 
+                  onClick={() => handleOpenDialog()}
+                  startIcon={<AddIcon />} 
+                  sx={{ 
+                    bgcolor: '#7b68ee',
+                    color: 'white',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    px: 2.5,
+                    py: 1,
+                    borderRadius: 1.5,
+                    boxShadow: 'none',
+                    '&:hover': { 
+                      bgcolor: '#6952d6',
+                    },
+                  }}
+                >
+                  Tạo Function
+                </Button>
+              </Stack>
             </Box>
           </Box>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
+          {/* Toolbar with Search and Filters (standardized spacing/colors) */}
+          <Box sx={{ 
+            bgcolor: 'white',
+            borderBottom: '1px solid #e8e9eb',
+            px: 3, py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 2,
+            flexWrap: 'wrap',
+          }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+              <TextField
+                placeholder="Tìm kiếm chức năng..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                size="small"
+                sx={{ 
+                  width: 250,
+                  '& .MuiOutlinedInput-root': { 
+                    fontSize: '13px',
+                    borderRadius: 2,
+                    bgcolor: '#f8f9fb',
+                    height: 36,
+                    '& fieldset': { borderColor: 'transparent' },
+                    '&:hover': { 
+                      bgcolor: '#f3f4f6',
+                      '& fieldset': { borderColor: '#e8e9eb' }
+                    },
+                    '&.Mui-focused': { 
+                      bgcolor: 'white',
+                      '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                    }
+                  } 
+                }}
+                InputProps={{ 
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                    </InputAdornment>
+                  ) 
+                }}
+              />
+
+              <Badge 
+                badgeContent={[filterStatus !== 'all', filterFeature !== 'all', searchTerm].filter(Boolean).length || 0}
+                color="primary"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                    border: '2px solid white',
+                  }
+                }}
+              >
+                <Button
+                  variant={filterAnchorEl ? "contained" : "outlined"}
+                  size="small"
+                  startIcon={<TuneIcon fontSize="small" />}
+                  onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                    borderWidth: '1.5px',
+                    color: filterAnchorEl ? 'white' : '#49516f',
+                    background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                    height: 36,
+                    px: 2,
+                    borderRadius: 2.5,
+                    boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                    '&:hover': {
+                      borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                      background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Bộ lọc
+                </Button>
+              </Badge>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+              Hiển thị: {filteredFunctions.length} {filteredFunctions.length !== functions.length && `trong ${functions.length}`} chức năng
+            </Typography>
+          </Box>
+
 
           {/* Feature Filter Alert */}
           {featureIdFromUrl && filterFeature === featureIdFromUrl && (
@@ -622,7 +651,7 @@ export default function ProjectFunctionsPage() {
                   Đang xem Functions của Feature: 
                 </Typography>
                 <Chip 
-                  label={features.find(f => f._id === featureIdFromUrl)?.title || 'Unknown'}
+                  label={features.find(f => f._id === featureIdFromUrl)?.title || 'Không xác định'}
                   size="small"
                   sx={{
                     background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
@@ -634,89 +663,7 @@ export default function ProjectFunctionsPage() {
             </Alert>
           )}
 
-          {/* Statistics Cards */}
-          {stats && (
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' }, gap: 2, mb: 4 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="caption" color="text.secondary">
-                    Tổng số
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {stats.total}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Functions
-                  </Typography>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <Typography variant="caption" color="text.secondary">
-                    Hoàn thành
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="success.main">
-                    {stats.completed}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {stats.completion_rate}%
-                  </Typography>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <Typography variant="caption" color="text.secondary">
-                    Đang làm
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="warning.main">
-                    {stats.in_progress}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    In Progress
-                  </Typography>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <Typography variant="caption" color="text.secondary">
-                    Chưa bắt đầu
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="info.main">
-                    {stats.pending}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Pending
-                  </Typography>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <Typography variant="caption" color="text.secondary">
-                    Quá hạn
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="error.main">
-                    {stats.overdue}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Overdue
-                  </Typography>
-                </CardContent>
-              </Card>
-              <Card sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}>
-                <CardContent>
-                  <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                    <TrendingUpIcon fontSize="small" /> Tỷ lệ hoàn thành
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {stats.completion_rate}%
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Completion Rate
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-          )}
+          {/* Statistics Cards removed by request */}
 
           {/* Note: Effort validation warnings removed - effort fields don't exist */}
 
@@ -785,11 +732,11 @@ export default function ProjectFunctionsPage() {
                       <TuneIcon sx={{ fontSize: 20, color: 'white' }} />
                     </Box>
                     <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white', letterSpacing: '-0.02em' }}>
-                      Function Filters
+                      Bộ lọc chức năng
                     </Typography>
                   </Stack>
                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', ml: 6 }}>
-                    Refine your function list
+                    Tinh chỉnh danh sách chức năng của bạn
                   </Typography>
                 </Box>
                 <IconButton 
@@ -823,7 +770,7 @@ export default function ProjectFunctionsPage() {
               <Stack spacing={3}>
                 <Box>
                   <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Status
+                    Trạng thái
                   </Typography>
                   <FormControl fullWidth size="small">
                     <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Trạng thái</InputLabel>
@@ -853,13 +800,13 @@ export default function ProjectFunctionsPage() {
 
                 <Box>
                   <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Feature
+                    Tính năng
                   </Typography>
                   <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Feature</InputLabel>
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Tính năng</InputLabel>
                 <Select
                   value={filterFeature}
-                  label="Feature"
+                  label="Tính năng"
                   onChange={(e) => setFilterFeature(e.target.value)}
                       sx={{
                         borderRadius: 2.5,
@@ -928,7 +875,7 @@ export default function ProjectFunctionsPage() {
                     </Box>
                   }
                 >
-                  Clear All Filters
+                  Xóa tất cả bộ lọc
                 </Button>
               </Box>
             )}
@@ -940,10 +887,9 @@ export default function ProjectFunctionsPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', width: '60px' }}>STT</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tên Function</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Feature</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Priority</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Tính năng</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Ưu tiên</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Trạng thái</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Hành động</TableCell>
                   </TableRow>
@@ -963,43 +909,27 @@ export default function ProjectFunctionsPage() {
                         key={func._id} 
                         hover
                       >
-                        {/* STT */}
-                        <TableCell 
-                          onClick={() => setFunctionModal({ open: true, functionId: func._id })}
-                          sx={{ 
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: '#f3f4f6',
-                            },
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          <Box
+                        {/* Title */}
+                        <TableCell>
+                          <Link
+                            component="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFunctionModal({ open: true, functionId: func._id });
+                            }}
                             sx={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                              fontWeight: 700,
-                              fontSize: '14px',
-                              boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                              transition: 'all 0.2s ease',
+                              fontWeight: 'medium',
+                              color: '#7b68ee',
+                              textDecoration: 'none',
+                              cursor: 'pointer',
                               '&:hover': {
-                                transform: 'scale(1.1)',
-                                boxShadow: '0 4px 12px rgba(123, 104, 238, 0.5)',
+                                textDecoration: 'underline',
+                                color: '#6952d6',
                               }
                             }}
                           >
-                            {index + 1}
-                          </Box>
-                        </TableCell>
-                        {/* Title */}
-                        <TableCell>
-                          <Typography fontWeight="medium">{func.title}</Typography>
+                            {func.title}
+                          </Link>
                           {func.description && (
                             <Typography 
                               variant="caption" 
@@ -1065,7 +995,7 @@ export default function ProjectFunctionsPage() {
                               }}
                             >
                               <MenuItem value="">
-                                <em>None</em>
+                                <em>Không có</em>
                               </MenuItem>
                               {priorityTypes.map((priority) => (
                                 <MenuItem key={priority._id} value={priority._id}>
@@ -1305,15 +1235,16 @@ export default function ProjectFunctionsPage() {
                 />
 
                 <Stack direction="row" spacing={2}>
-                  <FormControl fullWidth>
-                    <InputLabel>Feature</InputLabel>
+                  <FormControl fullWidth required>
+                    <InputLabel>Tính năng *</InputLabel>
                     <Select
                       value={functionForm.feature_id}
-                      label="Feature"
+                      label="Tính năng *"
                       onChange={(e) => setFunctionForm({ ...functionForm, feature_id: e.target.value })}
+                      required
                     >
                       <MenuItem value="">
-                        <em>Không chọn</em>
+                        <em>Chọn tính năng</em>
                       </MenuItem>
                       {features.map((feature) => (
                         <MenuItem key={feature._id} value={feature._id}>
@@ -1324,10 +1255,10 @@ export default function ProjectFunctionsPage() {
                   </FormControl>
 
                   <FormControl fullWidth>
-                    <InputLabel>Priority</InputLabel>
+                    <InputLabel>Ưu tiên</InputLabel>
                     <Select
                       value={functionForm.priority_id}
-                      label="Priority"
+                      label="Ưu tiên"
                       onChange={(e) => setFunctionForm({ ...functionForm, priority_id: e.target.value })}
                     >
                       <MenuItem value="">
@@ -1342,10 +1273,10 @@ export default function ProjectFunctionsPage() {
                   </FormControl>
 
                   <FormControl fullWidth required>
-                    <InputLabel>Status *</InputLabel>
+                    <InputLabel>Trạng thái *</InputLabel>
                     <Select
                       value={functionForm.status}
-                      label="Status *"
+                      label="Trạng thái *"
                       onChange={(e) => setFunctionForm({ ...functionForm, status: e.target.value })}
                     >
                       {statusTypes.map((status) => (
@@ -1387,7 +1318,7 @@ export default function ProjectFunctionsPage() {
               <Button 
                 variant="contained" 
                 onClick={handleSaveFunction}
-                disabled={!functionForm.title || !functionForm.status}
+                disabled={!functionForm.title || !functionForm.status || !functionForm.feature_id}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,

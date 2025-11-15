@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function QuickNav({ selectedProject }: { selectedProject?: string }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   const items = [
     {
@@ -13,76 +12,66 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
       label: "Đóng góp",
       href: selectedProject ? `/supervisor/contributor?project_id=${selectedProject}` : "/supervisor/contributor",
       projectScoped: true,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
     },
-    {
-      key: "feature",
-      label: "Tính năng",
-
-      href: selectedProject ? `/supervisor/feature?project_id=${selectedProject}` : "/supervisor/feature",
-      projectScoped: false,
-    },
-    {
-      key: "group",
-      label: "Nhóm",
-      href: "/messages",
-      projectScoped: false,
-    },
+    
     {
       key: "task",
       label: "Công việc",
       href: selectedProject ? `/supervisor/task?project_id=${selectedProject}` : "/supervisor/task",
-      projectScoped: false, // Task page can work without project
+      projectScoped: false,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      ),
     },
     {
       key: "report",
       label: "Tài liệu",
       href: selectedProject ? `/supervisor/contributor/detail?project_id=${selectedProject}` : "/supervisor/contributor/detail",
       projectScoped: true,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
     },
   ];
 
   return (
-    <div className="relative inline-block text-left">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all ${
-          open ? "bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-transparent shadow" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-        }`}
-      >
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M3 12h18M3 19h18"/></svg>
-        Quick Nav
-      </button>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setOpen(false)}
-          />
-          {/* Dropdown */}
-          <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-lg bg-white shadow-xl ring-1 ring-black/10 z-50 border border-gray-200">
-            <div className="py-1">
-              {items.map((it) => {
-                const disabled = !selectedProject && it.projectScoped;
-                return (
-                  <button
-                    key={it.key}
-                    onClick={() => { if (!disabled) { setOpen(false); router.push(it.href); } }}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                      disabled 
-                        ? 'opacity-50 cursor-not-allowed text-gray-400' 
-                        : 'hover:bg-indigo-50 text-gray-700 hover:text-indigo-600'
-                    }`}
-                  >
-                    {it.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <nav className="flex items-center gap-1 bg-white/60 backdrop-blur-sm rounded-xl border border-slate-200/80 p-1 shadow-sm">
+      {items.map((it) => {
+        const disabled = !selectedProject && it.projectScoped;
+        const isActive = pathname?.startsWith(it.href.split('?')[0]);
+        
+        return (
+          <button
+            key={it.key}
+            onClick={() => {
+              if (!disabled) {
+                router.push(it.href);
+              }
+            }}
+            disabled={disabled}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+              disabled
+                ? 'opacity-40 cursor-not-allowed text-gray-400'
+                : isActive
+                ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md'
+                : 'text-slate-700 hover:bg-slate-100 hover:text-indigo-600'
+            }`}
+            title={disabled ? 'Vui lòng chọn project trước' : it.label}
+          >
+            {it.icon}
+            <span className="hidden sm:inline">{it.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }

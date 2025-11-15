@@ -4,13 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import GanttChart from "@/components/GanttChart";
-import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
-import ModalMilestone from "@/components/ModalMilestone";
 import FeatureDetailsModal from "@/components/FeatureDetailsModal";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import StarIcon from "@mui/icons-material/Star";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
+import { PRIORITY_OPTIONS } from "@/constants/settings";
 import {
   Box,
   Button,
@@ -43,6 +40,7 @@ import {
   Alert,
   Tabs,
   Tab,
+  Link,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
@@ -55,6 +53,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import InputAdornment from "@mui/material/InputAdornment";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
+import { toast } from "sonner";
 
 type Milestone = {
   _id: string;
@@ -126,12 +125,6 @@ export default function ProjectFeaturesPage() {
     tags: []
   });
 
-  // Chart controls
-  const [weekStart, setWeekStart] = useState<Date>(getStartOfWeekUTC(new Date()));
-  const [viewMode, setViewMode] = useState<'Days' | 'Weeks' | 'Months' | 'Quarters'>('Weeks');
-  const [autoFit, setAutoFit] = useState<boolean>(true);
-  const [detailMode, setDetailMode] = useState<boolean>(false);
-  const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
   const [featureModal, setFeatureModal] = useState<{ open: boolean; featureId?: string | null }>({ open: false, featureId: null });
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -154,6 +147,7 @@ export default function ProjectFeaturesPage() {
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   
   // View tab state
   const [viewTab, setViewTab] = useState<'table' | 'gantt'>('table');
@@ -199,9 +193,13 @@ export default function ProjectFeaturesPage() {
         const milestonesList = Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0 ? milestoneRes.data : [];
         setMilestones(milestonesList);
 
-        // Set settings from constants
+        // Set settings: priority from constants, status from Feature model enum
         setPriorities(PRIORITY_OPTIONS);
-        setStatuses(STATUS_OPTIONS);
+        setStatuses([
+          { _id: "To Do", name: "To Do", value: "to-do" },
+          { _id: "Doing", name: "Doing", value: "doing" },
+          { _id: "Done", name: "Done", value: "done" },
+        ] as any);
 
         if (Array.isArray(featureRes.data)) {
           // Enrich features with linked milestone ids
@@ -264,50 +262,34 @@ export default function ProjectFeaturesPage() {
     return map;
   }, [features, milestones]);
 
-  // Derive feature bars from linked milestones (min start -> max deadline)
-  const featureBars = useMemo(() => {
-    const byId = new Map(milestones.map(m => [m._id, m] as const));
-    return features.map((f) => {
-      const linked = (f.milestone_ids || []).map(id => byId.get(id)).filter(Boolean) as Milestone[];
-      const start = linked.reduce<string | undefined>((acc, m) => {
-        if (!m.start_date) return acc;
-        return !acc || new Date(m.start_date) < new Date(acc) ? m.start_date : acc;
-      }, undefined);
-      const end = linked.reduce<string | undefined>((acc, m) => {
-        if (!m.deadline) return acc;
-        return !acc || new Date(m.deadline) > new Date(acc) ? m.deadline : acc;
-      }, undefined);
-      const pct = featureProgress.get(f._id as string) ?? 0;
-      return {
-        _id: f._id as string,
-        title: `${f.title}${linked.length ? ` (${linked.length})` : ''} • ${pct}%`,
-        start_date: start,
-        deadline: end,
-      };
+  // Gantt-related derived data removed
+  // Filtered list aligned with Functions page behavior
+  const filteredFeatures = useMemo(() => {
+    if (!features || features.length === 0) return [];
+    
+    const normalizedSearchTerm = (searchTerm || '').trim().toLowerCase();
+    
+    return features.filter((f) => {
+      // Match search term
+      let matchSearch = true;
+      if (normalizedSearchTerm) {
+        const title = (f.title || '').toLowerCase();
+        const description = (f.description || '').toLowerCase();
+        const tags = (f.tags || []).map(tag => (tag || '').toLowerCase()).join(' ');
+        
+        matchSearch = 
+          title.includes(normalizedSearchTerm) 
+      }
+      
+      // Match status filter
+      const statusId = typeof f.status_id === 'object' 
+        ? (f.status_id as any)?._id 
+        : f.status_id;
+      const matchStatus = filterStatus === 'all' || String(statusId) === String(filterStatus);
+      
+      return matchSearch && matchStatus;
     });
-  }, [features, milestones, featureProgress]);
-
-  // Expand to detailed chart rows per milestone when detailMode is on
-  const chartRows = useMemo(() => {
-    if (!detailMode) return featureBars;
-    const byId = new Map(milestones.map(m => [m._id, m] as const));
-    const rows: { _id: string; title: string; start_date?: string; deadline?: string }[] = [];
-    features.forEach((f) => {
-      const ids = f.milestone_ids || [];
-      ids.forEach((mid) => {
-        const m = byId.get(mid);
-        if (m) {
-          rows.push({
-            _id: m._id,
-            title: `${f.title} • ${m.title}`,
-            start_date: m.start_date,
-            deadline: m.deadline,
-          });
-        }
-      });
-    });
-    return rows.length ? rows : featureBars;
-  }, [detailMode, featureBars, features, milestones]);
+  }, [features, searchTerm, filterStatus]);
 
   const handleOpenForm = () => {
     setForm({ 
@@ -361,8 +343,11 @@ export default function ProjectFeaturesPage() {
         end_date: "",
         tags: []
       });
+      toast.success("Đã tạo feature thành công");
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể tạo feature");
+      const errorMessage = e?.response?.data?.message || "Không thể tạo feature";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -402,7 +387,11 @@ export default function ProjectFeaturesPage() {
         return updated;
       }));
       cancelEditRow();
-    } catch {}
+      toast.success("Đã cập nhật thành công");
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.message || "Không thể cập nhật feature";
+      toast.error(errorMessage);
+    }
   };
 
   const handleToggleFeatureSelection = (featureId: string) => {
@@ -424,221 +413,258 @@ export default function ProjectFeaturesPage() {
   const selectedFeatures = features.filter(f => selectedFeatureIds.includes(f._id as string));
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f8f9fb]">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
-        <div className="mx-auto w-full max-w-7xl">
-          {/* Modern Header */}
-          <Box sx={{ mb: 3 }}>
-          <ProjectBreadcrumb 
-            projectId={projectId}
-            items={[
-              { label: 'Features', icon: <StarIcon sx={{ fontSize: 16 }} /> }
-            ]}
-          />
-          
-            <Box sx={{ 
-              bgcolor: 'white', 
-              borderRadius: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-              border: '1px solid #e8e9eb',
-              mb: 3
-            }}>
-              <Box sx={{ 
-                px: 3, 
-                py: 2.5, 
-                borderBottom: '1px solid #e8e9eb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap'
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 2.5,
-                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
-                  }}>
-                    <StarIcon sx={{ fontSize: 28, color: 'white' }} />
-                  </Box>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                      Features
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                      Quản lý các feature trong dự án
-                    </Typography>
-                  </Box>
-              {selectedFeatureIds.length > 0 && (
-                <Chip 
-                      label={`${selectedFeatureIds.length} đã chọn`} 
-                  color="primary" 
-                  size="small"
-                  onDelete={() => setSelectedFeatureIds([])}
-                      sx={{
-                        ml: 2,
-                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                        color: 'white',
-                        fontWeight: 600,
-                      }}
-                    />
-                  )}
-                </Box>
+      <main>
+        <div className="w-full">
+          {/* Breadcrumb Navigation */}
+          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
+            <ProjectBreadcrumb 
+              projectId={projectId}
+              items={[
+                { label: 'Tính năng', icon: <StarIcon sx={{ fontSize: 16 }} /> }
+              ]}
+            />
+          </Box>
 
-                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-              {selectedFeatureIds.length > 0 && (
-                <Button 
-                  variant="contained" 
-                      size="small"
-                  onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        height: 36,
-                        px: 2,
-                        borderRadius: 2.5,
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #059669, #047857)',
-                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      Tạo Milestone
-                </Button>
-              )}
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenForm}
+          {/* ClickUp-style Top Bar (standardized) */}
+          <Box 
+            sx={{ 
+              bgcolor: 'white',
+              borderBottom: '1px solid #e8e9eb',
+              px: 3,
+              py: 2,
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Title */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 700,
+                    color: '#1f2937',
+                    fontSize: '24px',
+                  }}
+                >
+                  Tính năng
+                </Typography>
+                {selectedFeatureIds.length > 0 && (
+                  <Chip 
+                    label={`${selectedFeatureIds.length} đã chọn`} 
+                    size="small"
                     sx={{
+                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                      color: 'white',
+                      fontWeight: 600,
+                    }}
+                    onDelete={() => setSelectedFeatureIds([])}
+                  />
+                )}
+              </Box>
+
+              {/* Right Actions */}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                {/* Quick Navigation */}
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Cột mốc
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Công Việc
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/projects/${projectId}/functions`)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderColor: '#e8e9eb',
+                    color: '#49516f',
+                    '&:hover': {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#f3f0ff',
+                    }
+                  }}
+                >
+                  Chức năng
+                </Button>
+                
+                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                
+                {selectedFeatureIds.length > 0 && (
+                  <Button 
+                    variant="contained" 
+                    onClick={() => setOpenMilestoneFromFeaturesDialog(true)}
+                    sx={{ 
+                      bgcolor: '#10b981',
+                      color: 'white',
                       textTransform: 'none',
                       fontWeight: 600,
-                      fontSize: '13px',
-                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                      height: 36,
+                      fontSize: '14px',
                       px: 2.5,
-                      borderRadius: 2.5,
-                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
-                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
-                        transform: 'translateY(-1px)',
+                      py: 1,
+                      borderRadius: 1.5,
+                      boxShadow: 'none',
+                      '&:hover': { 
+                        bgcolor: '#059669',
                       },
-                      transition: 'all 0.2s ease',
                     }}
                   >
-                    Tạo Feature
+                    Tạo Milestone
                   </Button>
-                </Stack>
-              </Box>
-
-              {/* Toolbar with Search and Filters */}
-              <Box sx={{ 
-                px: 3, 
-                py: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap',
-              }}>
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
-                  <TextField
-                    placeholder="Quick search features..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    size="small"
-                    sx={{ 
-                      width: 250,
-                      '& .MuiOutlinedInput-root': { 
-                        fontSize: '13px',
-                        borderRadius: 2,
-                        bgcolor: '#f8f9fb',
-                        height: 36,
-                        '& fieldset': { borderColor: 'transparent' },
-                        '&:hover': { 
-                          bgcolor: '#f3f4f6',
-                          '& fieldset': { borderColor: '#e8e9eb' }
-                        },
-                        '&.Mui-focused': { 
-                          bgcolor: 'white',
-                          '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
-                        }
-                      } 
-                    }}
-                    InputProps={{ 
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
-                        </InputAdornment>
-                      ) 
-                    }}
-                  />
-
-                  <Badge 
-                    badgeContent={searchTerm ? 1 : 0}
-                    color="primary"
-                    sx={{
-                      '& .MuiBadge-badge': {
-                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: '10px',
-                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                        border: '2px solid white',
-                      }
-                    }}
-                  >
-                    <Button
-                      variant={filterAnchorEl ? "contained" : "outlined"}
-                      size="small"
-                      startIcon={<TuneIcon fontSize="small" />}
-                      onClick={(e) => setFilterAnchorEl(e.currentTarget)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
-                        borderWidth: '1.5px',
-                        color: filterAnchorEl ? 'white' : '#49516f',
-                        background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
-                        height: 36,
-                        px: 2,
-                        borderRadius: 2.5,
-                        boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
-                        '&:hover': {
-                          borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
-                          background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
-                          boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      Quick Nav
-                    </Button>
-                  </Badge>
-                </Stack>
-
-                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                  Showing: {features.filter(f => !searchTerm || f.title.toLowerCase().includes(searchTerm.toLowerCase())).length} features
-                </Typography>
-              </Box>
+                )}
+                <Button 
+                  variant="contained" 
+                  onClick={handleOpenForm}
+                  startIcon={<AddIcon />} 
+                  sx={{ 
+                    bgcolor: '#7b68ee',
+                    color: 'white',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    px: 2.5,
+                    py: 1,
+                    borderRadius: 1.5,
+                    boxShadow: 'none',
+                    '&:hover': { 
+                      bgcolor: '#6952d6',
+                    },
+                  }}
+                >
+                  Tạo Feature
+                </Button>
+              </Stack>
             </Box>
           </Box>
 
-          {/* Quick Navigation Popover */}
+          {/* Toolbar with Search and Filters - matched to Functions page */}
+          <Box sx={{ 
+            bgcolor: 'white',
+            borderBottom: '1px solid #e8e9eb',
+            px: 3, py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 2,
+            flexWrap: 'wrap',
+          }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+              <TextField
+                placeholder="Tìm kiếm tính năng..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                size="small"
+                sx={{ 
+                  width: 250,
+                  '& .MuiOutlinedInput-root': { 
+                    fontSize: '13px',
+                    borderRadius: 2,
+                    bgcolor: '#f8f9fb',
+                    height: 36,
+                    '& fieldset': { borderColor: 'transparent' },
+                    '&:hover': { 
+                      bgcolor: '#f3f4f6',
+                      '& fieldset': { borderColor: '#e8e9eb' }
+                    },
+                    '&.Mui-focused': { 
+                      bgcolor: 'white',
+                      '& fieldset': { borderColor: '#7b68ee', borderWidth: '2px' }
+                    }
+                  } 
+                }}
+                InputProps={{ 
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                    </InputAdornment>
+                  ) 
+                }}
+              />
+
+              <Badge 
+                badgeContent={[filterStatus !== 'all', searchTerm].filter(Boolean).length || 0}
+                color="primary"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                    border: '2px solid white',
+                  }
+                }}
+              >
+                <Button
+                  variant={filterAnchorEl ? "contained" : "outlined"}
+                  size="small"
+                  startIcon={<TuneIcon fontSize="small" />}
+                  onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    borderColor: filterAnchorEl ? 'transparent' : '#e2e8f0',
+                    borderWidth: '1.5px',
+                    color: filterAnchorEl ? 'white' : '#49516f',
+                    background: filterAnchorEl ? 'linear-gradient(135deg, #7b68ee, #9b59b6)' : 'white',
+                    height: 36,
+                    px: 2,
+                    borderRadius: 2.5,
+                    boxShadow: filterAnchorEl ? '0 4px 12px rgba(123, 104, 238, 0.3)' : 'none',
+                    '&:hover': {
+                      borderColor: filterAnchorEl ? 'transparent' : '#b4a7f5',
+                      background: filterAnchorEl ? 'linear-gradient(135deg, #6b5dd6, #8b49a6)' : 'linear-gradient(to bottom, white, #f9fafb)',
+                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.2)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Bộ lọc
+                </Button>
+              </Badge>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+              Hiển thị: {filteredFeatures.length} {filteredFeatures.length !== features.length && `trong ${features.length}`} tính năng
+            </Typography>
+          </Box>
+
+          {/* Filters Popover - matched to Functions page */}
           <Popover
             open={Boolean(filterAnchorEl)}
             anchorEl={filterAnchorEl}
@@ -655,70 +681,170 @@ export default function ProjectFeaturesPage() {
               paper: {
                 sx: {
                   mt: 1.5,
-                  width: 300,
-                  borderRadius: 3,
+                  width: 400,
+                  maxHeight: 500,
+                  borderRadius: 4,
                   boxShadow: '0 20px 60px rgba(123, 104, 238, 0.15), 0 0 0 1px rgba(123, 104, 238, 0.1)',
                   overflow: 'hidden',
                   background: 'linear-gradient(to bottom, #ffffff, #fafbff)',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }
               }
             }}
           >
-            <Box sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: '#2d3748' }}>
-                Quick Navigation
+            {/* Header */}
+            <Box sx={{ 
+              px: 3.5,
+              pt: 3,
+              pb: 2.5,
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent)',
+                pointerEvents: 'none',
+              }
+            }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ position: 'relative', zIndex: 1 }}>
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 0.5 }}>
+                    <Box sx={{ 
+                      width: 36, 
+                      height: 36, 
+                      borderRadius: 2, 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                    }}>
+                      <TuneIcon sx={{ fontSize: 20, color: 'white' }} />
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '18px', color: 'white', letterSpacing: '-0.02em' }}>
+                      Bộ lọc tính năng
               </Typography>
-              <Stack spacing={1}>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}`);
-                    setFilterAnchorEl(null);
-                  }}
+                  </Stack>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px', ml: 6 }}>
+                    Tinh chỉnh danh sách tính năng của bạn
+                  </Typography>
+                </Box>
+                <IconButton 
+                  size="small"
+                  onClick={() => setFilterAnchorEl(null)}
                   sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
+                    color: 'white',
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    '&:hover': { 
+                      bgcolor: 'rgba(255,255,255,0.25)',
+                      transform: 'rotate(90deg)',
+                      transition: 'all 0.3s ease'
+                    },
+                    transition: 'all 0.3s ease'
                   }}
                 >
-                🎯 Milestones
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/functions`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                🔧 Functions
-              </Button>
-                <Button 
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    router.push(`/projects/${projectId}/tasks`);
-                    setFilterAnchorEl(null);
-                  }}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    borderColor: '#e2e8f0',
-                    '&:hover': { borderColor: '#7b68ee', bgcolor: '#f9fafb' }
-                  }}
-                >
-                ✅ Tasks
-              </Button>
+                  <span style={{ fontSize: '18px', fontWeight: 300 }}>×</span>
+                </IconButton>
               </Stack>
             </Box>
+
+            {/* Filter Content */}
+            <Box sx={{ 
+              px: 3.5,
+              py: 3,
+              flex: 1,
+              overflowY: 'auto',
+            }}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="caption" sx={{ mb: 1.5, display: 'block', fontWeight: 700, color: '#2d3748', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Status
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel sx={{ color: '#6b7280', '&.Mui-focused': { color: '#8b5cf6' } }}>Trạng thái</InputLabel>
+                    <Select
+                      value={filterStatus}
+                      label="Trạng thái"
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                  sx={{
+                        borderRadius: 2.5,
+                        bgcolor: 'white',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0', borderWidth: '1.5px' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#8b5cf6', borderWidth: '2px' },
+                      }}
+                    >
+                      <MenuItem value="all">Tất cả</MenuItem>
+                      {statuses.map((status) => (
+                        <MenuItem key={status._id} value={status._id}>
+                          {status.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Stack>
+            </Box>
+
+            {/* Footer */}
+            {filterStatus !== 'all' && (
+              <Box sx={{ 
+                px: 3.5,
+                py: 2.5,
+                borderTop: '1px solid #e2e8f0',
+                background: 'linear-gradient(to bottom, #fafbff, #f8f9fb)',
+                flexShrink: 0,
+              }}>
+                <Button 
+                  variant="contained"
+                  fullWidth
+                  onClick={() => {
+                    setFilterStatus('all');
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    color: 'white',
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    borderRadius: 2.5,
+                    py: 1.2,
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      boxShadow: '0 6px 16px rgba(239, 68, 68, 0.4)',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                  startIcon={
+                    <Box sx={{ 
+                      width: 20, 
+                      height: 20, 
+                      borderRadius: '50%', 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px'
+                    }}>
+                      ✕
+                    </Box>
+                  }
+                  >
+                    Xóa tất cả bộ lọc
+              </Button>
+            </Box>
+            )}
           </Popover>
 
           {loading ? (
@@ -732,119 +858,7 @@ export default function ProjectFeaturesPage() {
           ) : (
             <Stack spacing={3}>
               {/* View Tabs */}
-              <Paper variant="outlined" sx={{ borderRadius: 3 }}>
-                <Tabs 
-                  value={viewTab} 
-                  onChange={(e, newValue) => setViewTab(newValue)}
-                  sx={{
-                    borderBottom: '1px solid #e2e8f0',
-                    px: 2,
-                    '& .MuiTab-root': {
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      minHeight: 48,
-                      color: '#6b7280',
-                      '&.Mui-selected': {
-                        color: '#7b68ee',
-                      }
-                    },
-                    '& .MuiTabs-indicator': {
-                      backgroundColor: '#7b68ee',
-                      height: 3,
-                      borderRadius: '3px 3px 0 0',
-                    }
-                  }}
-                >
-                  <Tab label="📋 Table View" value="table" />
-                  <Tab label="📊 Gantt Chart" value="gantt" />
-                </Tabs>
-
-                {/* Table View - see below */}
-
-                {/* Gantt View */}
-                {viewTab === 'gantt' && (
-                  <Box sx={{ p: 2 }}>
-                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
-                  <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <InputLabel id="view-mode-label">View</InputLabel>
-                    <Select labelId="view-mode-label" label="View" value={viewMode} onChange={(e) => setViewMode(e.target.value as any)}>
-                      <MenuItem value="Days">Days</MenuItem>
-                      <MenuItem value="Weeks">Weeks</MenuItem>
-                      <MenuItem value="Months">Months</MenuItem>
-                      <MenuItem value="Quarters">Quarters</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <Button size="small" variant="outlined" onClick={() => setAutoFit(a => !a)}>
-                    {autoFit ? 'Auto Fit: On' : 'Auto Fit: Off'}
-                  </Button>
-                  <Button size="small" variant="outlined" onClick={() => setDetailMode(d => !d)}>
-                    {detailMode ? 'Chi tiết milestone: Bật' : 'Chi tiết milestone: Tắt'}
-                  </Button>
-                </Stack>
-                <GanttChart
-                  milestones={chartRows}
-                  viewMode={viewMode as any}
-                  startDate={weekStart}
-                  autoFit={autoFit}
-                  pagingStepDays={viewMode === 'Quarters' ? 90 : viewMode === 'Months' ? 30 : viewMode === 'Weeks' ? 7 : 7}
-                  onRequestShift={(days) => setWeekStart(prev => addDays(prev, days))}
-                  onMilestoneShift={async (rowId, deltaDays) => {
-                    if (detailMode) {
-                      // Shift a single milestone row directly
-                      const m = milestones.find(x => x._id === rowId);
-                      if (!m) return;
-                      const toIso = (iso?: string) => {
-                        if (!iso) return undefined;
-                        const d = new Date(iso);
-                        d.setUTCDate(d.getUTCDate() + deltaDays);
-                        return d.toISOString();
-                      };
-                      setMilestones(prev => (prev || []).map(x => x._id === rowId ? ({ ...x, start_date: toIso(x.start_date), deadline: toIso(x.deadline) }) : x));
-                      await axiosInstance.patch(`/api/projects/${projectId}/milestones/${rowId}`, {
-                        start_date: toIso(m.start_date),
-                        deadline: toIso(m.deadline),
-                      }).catch(() => null);
-                    } else {
-                      // Shift all milestones linked to a feature bar
-                      const f = features.find(x => x._id === rowId);
-                      if (!f || !f.milestone_ids || f.milestone_ids.length === 0) return;
-                      setMilestones(prev => (prev || []).map(m => {
-                        if (!f.milestone_ids?.includes(m._id)) return m;
-                        const shiftDate = (iso?: string) => {
-                          if (!iso) return iso;
-                          const d = new Date(iso);
-                          d.setUTCDate(d.getUTCDate() + deltaDays);
-                          return d.toISOString();
-                        };
-                        return { ...m, start_date: shiftDate(m.start_date), deadline: shiftDate(m.deadline) };
-                      }));
-                      const updates = (f.milestone_ids || []).map(async (mid) => {
-                        const m = milestones.find(x => x._id === mid);
-                        if (!m) return;
-                        const toIso = (iso?: string) => {
-                          if (!iso) return undefined;
-                          const d = new Date(iso);
-                          d.setUTCDate(d.getUTCDate() + deltaDays);
-                          return d.toISOString();
-                        };
-                        await axiosInstance.patch(`/api/projects/${projectId}/milestones/${mid}`, {
-                          start_date: toIso(m.start_date),
-                          deadline: toIso(m.deadline),
-                        }).catch(() => null);
-                      });
-                      await Promise.all(updates);
-                    }
-                  }}
-                  onMilestoneClick={(rowId) => {
-                    if (detailMode) {
-                      setMilestoneModal({ open: true, milestoneId: rowId });
-                    }
-                  }}
-                />
-                  </Box>
-                )}
-              </Paper>
+            
 
               {/* Table View Content */}
               {viewTab === 'table' && (
@@ -853,26 +867,16 @@ export default function ProjectFeaturesPage() {
                 <Table size="small" sx={{ minWidth: 1400, '& td, & th': { borderColor: 'var(--border)' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ width: 44 }}>
-                        <Checkbox 
-                          size="small" 
-                          checked={selectedFeatureIds.length === features.length && features.length > 0}
-                          indeterminate={selectedFeatureIds.length > 0 && selectedFeatureIds.length < features.length}
-                          onChange={handleToggleAllFeatures}
-                        />
-                      </TableCell>
-                      <TableCell sx={{ width: 60 }}>STT</TableCell>
-                      <TableCell>Title</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Priority</TableCell>
-                      <TableCell sx={{ minWidth: 200 }}>Milestone</TableCell>
-                      <TableCell>Start - Due</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Actions</TableCell>
+                      <TableCell>Tiêu đề</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>Cột mốc</TableCell>
+                      <TableCell>Bắt đầu - Hết hạn</TableCell>
+                      <TableCell>Trạng thái</TableCell>
+                      <TableCell>Ưu tiên</TableCell>
+                      <TableCell>Thao tác</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(features || []).map((f, idx) => {
+                    {(filteredFeatures || []).map((f, idx) => {
                       const pct = featureProgress.get(f._id as string) ?? 0;
                       const owners = [
                         { id: '1', name: 'A' },
@@ -889,7 +893,7 @@ export default function ProjectFeaturesPage() {
                         return latest;
                       })();
                       const dueDateText = due ? new Date(due).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
-                      const statusName = typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?.name : '');
+                      const statusName = typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? (f.status_id as any)?.name : '');
                       const priorityName = typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?.name : '');
                       const statusChip = (
                         <Chip
@@ -897,33 +901,13 @@ export default function ProjectFeaturesPage() {
                           label={statusName || '-'}
                           sx={{
                             color: '#fff',
-                            bgcolor: statusName === 'Completed' ? '#22c55e' : statusName === 'In Progress' ? '#f59e0b' : '#3b82f6',
+                            bgcolor: statusName === 'Done' ? '#22c55e' : statusName === 'Doing' ? '#f59e0b' : '#6b7280',
                             fontWeight: 600,
                           }}
                         />
                       );
                       return (
                         <TableRow key={f._id || idx} hover>
-                          <TableCell>
-                            <Checkbox 
-                              size="small" 
-                              checked={selectedFeatureIds.includes(f._id as string)}
-                              onChange={() => handleToggleFeatureSelection(f._id as string)}
-                            />
-                          </TableCell>
-                          <TableCell 
-                            sx={{ 
-                              fontWeight: 600, 
-                              cursor: 'pointer',
-                              color: 'primary.main',
-                              '&:hover': { textDecoration: 'underline' }
-                            }}
-                            onClick={() => {
-                              setFeatureModal({ open: true, featureId: f._id });
-                            }}
-                          >
-                            {idx + 1}
-                          </TableCell>
                           <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => startEditCell(f, 'title')}>
                             {editingId === f._id && editingField === 'title' ? (
                               <TextField
@@ -934,82 +918,36 @@ export default function ProjectFeaturesPage() {
                                 onBlur={() => saveEditRow(f._id as string)}
                               />
                             ) : (
-                              f.title
+                              <Tooltip title={f.title || ''}>
+                                <Link
+                                  component="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFeatureModal({ open: true, featureId: f._id });
+                                  }}
+                                  sx={{
+                                    fontWeight: 600,
+                                    color: '#7b68ee',
+                                    textDecoration: 'none',
+                                    cursor: 'pointer',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: 100,
+                                    display: 'block',
+                                    '&:hover': {
+                                      textDecoration: 'underline',
+                                      color: '#6952d6',
+                                    }
+                                  }}
+                                >
+                                  {f.title || '...'}
+                                </Link>
+                              </Tooltip>
                             )}
                           </TableCell>
                           
-                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'status_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
-                                onChange={async (e) => {
-                                  const newStatusId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating status:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {statuses.map((s) => (
-                                  <MenuItem key={s._id} value={s._id}>
-                                    {s.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              statusChip
-                            )}
-                          </TableCell>
-                          
-                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'priority_id' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
-                                onChange={async (e) => {
-                                  const newPriorityId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
-                                    ));
-                                    cancelEditRow();
-                                  } catch (err) {
-                                    console.error('Error updating priority:', err);
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {priorities.map((p) => (
-                                  <MenuItem key={p._id} value={p._id}>
-                                    {p.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              <Chip
-                                label={priorityName || '-'}
-                                size="small"
-                                color={
-                                  priorityName === 'Critical' ? 'error' :
-                                  priorityName === 'High' ? 'warning' :
-                                  priorityName === 'Medium' ? 'primary' : 'default'
-                                }
-                                variant="outlined"
-                              />
-                            )}
-                          </TableCell>
+                         
                           
                           <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
                             {editingId === f._id && editingField === 'milestone_ids' ? (
@@ -1032,8 +970,10 @@ export default function ProjectFeaturesPage() {
                                     ));
                                     setEditingId(null);
                                     setEditingField(null);
-                                  } catch (err) {
+                                    toast.success("Đã cập nhật cột mốc thành công");
+                                  } catch (err: any) {
                                     console.error('Error updating milestones:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật cột mốc");
                                   }
                                 }}
                                 renderValue={(selected) => (
@@ -1086,18 +1026,80 @@ export default function ProjectFeaturesPage() {
                             </Stack>
                           </TableCell>
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'description')}>
-                            {editingId === f._id && editingField === 'description' ? (
-                              <TextField
+                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'status_id' ? (
+                              <Select
                                 size="small"
-                                value={editDraft.description || ''}
-                                onChange={(e) => setEditDraft(s => ({ ...s, description: e.target.value }))}
-                                fullWidth onBlur={() => saveEditRow(f._id as string)}
-                              />
+                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
+                                onChange={async (e) => {
+                                  const newStatusId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
+                                    ));
+                                    cancelEditRow();
+                                    toast.success("Đã cập nhật trạng thái thành công");
+                                  } catch (err: any) {
+                                    console.error('Error updating status:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật trạng thái");
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {statuses.map((s) => (
+                                  <MenuItem key={s._id} value={s._id}>
+                                    {s.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
                             ) : (
-                              <Typography variant="body2" sx={{ opacity: .9, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {f.description || '—'}
-                              </Typography>
+                              statusChip
+                            )}
+                          </TableCell>
+                          
+                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'priority_id' ? (
+                              <Select
+                                size="small"
+                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
+                                onChange={async (e) => {
+                                  const newPriorityId = e.target.value;
+                                  try {
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
+                                    setFeatures(prev => prev.map(x => 
+                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
+                                    ));
+                                    cancelEditRow();
+                                    toast.success("Đã cập nhật ưu tiên thành công");
+                                  } catch (err: any) {
+                                    console.error('Error updating priority:', err);
+                                    toast.error(err?.response?.data?.message || "Không thể cập nhật ưu tiên");
+                                  }
+                                }}
+                                onBlur={cancelEditRow}
+                                autoFocus
+                                fullWidth
+                              >
+                                {priorities.map((p) => (
+                                  <MenuItem key={p._id} value={p._id}>
+                                    {p.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            ) : (
+                              <Chip
+                                label={priorityName || '-'}
+                                size="small"
+                                color={
+                                  priorityName === 'Critical' ? 'error' :
+                                  priorityName === 'High' ? 'warning' :
+                                  priorityName === 'Medium' ? 'primary' : 'default'
+                                }
+                                variant="outlined"
+                              />
                             )}
                           </TableCell>
                           
@@ -1179,10 +1181,10 @@ export default function ProjectFeaturesPage() {
                 
                 <Stack direction="row" spacing={2}>
                   <FormControl fullWidth>
-                    <InputLabel id="status-label">Status</InputLabel>
+                    <InputLabel id="status-label">Trạng thái</InputLabel>
                     <Select
                       labelId="status-label"
-                      label="Status"
+                      label="Trạng thái"
                       value={form.status_id || ''}
                       onChange={(e) => setForm(prev => ({ ...prev, status_id: e.target.value }))}
                     >
@@ -1197,15 +1199,15 @@ export default function ProjectFeaturesPage() {
                       )}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {statuses.length} options
+                      {statuses.length} tùy chọn
                     </Typography>
                   </FormControl>
                   
                   <FormControl fullWidth>
-                    <InputLabel id="priority-label">Priority</InputLabel>
+                    <InputLabel id="priority-label">Ưu tiên</InputLabel>
                     <Select
                       labelId="priority-label"
-                      label="Priority"
+                      label="Ưu tiên"
                       value={form.priority_id || ''}
                       onChange={(e) => setForm(prev => ({ ...prev, priority_id: e.target.value }))}
                     >
@@ -1220,7 +1222,7 @@ export default function ProjectFeaturesPage() {
                       )}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {priorities.length} options
+                      {priorities.length} tùy chọn
                     </Typography>
                   </FormControl>
                   
@@ -1231,7 +1233,7 @@ export default function ProjectFeaturesPage() {
                 
                 <Stack direction="row" spacing={2}>
                   <TextField
-                    label="Start Date"
+                    label="Ngày bắt đầu"
                     type="date"
                     value={form.start_date || ''}
                     onChange={(e) => setForm(prev => ({ ...prev, start_date: e.target.value }))}
@@ -1239,7 +1241,7 @@ export default function ProjectFeaturesPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                   <TextField
-                    label="End Date"
+                    label="Ngày kết thúc"
                     type="date"
                     value={form.end_date || ''}
                     onChange={(e) => setForm(prev => ({ ...prev, end_date: e.target.value }))}
@@ -1319,14 +1321,14 @@ export default function ProjectFeaturesPage() {
             fullWidth
           >
             <DialogTitle sx={{ fontWeight: 'bold' }}>
-              Chi tiết Feature
+              Chi tiết tính năng
             </DialogTitle>
             <DialogContent>
             {selectedFeatureDetail && (
               <Stack spacing={3} sx={{ mt: 1 }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Title
+                    Tiêu đề
                   </Typography>
                   <Typography variant="h6" fontWeight={600}>
                     {selectedFeatureDetail.title}
@@ -1335,7 +1337,7 @@ export default function ProjectFeaturesPage() {
 
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Description
+                    Mô tả
                   </Typography>
                   <Typography variant="body1">
                     {selectedFeatureDetail.description || '—'}
@@ -1345,7 +1347,7 @@ export default function ProjectFeaturesPage() {
                 <Stack direction="row" spacing={3}>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Status
+                      Trạng thái
                     </Typography>
                     <Chip
                       label={typeof selectedFeatureDetail.status_id === 'string' ? selectedFeatureDetail.status_id : (typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-')}
@@ -1361,7 +1363,7 @@ export default function ProjectFeaturesPage() {
                   </Box>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Priority
+                      Ưu tiên
                     </Typography>
                     <Chip
                       label={typeof selectedFeatureDetail.priority_id === 'string' ? selectedFeatureDetail.priority_id : (typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-')}
@@ -1380,7 +1382,7 @@ export default function ProjectFeaturesPage() {
                 <Stack direction="row" spacing={3}>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      Start Date
+                      Ngày bắt đầu
                     </Typography>
                     <Typography variant="body1">
                       {selectedFeatureDetail.start_date ? new Date(selectedFeatureDetail.start_date).toLocaleDateString('vi-VN') : '—'}
@@ -1388,7 +1390,7 @@ export default function ProjectFeaturesPage() {
                   </Box>
                   <Box flex={1}>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      End Date
+                      Ngày kết thúc
                     </Typography>
                     <Typography variant="body1">
                       {selectedFeatureDetail.end_date ? new Date(selectedFeatureDetail.end_date).toLocaleDateString('vi-VN') : '—'}
@@ -1398,7 +1400,7 @@ export default function ProjectFeaturesPage() {
 
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                    Creator
+                    Người tạo
                   </Typography>
                   <Typography variant="body1">
                     {typeof selectedFeatureDetail.created_by === 'object' ? selectedFeatureDetail.created_by?.full_name : '—'}
@@ -1408,7 +1410,7 @@ export default function ProjectFeaturesPage() {
                   <Stack direction="row" spacing={3}>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Created At
+                        Ngày tạo
                       </Typography>
                       <Typography variant="body2">
                         {selectedFeatureDetail.createdAt ? new Date(selectedFeatureDetail.createdAt).toLocaleString('vi-VN') : '—'}
@@ -1416,7 +1418,7 @@ export default function ProjectFeaturesPage() {
                     </Box>
                     <Box flex={1}>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                        Updated At
+                        Ngày cập nhật
                       </Typography>
                       <Typography variant="body2">
                         {selectedFeatureDetail.updatedAt ? new Date(selectedFeatureDetail.updatedAt).toLocaleString('vi-VN') : '—'}
@@ -1427,7 +1429,7 @@ export default function ProjectFeaturesPage() {
                   {selectedFeatureDetail.milestone_ids && selectedFeatureDetail.milestone_ids.length > 0 && (
                     <Box>
                       <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                        Linked Milestones
+                        Cột mốc liên kết
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
                         {[...new Set(selectedFeatureDetail.milestone_ids)].map((milestoneId) => {
@@ -1463,7 +1465,7 @@ export default function ProjectFeaturesPage() {
                     setFeatureModal({ open: true, featureId: selectedFeatureDetail._id });
                   }}
                 >
-                  Xem Chi Tiết
+                  Xem chi tiết
               </Button>
               )}
             </DialogActions>
@@ -1493,9 +1495,11 @@ export default function ProjectFeaturesPage() {
                       })
                     );
                     setFeatures(enriched);
+                    toast.success("Đã tạo cột mốc từ features thành công");
                   }
-                } catch (error) {
+                } catch (error: any) {
                   console.error('Error reloading features:', error);
+                  toast.error(error?.response?.data?.message || "Không thể tải lại danh sách features");
                 }
               }}
             />

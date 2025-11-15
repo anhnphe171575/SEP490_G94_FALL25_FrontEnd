@@ -32,17 +32,17 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import BugReportIcon from "@mui/icons-material/BugReport";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
 import axiosInstance from "../../ultis/axios";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
+import { toast } from "sonner";
 
 import TaskDetailsOverview from "./TaskDetails/TaskDetailsOverview";
-import TaskDetailsSubtasks from "./TaskDetails/TaskDetailsSubtasks";
 import TaskDetailsDependencies from "./TaskDetails/TaskDetailsDependencies";
 import TaskDetailsComments from "./TaskDetails/TaskDetailsComments";
 import TaskDetailsAttachments from "./TaskDetails/TaskDetailsAttachments";
 import TaskDetailsActivity from "./TaskDetails/TaskDetailsActivity";
-import TaskDetailsBugs from "./TaskDetails/TaskDetailsBugs";
 import DependencyViolationDialog from "./DependencyViolationDialog";
 
 type Task = {
@@ -76,10 +76,9 @@ interface TaskDetailsModalProps {
   projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
-  onTaskChange?: (newTaskId: string) => void; // Callback to switch to another task
 }
 
-export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate, onTaskChange }: TaskDetailsModalProps) {
+export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate }: TaskDetailsModalProps) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -99,32 +98,21 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [hasMandatoryDependencies, setHasMandatoryDependencies] = useState(false);
   
-  // Check if this is a subtask
-  const isSubtask = !!task?.parent_task_id;
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState('');
 
-  // Handle subtask click - switch to view that subtask
-  const handleSubtaskClick = (subtaskId: string) => {
-    if (onTaskChange) {
-      onTaskChange(subtaskId);
-    }
-  };
-
-  // Get tab name from index (handles dynamic tabs for subtask)
+  // Get tab name from index
   const getTabContent = (index: number) => {
-    if (isSubtask) {
-      // For subtasks: Overview, Bugs, Comments, Files, Activity
-      const tabMap = ['overview', 'bugs', 'comments', 'files', 'activity'];
-      return tabMap[index];
-    } else {
-      // For tasks: Overview, Subtasks, Dependencies, Bugs, Comments, Files, Activity
-      const tabMap = ['overview', 'subtasks', 'dependencies', 'bugs', 'comments', 'files', 'activity'];
-      return tabMap[index];
-    }
+    const tabMap = ['overview', 'dependencies', 'comments', 'files', 'activity'];
+    return tabMap[index];
   };
 
   useEffect(() => {
     if (open && taskId) {
       setCurrentTab(0); // Reset to Overview tab when task changes
+      setIsEditingTitle(false); // Reset title editing state
+      setEditingTitle(''); // Reset editing title
       loadTaskDetails();
       loadDependencies();
       // Load constants instead of API call
@@ -228,6 +216,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
       // if (!skipParentRefresh && onUpdate) {
       //   onUpdate();
       // }
+      return { success: true };
     } catch (error: any) {
       console.error("Error updating task:", error);
       
@@ -248,25 +237,28 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
           
           // Reload to restore correct state
           await loadTaskDetails();
-          return; // Don't throw error, let user decide
+          return { success: false, hasValidationError: true }; // Don't throw error, let user decide
         }
         
-        // Handle date validation errors
-        if (responseData.errors && responseData.message === 'Date validation failed') {
-          const canForce = responseData.can_force || false;
-          
-          // Show validation errors in dependency violation dialog (reuse same UI)
-          setDependencyViolations(responseData.errors.map((err: string) => ({
-            message: err,
-            type: 'date_validation'
-          })));
-          setCanForceUpdate(canForce);
-          setPendingUpdate(updates);
-          setDependencyViolationOpen(true);
+        // Handle date validation errors - show toast instead of dependency dialog
+        if (responseData.type === 'date_validation' || (responseData.errors && responseData.message && responseData.message.includes('validation'))) {
+          const errorMessages = responseData.errors || [];
+          if (errorMessages.length > 0) {
+            const errorText = errorMessages.length === 1 
+              ? errorMessages[0]
+              : errorMessages.join('. ');
+            toast.error(`Lỗi xác thực ngày: ${errorText}`, {
+              duration: 5000
+            });
+          } else {
+            toast.error(responseData.message || "Lỗi xác thực ngày tháng", {
+              duration: 5000
+            });
+          }
           
           // Reload to restore correct state
           await loadTaskDetails();
-          return;
+          return { success: false, hasValidationError: true };
         }
       }
       
@@ -282,11 +274,42 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
         await handleTaskUpdate(pendingUpdate, true);
         setDependencyViolationOpen(false);
         setPendingUpdate(null);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Force update failed:", error);
-        alert("Không thể force update. Vui lòng thử lại.");
+        toast.error("Không thể force update", {
+          description: error?.response?.data?.message || 'Vui lòng thử lại'
+        });
       }
     }
+  };
+
+  const handleStartEditTitle = () => {
+    setEditingTitle(task?.title || '');
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editingTitle.trim()) {
+      toast.error('Tiêu đề không được để trống');
+      return;
+    }
+    try {
+      const result = await handleTaskUpdate({ title: editingTitle.trim() });
+      setIsEditingTitle(false);
+      if (result?.success) {
+        toast.success('Đã cập nhật tiêu đề thành công');
+      }
+    } catch (error: any) {
+      console.error('Error updating title:', error);
+      toast.error('Không thể cập nhật tiêu đề', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
+    }
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditingTitle('');
+    setIsEditingTitle(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -352,7 +375,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 padding: 0
               }}
             >
-              {task?.function_id && typeof task.function_id === 'object' ? task.function_id.title : 'Tasks'}
+              {task?.function_id && typeof task.function_id === 'object' ? task.function_id.title : 'Công việc'}
             </Link>
             <Typography 
               fontSize="13px" 
@@ -365,7 +388,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 whiteSpace: 'nowrap'
               }}
             >
-              {task?.title || 'Task Details'}
+              {task?.title || 'Chi tiết công việc'}
             </Typography>
           </Breadcrumbs>
 
@@ -392,27 +415,102 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             {/* Title - Editable */}
             <Box sx={{ flex: 1 }}>
-              <Typography 
-                variant="h5" 
-                fontWeight={700}
-                sx={{ 
-                  mb: 1.5,
-                  color: '#1f2937',
-                  lineHeight: 1.3,
-                  cursor: 'text',
-                  '&:hover': {
-                    bgcolor: '#f9fafb',
-                    px: 1,
-                    mx: -1,
-                    borderRadius: 1,
-                  }
-                }}
-              >
-                {task?.title || 'Loading...'}
-              </Typography>
+              {isEditingTitle ? (
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <TextField
+                    fullWidth
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveTitle();
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditTitle();
+                      }
+                    }}
+                    autoFocus
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        fontSize: '24px',
+                        fontWeight: 700,
+                        '& fieldset': {
+                          borderColor: '#7b68ee',
+                          borderWidth: 2,
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#7b68ee',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#7b68ee',
+                        }
+                      }
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={handleSaveTitle}
+                    sx={{
+                      color: '#7b68ee',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <SaveIcon />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={handleCancelEditTitle}
+                    sx={{
+                      color: '#6b7280',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <CancelIcon />
+                  </IconButton>
+                </Stack>
+              ) : (
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography 
+                    variant="h5" 
+                    fontWeight={700}
+                    onClick={handleStartEditTitle}
+                    sx={{ 
+                      color: '#1f2937',
+                      lineHeight: 1.3,
+                      cursor: 'text',
+                      flex: 1,
+                      '&:hover': {
+                        bgcolor: '#f9fafb',
+                        px: 1,
+                        mx: -1,
+                        borderRadius: 1,
+                      }
+                    }}
+                  >
+                    {task?.title || 'Đang tải...'}
+                  </Typography>
+                </Stack>
+              )}
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+              {task?._id && (
+                  <Typography 
+                    fontSize="12px" 
+                    color="text.secondary"
+                    sx={{ 
+                      fontFamily: 'monospace',
+                      bgcolor: '#f3f4f6',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontWeight: 500
+                    }}
+                  >
+                    ID: {task._id}
+                  </Typography>
+                )}
                 {/* Status */}
                 {task?.status && (
                   <Chip 
@@ -465,17 +563,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     </Typography>
                   </Stack>
                 )}
-
-                {/* Due Date */}
-                {task?.deadline && (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <CalendarMonthIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                    <Typography fontSize="13px" color="text.secondary">
-                      {new Date(task.deadline).toLocaleDateString()}
-                    </Typography>
-                  </Stack>
-                )}
-
               </Stack>
             </Box>
           </Stack>
@@ -508,13 +595,11 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               }
             }}
           >
-            <Tab label="Overview" />
-            {!isSubtask && <Tab label="Subtasks" />}
-            {!isSubtask && <Tab label="Dependencies" />}
-            <Tab label="Bugs" />
-            <Tab label="Comments" />
-            <Tab label="Files" />
-            <Tab label="Activity" />
+            <Tab label="Tổng quan" />
+            <Tab label="Phụ thuộc" />
+            <Tab label="Bình luận" />
+            <Tab label="Tệp đính kèm" />
+            <Tab label="Hoạt động" />
           </Tabs>
         </Box>
       </Box>
@@ -534,14 +619,14 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
         }}>
           {loading ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography>Loading...</Typography>
+              <Typography>Đang tải...</Typography>
             </Box>
           ) : (
             <>
-              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={handleTaskUpdate} />}
-              {getTabContent(currentTab) === 'subtasks' && <TaskDetailsSubtasks key={task?.updatedAt || task?._id} taskId={taskId} task={task} statusOptions={allStatuses} projectId={projectId} onSubtaskClick={handleSubtaskClick} />}
+              {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={async (updates: any) => {
+                await handleTaskUpdate(updates);
+              }} />}
               {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
-              {getTabContent(currentTab) === 'bugs' && taskId && <TaskDetailsBugs key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} />}
               {getTabContent(currentTab) === 'comments' && <TaskDetailsComments key={task?.updatedAt || task?._id} taskId={taskId} />}
               {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments key={task?.updatedAt || task?._id} taskId={taskId} />}
               {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity key={task?.updatedAt || task?._id} taskId={taskId} />}
@@ -562,29 +647,35 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             fontWeight={700} 
             sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
           >
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Status */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Status
+                Trạng thái
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
                   value={typeof task?.status === 'object' ? (task.status as any)?._id : task?.status || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ status: e.target.value });
-                    } catch (error) {
+                      const result = await handleTaskUpdate({ status: e.target.value });
+                      if (result?.success) {
+                        toast.success('Đã cập nhật trạng thái thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating status:', error);
+                      toast.error('Không thể cập nhật trạng thái', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
                     const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Select status';
+                    return statusObj?.name || 'Chọn trạng thái';
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -607,21 +698,27 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             {/* Priority */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Priority
+                Ưu tiên
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
                   value={typeof task?.priority === 'object' ? (task.priority as any)?._id : task?.priority || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ priority: e.target.value || null });
-                    } catch (error) {
+                      const result = await handleTaskUpdate({ priority: e.target.value || null });
+                      if (result?.success) {
+                        toast.success('Đã cập nhật ưu tiên thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating priority:', error);
+                      toast.error('Không thể cập nhật ưu tiên', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'No priority';
+                    if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -641,7 +738,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     }
                   }}
                 >
-                  <MenuItem value="">No Priority</MenuItem>
+                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -657,15 +754,14 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </FormControl>
             </Box>
 
-            {/* Feature (Read-only) & Function - Hide for Subtasks */}
-            {!isSubtask && (
-              <>
+            {/* Feature (Read-only) & Function */}
+            <>
             <Divider />
 
                 {/* Feature (Read-only, derived from Function) */}
                 <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Feature
+                Tính năng
               </Typography>
               <Box
                 sx={{
@@ -689,11 +785,11 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {task?.function_id?.feature_id?.title || 'No feature'}
+                  {task?.function_id?.feature_id?.title || 'Không có tính năng'}
                 </Typography>
               </Box>
               <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                Feature is determined by the selected function
+                Tính năng được xác định bởi chức năng đã chọn
               </Typography>
             </Box>
 
@@ -702,7 +798,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 {/* Function */}
                 <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Function
+                Chức năng
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -710,19 +806,25 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   onChange={async (e) => {
                     const newFunctionId = e.target.value;
                     try {
-                      await handleTaskUpdate({ 
+                      const result = await handleTaskUpdate({ 
                         function_id: newFunctionId || null
                       });
-                    } catch (error) {
+                      // Only show success if there's no validation error
+                      if (result?.success) {
+                        toast.success('Đã cập nhật chức năng thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating function:', error);
-                      alert('Không thể cập nhật function. Vui lòng thử lại.');
+                      toast.error('Không thể cập nhật function', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn function</em>;
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn chức năng</em>;
                     const selected = allFunctions.find((f: any) => f._id === value);
-                    const title = selected?.title || 'Unknown';
+                    const title = selected?.title || 'Không rõ';
                     return (
                       <Tooltip title={title} arrow placement="top">
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
@@ -784,35 +886,40 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
                 <Divider />
               </>
-            )}
 
             {/* Assignee */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Assignee
+                Người thực hiện
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
                   value={typeof task?.assignee_id === 'object' ? task.assignee_id?._id || '' : task?.assignee_id || ''}
                   onChange={async (e) => {
                     try {
-                      await handleTaskUpdate({ assignee_id: e.target.value || null });
-                    } catch (error) {
+                      const result = await handleTaskUpdate({ assignee_id: e.target.value || null });
+                      if (result?.success) {
+                        toast.success('Đã cập nhật người thực hiện thành công');
+                      }
+                    } catch (error: any) {
                       console.error('Error updating assignee:', error);
+                      toast.error('Không thể cập nhật người thực hiện', {
+                        description: error?.response?.data?.message || 'Vui lòng thử lại'
+                      });
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Unassigned</em>;
+                    if (!value) return <em style={{ color: '#9ca3af' }}>Chưa giao</em>;
                     
                     // Try to get from current task data first
-                    let name = 'Unknown';
+                    let name = 'Không rõ';
                     if (typeof task?.assignee_id === 'object' && task?.assignee_id) {
-                      name = task.assignee_id.full_name || task.assignee_id.email || 'Unknown';
+                      name = task.assignee_id.full_name || task.assignee_id.email || 'Không rõ';
                     } else {
                       // Fallback to team members
                       const selected = teamMembers.find((m: any) => m.user_id?._id === value);
-                      name = selected?.user_id?.full_name || selected?.user_id?.email || 'Unknown';
+                      name = selected?.user_id?.full_name || selected?.user_id?.email || 'Không rõ';
                     }
                     
                     return (
@@ -837,7 +944,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                 >
                   <MenuItem value="">
-                    <em>Unassigned</em>
+                    <em>Chưa giao</em>
                   </MenuItem>
                   {teamMembers.map((member: any) => (
                     <MenuItem key={member.user_id?._id} value={member.user_id?._id}>
@@ -862,14 +969,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             <Divider />
 
-            {/* Dates - Hide Start Date for Subtasks */}
-            {!isSubtask && (
+            {/* Dates */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Start Date
+                Ngày bắt đầu
                 {hasMandatoryDependencies && (
                   <Chip 
-                    label="⚠️ Constrained by dependencies" 
+                    label="⚠️ Bị ràng buộc bởi phụ thuộc" 
                     size="small" 
                     sx={{ 
                       ml: 1,
@@ -890,18 +996,24 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 onChange={async (e) => {
                   if (hasMandatoryDependencies) {
                     const confirm = window.confirm(
-                      '⚠️ This task has mandatory dependencies!\n\n' +
-                      'Changing the start date may violate dependency constraints.\n\n' +
-                      'Consider using "Auto-adjust dates" in the Dependencies tab instead.\n\n' +
-                      'Do you want to proceed anyway?'
+                      '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+                      'Thay đổi ngày bắt đầu có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+                      'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
+                      'Bạn có muốn tiếp tục không?'
                     );
                     if (!confirm) return;
                   }
                   try {
-                    await handleTaskUpdate({ start_date: e.target.value });
+                    const result = await handleTaskUpdate({ start_date: e.target.value });
                     await loadDependencies(); // Reload to check new state
-                  } catch (error) {
+                    if (result?.success) {
+                      toast.success('Đã cập nhật ngày bắt đầu thành công');
+                    }
+                  } catch (error: any) {
                     console.error('Error updating start date:', error);
+                    toast.error('Không thể cập nhật ngày bắt đầu', {
+                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                    });
                   }
                 }}
                 InputProps={{
@@ -917,14 +1029,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 }}
               />
             </Box>
-            )}
 
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Due Date
+                Hạn chót
                 {hasMandatoryDependencies && (
                   <Chip 
-                    label="⚠️ Constrained by dependencies" 
+                    label="⚠️ Bị ràng buộc bởi phụ thuộc" 
                     size="small" 
                     sx={{ 
                       ml: 1,
@@ -945,18 +1056,24 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 onChange={async (e) => {
                   if (hasMandatoryDependencies) {
                     const confirm = window.confirm(
-                      '⚠️ This task has mandatory dependencies!\n\n' +
-                      'Changing the deadline may violate dependency constraints.\n\n' +
-                      'Consider using "Auto-adjust dates" in the Dependencies tab instead.\n\n' +
-                      'Do you want to proceed anyway?'
+                      '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+                      'Thay đổi hạn chót có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+                      'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
+                      'Bạn có muốn tiếp tục không?'
                     );
                     if (!confirm) return;
                   }
                   try {
-                    await handleTaskUpdate({ deadline: e.target.value });
+                    const result = await handleTaskUpdate({ deadline: e.target.value });
                     await loadDependencies(); // Reload to check new state
-                  } catch (error) {
+                    if (result?.success) {
+                      toast.success('Đã cập nhật hạn chót thành công');
+                    }
+                  } catch (error: any) {
                     console.error('Error updating deadline:', error);
+                    toast.error('Không thể cập nhật hạn chót', {
+                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                    });
                   }
                 }}
                 InputProps={{
@@ -975,10 +1092,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             <Divider />
 
-            {/* Estimate only for Subtasks, both for Tasks */}
+            {/* Estimate */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Estimated Time (hours)
+                Thời gian ước tính (giờ)
               </Typography>
               <TextField
                 type="number"
@@ -987,9 +1104,15 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 value={task?.estimate || ''}
                 onChange={async (e) => {
                   try {
-                    await handleTaskUpdate({ estimate: Number(e.target.value) });
-                  } catch (error) {
+                    const result = await handleTaskUpdate({ estimate: Number(e.target.value) });
+                    if (result?.success) {
+                      toast.success('Đã cập nhật thời gian ước tính thành công');
+                    }
+                  } catch (error: any) {
                     console.error('Error updating estimate:', error);
+                    toast.error('Không thể cập nhật thời gian ước tính', {
+                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                    });
                   }
                 }}
                 placeholder="0"
@@ -1013,7 +1136,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             {task?.tags && task.tags.length > 0 && (
               <Box>
                 <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                  Tags
+                  Nhãn
                 </Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
                   {task.tags.map((tag, i) => (

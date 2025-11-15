@@ -129,7 +129,8 @@ export default function DependencyViolationDialog({
           ))}
           {/* Dependency Violations */}
           {mandatoryViolations.map((violation, index) => {
-            const depType = DEPENDENCY_TYPE_LABELS[violation.dependency_type || 'FS'] || DEPENDENCY_TYPE_LABELS.FS;
+            const depTypeCode = violation.dependency_type || violation.type || 'FS';
+            const depType = DEPENDENCY_TYPE_LABELS[depTypeCode] || DEPENDENCY_TYPE_LABELS.FS;
             
             return (
               <Box
@@ -143,7 +144,7 @@ export default function DependencyViolationDialog({
               >
                 <Stack direction="row" spacing={1.5} alignItems="flex-start">
                   <Chip
-                    label={violation.dependency_type}
+                    label={depTypeCode}
                     size="small"
                     sx={{
                       bgcolor: `${depType.color}20`,
@@ -210,19 +211,10 @@ export default function DependencyViolationDialog({
                   <>
                     <li>Adjust task dates to be within project dates, or</li>
                     <li>Adjust estimate to fit within the date range</li>
-                    {canForce && (
-                      <li>Click "Force Update" to override this validation (not recommended)</li>
-                    )}
                   </>
                 ) : (
                   <>
-                    <li>Complete the blocking tasks first, or</li>
-                    {canForce && (
-                      <li>Click "Force Update" to override this constraint (not recommended)</li>
-                    )}
-                    {!canForce && (
-                      <li>Cannot force update - all dependencies are mandatory</li>
-                    )}
+                    <li>Complete the blocking tasks first</li>
                   </>
                 )}
               </Typography>
@@ -234,37 +226,18 @@ export default function DependencyViolationDialog({
       <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e0e0e0" }}>
         <Button
           onClick={onClose}
-          variant="outlined"
+          variant="contained"
           sx={{
             textTransform: "none",
             fontWeight: 600,
-            borderColor: "#d1d5db",
-            color: "#6b7280",
+            bgcolor: "#6b7280",
             "&:hover": {
-              borderColor: "#9ca3af",
-              bgcolor: "#f9fafb",
+              bgcolor: "#4b5563",
             },
           }}
         >
-          Cancel
+          Đóng
         </Button>
-        {canForce && (
-          <Button
-            onClick={onForceUpdate}
-            variant="contained"
-            startIcon={<WarningAmberIcon />}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              bgcolor: "#f59e0b",
-              "&:hover": {
-                bgcolor: "#d97706",
-              },
-            }}
-          >
-            ⚡ Force Update Anyway
-          </Button>
-        )}
       </DialogActions>
     </Dialog>
   );

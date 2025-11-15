@@ -34,6 +34,7 @@ import {
 } from "@mui/icons-material";
 import axiosInstance from "../../ultis/axios";
 import AddDependencyDialog from "./AddDependencyDialog";
+import { normalizeStatusValue } from "@/constants/settings";
 
 interface Task {
   _id: string;
@@ -154,13 +155,11 @@ const DependencyManager: React.FC<DependencyManagerProps> = ({
     if (!task) return false;
 
     const type = dependency.dependency_type;
-    const status = task.status;
-    
-    const completedStatuses = ["Done", "Completed"];
-    const startedStatuses = ["In Progress", "Testing", "Review", "Done", "Completed"];
+    const rawStatus = typeof task.status === "object" ? (task.status as any)?.name : task.status;
+    const status = normalizeStatusValue(rawStatus as string | undefined);
 
-    const isCompleted = completedStatuses.includes(status);
-    const isStarted = startedStatuses.includes(status);
+    const isCompleted = status === "Done";
+    const isStarted = status === "Doing" || status === "Done";
 
     if (type === "FS" || type === "FF") return !isCompleted;
     if (type === "SS" || type === "SF") return !isStarted;

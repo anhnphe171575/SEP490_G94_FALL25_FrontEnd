@@ -33,7 +33,7 @@ import FeatureDetailsOverview from "./FeatureDetails/FeatureDetailsOverview";
 import FeatureDetailsFunctions from "./FeatureDetails/FeatureDetailsFunctions";
 import FeatureDetailsComments from "./FeatureDetails/FeatureDetailsComments";
 import FeatureDetailsActivity from "./FeatureDetails/FeatureDetailsActivity";
-import FeatureDetailsDevelopment from "./FeatureDetails/FeatureDetailsDevelopment";
+import { toast } from "sonner";
 
 type Feature = {
   _id: string;
@@ -68,8 +68,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [featureMilestoneIds, setFeatureMilestoneIds] = useState<string[]>([]);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState('');
 
-  const tabMap = ['overview', 'functions', 'development', 'comments', 'activity'];
+  const tabMap = ['overview', 'functions', 'comments', 'activity'];
 
   const getTabContent = (index: number) => {
     return tabMap[index];
@@ -79,8 +81,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
     if (open && featureId) {
       setCurrentTab(0);
       loadFeatureDetails();
-      // Load constants instead of API call
-      setAllStatuses(STATUS_OPTIONS);
+      // Feature model uses enum: ["To Do", "Doing", "Done"]
+      setAllStatuses([
+        { _id: "To Do", name: "To Do", value: "to-do" },
+        { _id: "Doing", name: "Doing", value: "doing" },
+        { _id: "Done", name: "Done", value: "done" },
+      ]);
       setAllPriorities(PRIORITY_OPTIONS);
       if (projectId) {
         loadProjectTags();
@@ -108,8 +114,11 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       });
       
       setAvailableTags(Array.from(tagsSet).sort());
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading project tags:', error);
+      toast.error("Không thể tải nhãn", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -117,8 +126,11 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
     try {
       const response = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
       setMilestones(response.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading milestones:', error);
+      toast.error("Không thể tải cột mốc", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     }
   };
 
@@ -127,9 +139,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       const response = await axiosInstance.get(`/api/features/${featureId}/milestones`);
       const uniqueIds = Array.isArray(response.data) ? [...new Set(response.data)] : [];
       setFeatureMilestoneIds(uniqueIds);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading feature milestones:', error);
       setFeatureMilestoneIds([]);
+      // Don't show error toast for this as it's not critical
     }
   };
 
@@ -140,8 +153,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setLoading(true);
       const response = await axiosInstance.get(`/api/features/${featureId}`);
       setFeature(response.data);
+      setTitle(response.data?.title || '');
     } catch (error: any) {
       console.error("Error loading feature:", error);
+      toast.error("Không thể tải thông tin feature", {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
     } finally {
       setLoading(false);
     }
@@ -160,8 +177,11 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
       setFeature(response.data);
       
       if (onUpdate) onUpdate();
+      toast.success("Đã cập nhật thành công");
     } catch (error: any) {
       console.error("Error updating feature:", error);
+      const errorMessage = error?.response?.data?.message || "Không thể cập nhật feature";
+      toast.error(errorMessage);
       // Reload on error to restore correct state
       await loadFeatureDetails();
       throw error;
@@ -233,7 +253,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 padding: 0
               }}
             >
-              Features
+              Tính năng
             </Link>
             <Typography 
               fontSize="13px" 
@@ -246,7 +266,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 whiteSpace: 'nowrap'
               }}
             >
-              {feature?.title || 'Feature Details'}
+              {feature?.title || 'Chi tiết tính năng'}
             </Typography>
           </Breadcrumbs>
 
@@ -276,17 +296,69 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
 
             {/* Title */}
             <Box sx={{ flex: 1 }}>
-              <Typography 
-                variant="h5" 
-                fontWeight={700}
-                sx={{ 
-                  mb: 1.5,
-                  color: '#1f2937',
-                  lineHeight: 1.3,
-                }}
-              >
-                {feature?.title || 'Loading...'}
-              </Typography>
+              {editingTitle ? (
+                <TextField
+                  fullWidth
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={async () => {
+                    if (title.trim() && title !== feature?.title) {
+                      try {
+                        await handleFeatureUpdate({ title: title.trim() });
+                      } catch (error) {
+                        console.error('Error updating title:', error);
+                        // Error already shown in handleFeatureUpdate
+                      }
+                    }
+                    setEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    } else if (e.key === 'Escape') {
+                      setTitle(feature?.title || '');
+                      setEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  sx={{
+                    mb: 1.5,
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      '&:hover fieldset': {
+                        borderColor: '#7b68ee',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#7b68ee',
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <Typography 
+                  variant="h5" 
+                  fontWeight={700}
+                  onClick={() => {
+                    setTitle(feature?.title || '');
+                    setEditingTitle(true);
+                  }}
+                  sx={{ 
+                    mb: 1.5,
+                    color: '#1f2937',
+                    lineHeight: 1.3,
+                    cursor: 'text',
+                    '&:hover': {
+                      bgcolor: '#f9fafb',
+                      borderRadius: 1,
+                      px: 1,
+                      mx: -1,
+                    }
+                  }}
+                >
+                  {feature?.title || 'Loading...'}
+                </Typography>
+              )}
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
@@ -379,11 +451,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               }
             }}
           >
-            <Tab label="Overview" />
-            <Tab label="Functions" />
-            <Tab label="Development" />
-            <Tab label="Comments" />
-            <Tab label="Activity" />
+            <Tab label="Tổng quan" />
+            <Tab label="Chức năng" />
+            <Tab label="Bình luận" />
+            <Tab label="Hoạt động" />
           </Tabs>
         </Box>
       </Box>
@@ -403,13 +474,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
         }}>
           {loading ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography>Loading...</Typography>
+              <Typography>Đang tải...</Typography>
             </Box>
           ) : (
             <>
               {getTabContent(currentTab) === 'overview' && feature && <FeatureDetailsOverview feature={feature} onUpdate={handleFeatureUpdate} projectId={projectId} />}
               {getTabContent(currentTab) === 'functions' && featureId && projectId && <FeatureDetailsFunctions featureId={featureId} projectId={projectId} />}
-              {getTabContent(currentTab) === 'development' && featureId && projectId && <FeatureDetailsDevelopment featureId={featureId} projectId={projectId} />}
               {getTabContent(currentTab) === 'comments' && featureId && <FeatureDetailsComments featureId={featureId} />}
               {getTabContent(currentTab) === 'activity' && featureId && <FeatureDetailsActivity featureId={featureId} />}
             </>
@@ -429,14 +499,14 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             fontWeight={700} 
             sx={{ mb: 2, color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}
           >
-            Properties
+            Thuộc tính
           </Typography>
 
           <Stack spacing={2.5}>
             {/* Status */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Status
+                Trạng thái
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -446,12 +516,13 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       await handleFeatureUpdate({ status_id: e.target.value });
                     } catch (error) {
                       console.error('Error updating status:', error);
+                      // Error already shown in handleFeatureUpdate
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
                     const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Select status';
+                    return statusObj?.name || 'Chọn trạng thái';
                   }}
                   sx={{ 
                     fontSize: '13px', 
@@ -474,7 +545,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Priority */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Priority
+                Ưu tiên
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -484,11 +555,12 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       await handleFeatureUpdate({ priority_id: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
+                      // Error already shown in handleFeatureUpdate
                     }
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'No priority';
+                    if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -508,7 +580,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     }
                   }}
                 >
-                  <MenuItem value="">No Priority</MenuItem>
+                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -541,6 +613,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     await handleFeatureUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating start date:', error);
+                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -573,6 +646,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     await handleFeatureUpdate({ end_date: e.target.value ? new Date(e.target.value).toISOString() : null });
                   } catch (error) {
                     console.error('Error updating end date:', error);
+                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -595,7 +669,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Milestones */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Milestones
+                Cột mốc
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
@@ -620,8 +694,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       if (onUpdate) {
                         await onUpdate();
                       }
-                    } catch (error) {
+                      toast.success("Đã cập nhật cột mốc thành công");
+                    } catch (error: any) {
                       console.error('Error updating milestones:', error);
+                      toast.error(error?.response?.data?.message || "Không thể cập nhật cột mốc");
                     }
                   }}
                   renderValue={(selected) => (
@@ -645,7 +721,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       })}
                       {(selected as string[]).length === 0 && (
                         <Typography fontSize="13px" color="text.secondary">
-                          No milestones
+                          Chưa có cột mốc
                         </Typography>
                       )}
                     </Box>
@@ -662,7 +738,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   }}
                 >
                   {milestones.length === 0 ? (
-                    <MenuItem disabled>No milestones available</MenuItem>
+                    <MenuItem disabled>Chưa có cột mốc nào</MenuItem>
                   ) : (
                     milestones.map((m) => (
                       <MenuItem key={m._id} value={m._id}>
@@ -688,7 +764,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               </FormControl>
               {featureMilestoneIds.length > 0 && (
                 <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5 }}>
-                  💡 Feature is linked to {featureMilestoneIds.length} milestone{featureMilestoneIds.length > 1 ? 's' : ''}
+                  💡 Tính năng được liên kết với {featureMilestoneIds.length} cột mốc
                 </Typography>
               )}
             </Box>
@@ -698,7 +774,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             {/* Tags */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Tags
+                Nhãn
               </Typography>
               <Autocomplete
                 multiple
@@ -718,6 +794,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                     }
                   } catch (error) {
                     console.error('Error updating tags:', error);
+                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 filterOptions={(options, params) => {
@@ -775,7 +852,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                       />
                       {!availableTags.includes(option) && (
                         <Typography fontSize="11px" color="text.secondary">
-                          (Create new)
+                          (Tạo mới)
                         </Typography>
                       )}
                     </Box>
@@ -784,7 +861,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    placeholder="Add tags..."
+                    placeholder="Thêm nhãn..."
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         fontSize: '13px',

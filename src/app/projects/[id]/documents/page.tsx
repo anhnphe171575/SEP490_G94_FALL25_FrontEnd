@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import { Box, Button, Card, CardContent, Typography, Stack, Alert, Paper, Breadcrumbs, Link, List, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, ButtonBase, Chip } from "@mui/material";
-import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, BarChart as ChartIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon } from "@mui/icons-material";
+import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon } from "@mui/icons-material";
 import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 import DocumentUpload from "@/components/DocumentUpload";
 import { InsertDriveFile as FileIcon, PictureAsPdf as PdfIcon, Image as ImageIcon, TableChart as SheetIcon, Description as DocIcon, Download as DownloadIcon } from "@mui/icons-material";
@@ -528,23 +528,6 @@ export default function DocumentsPage() {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outlined"
-                size="medium"
-                startIcon={<ChartIcon />}
-                onClick={() => router.push(`/projects/${projectId}/documents/dashboard`)}
-                sx={{
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  px: 2,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
-                  '&:hover': {
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
-                  }
-                }}
-              >
-                Dashboard
-              </Button>
-              <Button
                 variant="contained"
                 color="primary"
                 size="medium"
@@ -583,15 +566,7 @@ export default function DocumentsPage() {
           </div>
 
           <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} className="mb-4">
-            <Link
-              color="inherit"
-              href="#"
-              onClick={() => navigateToFolder(null)}
-              className="flex items-center gap-1"
-            >
-              <HomeIcon fontSize="small" />
-              Tài liệu
-            </Link>
+           
             {folderPath.map((folder) => (
               <Link
                 key={folder._id}
