@@ -33,6 +33,7 @@ import FeatureDetailsOverview from "./FeatureDetails/FeatureDetailsOverview";
 import FeatureDetailsFunctions from "./FeatureDetails/FeatureDetailsFunctions";
 import FeatureDetailsComments from "./FeatureDetails/FeatureDetailsComments";
 import FeatureDetailsActivity from "./FeatureDetails/FeatureDetailsActivity";
+import FeatureDetailsAttachments from "./FeatureDetails/FeatureDetailsAttachments";
 import { toast } from "sonner";
 
 type Feature = {
@@ -71,7 +72,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState('');
 
-  const tabMap = ['overview', 'functions', 'comments', 'activity'];
+  const tabMap = ['overview', 'functions', 'comments', 'files', 'activity'];
 
   const getTabContent = (index: number) => {
     return tabMap[index];
@@ -454,6 +455,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             <Tab label="Tổng quan" />
             <Tab label="Chức năng" />
             <Tab label="Bình luận" />
+            <Tab label="Tệp đính kèm" />
             <Tab label="Hoạt động" />
           </Tabs>
         </Box>
@@ -481,6 +483,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               {getTabContent(currentTab) === 'overview' && feature && <FeatureDetailsOverview feature={feature} onUpdate={handleFeatureUpdate} projectId={projectId} />}
               {getTabContent(currentTab) === 'functions' && featureId && projectId && <FeatureDetailsFunctions featureId={featureId} projectId={projectId} />}
               {getTabContent(currentTab) === 'comments' && featureId && <FeatureDetailsComments featureId={featureId} />}
+              {getTabContent(currentTab) === 'files' && featureId && <FeatureDetailsAttachments key={feature?.updateAt || featureId} featureId={featureId} />}
               {getTabContent(currentTab) === 'activity' && featureId && <FeatureDetailsActivity featureId={featureId} />}
             </>
           )}
