@@ -34,6 +34,10 @@ import {
   ListItemIcon,
   Tabs,
   Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -44,6 +48,7 @@ import {
   Message as MessageIcon,
   Group as GroupIcon,
   Person as PersonIcon,
+  People as PeopleIcon,
 } from "@mui/icons-material";
 
 type Project = {
@@ -161,6 +166,7 @@ export default function MessagesPage() {
   const [avatarMenuAnchor, setAvatarMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string | null>(null);
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
 
   // Đọc query params khi component mount hoặc URL thay đổi
   useEffect(() => {
@@ -875,6 +881,24 @@ export default function MessagesPage() {
     }
   };
 
+  // Hàm chuyển thẳng sang tin nhắn riêng tư từ dialog thành viên
+  const handleDirectMessageFromMember = (userId: string, userInfo: { _id: string; full_name: string; email: string; avatar?: string }) => {
+    // Set thông tin user
+    setDirectChatUser(userInfo);
+    setDirectChatUserId(userId);
+    
+    // Chuyển sang tab direct
+    setActiveTab(1);
+    setChatType('direct');
+    
+    // Fetch messages và chuyển router
+    fetchDirectMessages(userId);
+    router.push(`/messages?type=direct&userId=${userId}`);
+    
+    // Đóng dialog
+    setMembersDialogOpen(false);
+  };
+
   const findUserInfoFromMessages = (userId: string) => {
     // Tìm thông tin user từ messages hiện tại
     for (const msg of messages) {
@@ -1335,6 +1359,20 @@ export default function MessagesPage() {
                                   {team ? `${team.team_member.length} thành viên` : 'Đang tải...'}
                                 </p>
                               </div>
+                              {team && (
+                                <IconButton
+                                  onClick={() => setMembersDialogOpen(true)}
+                                  className="text-white hover:bg-white/20 transition-all duration-200"
+                                  sx={{
+                                    color: 'white',
+                                    '&:hover': {
+                                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                    },
+                                  }}
+                                >
+                                  <PeopleIcon />
+                                </IconButton>
+                              )}
                             </>
                           );
                         })()
@@ -1664,6 +1702,175 @@ export default function MessagesPage() {
           <ListItemText>Gửi tin nhắn riêng tư</ListItemText>
         </MenuItem>
       </Menu>
+
+      {/* Dialog hiển thị danh sách thành viên */}
+      <Dialog
+        open={membersDialogOpen}
+        onClose={() => setMembersDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          }
+        }}
+      >
+        <DialogTitle
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            fontWeight: 700,
+            py: 2.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+          }}
+        >
+          <PeopleIcon />
+          <span>Thành viên nhóm</span>
+          {team && (
+            <Chip
+              label={`${team.team_member.length} thành viên`}
+              size="small"
+              sx={{
+                ml: 'auto',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                fontWeight: 600,
+              }}
+            />
+          )}
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {team && team.team_member.length > 0 ? (
+            <List sx={{ py: 1 }}>
+              {team.team_member.map((member, index) => {
+                const user = member.user_id;
+                const isLeader = member.team_leader === 1;
+                const userName = typeof user === 'object' ? (user.full_name || user.email || 'Người dùng') : 'Người dùng';
+                const userEmail = typeof user === 'object' ? user.email : '';
+                const userAvatar = typeof user === 'object' ? user.avatar : '';
+                const userId = typeof user === 'object' ? user._id : user;
+                
+                return (
+                  <div key={userId || index}>
+                    <ListItem
+                      sx={{
+                        py: 2,
+                        px: 3,
+                        '&:hover': {
+                          backgroundColor: '#f5f3ff',
+                        },
+                      }}
+                    >
+                      <ListItemAvatar>
+                        {userAvatar ? (
+                          <Avatar
+                            src={userAvatar}
+                            alt={userName}
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            }}
+                          />
+                        ) : (
+                          <Avatar
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              bgcolor: getAvatarColor(userName),
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {userName[0]?.toUpperCase() || 'U'}
+                          </Avatar>
+                        )}
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle1" fontWeight={600}>
+                              {userName}
+                            </Typography>
+                            {isLeader && (
+                              <Chip
+                                label="Trưởng nhóm"
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  backgroundColor: '#fef3c7',
+                                  color: '#92400e',
+                                }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <Typography variant="body2" color="text.secondary">
+                            {userEmail}
+                          </Typography>
+                        }
+                      />
+                      {typeof user === 'object' && user._id !== currentUserId && (
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            handleDirectMessageFromMember(user._id, {
+                              _id: user._id,
+                              full_name: userName,
+                              email: userEmail,
+                              avatar: userAvatar
+                            });
+                          }}
+                          sx={{
+                            color: '#6366f1',
+                            '&:hover': {
+                              backgroundColor: '#eef2ff',
+                            },
+                          }}
+                        >
+                          <MessageIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </ListItem>
+                    {index < team.team_member.length - 1 && <Divider />}
+                  </div>
+                );
+              })}
+            </List>
+          ) : (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <PeopleIcon sx={{ fontSize: 64, color: '#d1d5db', mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Chưa có thành viên nào
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, px: 3 }}>
+          <Button
+            onClick={() => setMembersDialogOpen(false)}
+            variant="contained"
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              borderRadius: 2,
+              px: 3,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
+              },
+            }}
+          >
+            Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }
