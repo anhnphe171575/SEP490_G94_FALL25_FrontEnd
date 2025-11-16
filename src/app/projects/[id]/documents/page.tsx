@@ -482,7 +482,7 @@ export default function DocumentsPage() {
     return (
       <div className="min-h-screen bg-white text-black">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <Alert severity="error" sx={{ mb: 3 }}>
@@ -505,7 +505,7 @@ export default function DocumentsPage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '260px 1fr' }, gap: 2 }}>
             <Card sx={{ display: { xs: currentFolderId ? 'none' : 'block', md: 'block' } }}>
@@ -565,21 +565,6 @@ export default function DocumentsPage() {
             </div>
           </div>
 
-          <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} className="mb-4">
-           
-            {folderPath.map((folder) => (
-              <Link
-                key={folder._id}
-                color="inherit"
-                href="#"
-                onClick={() => navigateToFolder(folder._id)}
-                className="flex items-center gap-1"
-              >
-                <FolderIcon fontSize="small" />
-                {folder.name}
-              </Link>
-            ))}
-          </Breadcrumbs>
 
           <Card>
             <CardContent>

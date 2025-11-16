@@ -69,7 +69,10 @@ export default function CreateMilestoneFromFeatures({
 
       setTitle("");
       setDescription("");
-      onSuccess?.();
+      // Call onSuccess first, then close
+      if (onSuccess) {
+        await onSuccess();
+      }
       onClose();
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tạo milestone");

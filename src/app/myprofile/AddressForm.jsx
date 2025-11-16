@@ -1,7 +1,8 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 
+/* -------------------- COMPONENT ADDRESS FORM -------------------- */
 const AddressForm = ({ address, onChange }) => {
   const [provinces, setProvinces] = useState([]);
   const [districts, setDistricts] = useState([]);
@@ -11,90 +12,99 @@ const AddressForm = ({ address, onChange }) => {
   const [selectedDistrict, setSelectedDistrict] = useState("");
   const [selectedWard, setSelectedWard] = useState("");
 
-  // 🏙️ Gọi API lấy dữ liệu tỉnh/thành
   useEffect(() => {
     axios
       .get("https://provinces.open-api.vn/api/?depth=3")
       .then((res) => setProvinces(res.data))
-      .catch((err) => console.error("Lỗi tải danh sách tỉnh/thành:", err));
+      .catch((err) => console.error("Lỗi tải tỉnh/thành:", err));
   }, []);
 
-  // 🇻🇳 Mặc định quốc gia là Việt Nam
-useEffect(() => {
-  if (!address.contry || address.contry === "unknown") {
-    onChange({ ...address, contry: "Việt Nam" });
-  }
-}, [address]);
+  useEffect(() => {
+    if (address.city && provinces.length > 0) {
+      const p = provinces.find((x) => x.name === address.city);
+      if (p) {
+        setSelectedProvince(String(p.code));
+        setDistricts(p.districts);
 
+        const d = p.districts.find((x) => x.name === address.postalCode);
+        if (d) {
+          setSelectedDistrict(String(d.code));
+          setWards(d.wards);
 
-  // 🔹 Khi chọn tỉnh
+          const w = d.wards.find((x) => x.name === address.street);
+          if (w) setSelectedWard(String(w.code));
+        }
+      }
+    }
+  }, [address, provinces]);
+
   const handleProvinceChange = (e) => {
     const code = e.target.value;
     setSelectedProvince(code);
     const selected = provinces.find((p) => p.code === Number(code));
-    setDistricts(selected ? selected.districts : []);
+
+    setDistricts(selected?.districts || []);
     setWards([]);
     setSelectedDistrict("");
     setSelectedWard("");
+
     onChange({
       ...address,
-      city: selected ? selected.name : "",
+      city: selected?.name || "",
       postalCode: "",
       street: "",
+      country: "Việt Nam",
     });
   };
 
-  // 🔹 Khi chọn quận/huyện
   const handleDistrictChange = (e) => {
     const code = e.target.value;
     setSelectedDistrict(code);
     const selected = districts.find((d) => d.code === Number(code));
-    setWards(selected ? selected.wards : []);
+
+    setWards(selected?.wards || []);
     setSelectedWard("");
+
     onChange({
       ...address,
-      postalCode: selected ? selected.name : "",
+      postalCode: selected?.name || "",
       street: "",
+      country: "Việt Nam",
     });
   };
 
-  // 🔹 Khi chọn phường/xã
   const handleWardChange = (e) => {
     const code = e.target.value;
     setSelectedWard(code);
     const selected = wards.find((w) => w.code === Number(code));
+
     onChange({
       ...address,
-      street: selected ? selected.name : "",
+      street: selected?.name || "",
+      country: "Việt Nam",
     });
   };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        
-      {/* Quốc gia */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">
-          Quốc Gia
-        </label>
+        <label className="font-semibold">Quốc Gia</label>
         <input
           type="text"
-          value={address.contry || "Việt Nam"}
+          value={address.country || "Việt Nam"}
           readOnly
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-600 cursor-not-allowed"
+          className="w-full border px-3 py-2 bg-gray-100 rounded-lg"
         />
       </div>
-      {/* Tỉnh / Thành phố */}
+
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">
-          Tỉnh / Thành phố
-        </label>
+        <label className="font-semibold">Tỉnh / Thành phố</label>
         <select
           value={selectedProvince}
           onChange={handleProvinceChange}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="w-full border px-3 py-2 rounded-lg"
         >
-          <option value="">-- Chọn Tỉnh/Thành phố --</option>
+          <option value="">-- Chọn Tỉnh --</option>
           {provinces.map((p) => (
             <option key={p.code} value={p.code}>
               {p.name}
@@ -103,18 +113,15 @@ useEffect(() => {
         </select>
       </div>
 
-      {/* Quận / Huyện */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">
-          Quận / Huyện
-        </label>
+        <label className="font-semibold">Quận / Huyện</label>
         <select
           value={selectedDistrict}
           onChange={handleDistrictChange}
           disabled={!selectedProvince}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100"
+          className="w-full border px-3 py-2 rounded-lg disabled:bg-gray-100"
         >
-          <option value="">-- Chọn Quận/Huyện --</option>
+          <option value="">-- Chọn Huyện --</option>
           {districts.map((d) => (
             <option key={d.code} value={d.code}>
               {d.name}
@@ -123,18 +130,15 @@ useEffect(() => {
         </select>
       </div>
 
-      {/* Phường / Xã */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">
-          Phường / Xã
-        </label>
+        <label className="font-semibold">Phường / Xã</label>
         <select
           value={selectedWard}
           onChange={handleWardChange}
           disabled={!selectedDistrict}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100"
+          className="w-full border px-3 py-2 rounded-lg disabled:bg-gray-100"
         >
-          <option value="">-- Chọn Phường/Xã --</option>
+          <option value="">-- Chọn Xã --</option>
           {wards.map((w) => (
             <option key={w.code} value={w.code}>
               {w.name}
@@ -142,9 +146,10 @@ useEffect(() => {
           ))}
         </select>
       </div>
-
     </div>
   );
 };
+
+
 
 export default AddressForm;

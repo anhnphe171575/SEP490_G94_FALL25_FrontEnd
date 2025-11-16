@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import {
   Button,
   Typography,
@@ -437,8 +436,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="px-4 py-4 md:px-6 md:py-6 w-full !ml-0">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -453,8 +451,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="px-4 py-4 md:px-6 md:py-6 w-full !ml-0">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -480,9 +477,8 @@ export default function DashboardPage() {
   if (!projects) return null;
 
   return (
-    <div className="min-h-screen bg-white">
-      <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+    <div className="min-h-screen bg-white w-full overflow-x-hidden">
+      <main className="px-4 py-4 md:px-6 md:py-6 w-full !ml-0">
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

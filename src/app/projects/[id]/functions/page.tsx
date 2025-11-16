@@ -55,7 +55,6 @@ import BugReportIcon from "@mui/icons-material/BugReport";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
-import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import { toast } from "sonner";
 
 type Setting = {
@@ -403,7 +402,7 @@ export default function ProjectFunctionsPage() {
     return (
       <div className="min-h-screen bg-white">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={28} />
           </Box>
@@ -417,16 +416,6 @@ export default function ProjectFunctionsPage() {
       <ResponsiveSidebar />
       <main>
         <div className="w-full">
-          {/* Breadcrumb Navigation */}
-          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
-            <ProjectBreadcrumb 
-              projectId={projectId} 
-              items={[
-                { label: 'Chức năng', icon: <FunctionsIcon sx={{ fontSize: 16 }} /> }
-              ]} 
-            />
-          </Box>
-
           {/* ClickUp-style Top Bar (standardized) */}
           <Box 
             sx={{ 

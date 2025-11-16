@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import {
   PieChart,
   Pie,
@@ -386,7 +385,7 @@ export default function TaskDashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6 md:ml-56">
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
             <CircularProgress size={40} />
         </Box>
@@ -398,17 +397,11 @@ export default function TaskDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           {/* Header */}
           <Box sx={{ mb: 3 }}>
-            <ProjectBreadcrumb 
-              projectId={projectId}
-              items={[
-                { label: 'Tasks', href: `/projects/${projectId}/tasks` },
-                { label: 'Dashboard', icon: <DashboardIcon sx={{ fontSize: 16 }} /> }
-              ]}
-            />
+           
       
       <Box sx={{ 
               bgcolor: 'white', 
@@ -436,7 +429,7 @@ export default function TaskDashboardPage() {
                 </Box>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                    Task Dashboard
+                     Dashboard
                 </Typography>
                   <Typography variant="body2" sx={{ color: '#6b7280' }}>
                     Project overview and key metrics

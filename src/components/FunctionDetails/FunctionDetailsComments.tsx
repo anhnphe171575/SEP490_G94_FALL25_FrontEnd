@@ -153,7 +153,7 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
               fullWidth
               multiline
               rows={3}
-              placeholder="Add a comment... (Use @ to mention someone)"
+              placeholder="Thêm bình luận...."
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               sx={{
