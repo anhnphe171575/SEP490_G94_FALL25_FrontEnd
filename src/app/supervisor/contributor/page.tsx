@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import axiosInstance from "../../../../ultis/axios";
 import ResponsiveSidebar from "../../../components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
@@ -129,6 +128,8 @@ export default function ContributorDashboardPage() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
   const [contribution, setContribution] = useState<ContributionResponse | null>(null);
   const [isFetchingProjects, setIsFetchingProjects] = useState(false);
+  const [unassignedTasks, setUnassignedTasks] = useState<any[]>([]);
+  const [loadingUnassignedTasks, setLoadingUnassignedTasks] = useState(false);
 
   useEffect(() => {
     const token = typeof window !== "undefined" ? sessionStorage.getItem("token") || localStorage.getItem("token") : null;
@@ -207,6 +208,10 @@ export default function ContributorDashboardPage() {
         if (cancelled) return;
 
         const contributionData = contributionRes.data as ContributionResponse;
+        // Debug: Check user_id format in response
+        if (contributionData?.members && contributionData.members.length > 0) {
+          console.log('Sample member user_id:', contributionData.members[0].member.user_id, typeof contributionData.members[0].member.user_id);
+        }
         setContribution(contributionData);
         setProjectInfo(projectRes?.data || null);
       } catch (err: any) {
@@ -222,7 +227,39 @@ export default function ContributorDashboardPage() {
       }
     };
 
+    const fetchUnassignedTasks = async () => {
+      if (!projectId) {
+        setUnassignedTasks([]);
+        return;
+      }
+
+      try {
+        setLoadingUnassignedTasks(true);
+        const tasksRes = await axiosInstance.get(`/api/projects/${projectId}/tasks`, { 
+          params: { pageSize: 500 } 
+        });
+        
+        const allTasks = Array.isArray(tasksRes.data) ? tasksRes.data : [];
+        // Filter tasks without assignee_id
+        const unassigned = allTasks.filter((task: any) => {
+          // Check if assignee_id is null, undefined, empty string, or empty object
+          if (!task.assignee_id) return true;
+          if (typeof task.assignee_id === 'object' && Object.keys(task.assignee_id).length === 0) return true;
+          if (typeof task.assignee_id === 'string' && task.assignee_id.trim() === '') return true;
+          return false;
+        });
+        
+        setUnassignedTasks(unassigned);
+      } catch (err: any) {
+        console.error("Error fetching unassigned tasks:", err);
+        setUnassignedTasks([]);
+      } finally {
+        setLoadingUnassignedTasks(false);
+      }
+    };
+
     fetchContribution();
+    fetchUnassignedTasks();
     return () => {
       cancelled = true;
     };
@@ -257,9 +294,64 @@ export default function ContributorDashboardPage() {
 
   const renderMemberRow = (member: MemberContribution, index: number) => {
     const avatarLetter = getInitials(member.member.full_name);
+    // Extract user_id - handle both string and object formats
+    let userId: string | null = null;
+    const rawUserId = member.member.user_id;
+    
+    if (rawUserId) {
+      if (typeof rawUserId === 'string') {
+        // Already a string, use it directly
+        userId = rawUserId.trim();
+      } else if (typeof rawUserId === 'object' && rawUserId !== null) {
+        // It's an object, extract _id
+        const obj = rawUserId as any;
+        if (obj._id) {
+          userId = typeof obj._id === 'string' ? obj._id : obj._id.toString();
+        } else if (obj.id) {
+          userId = typeof obj.id === 'string' ? obj.id : obj.id.toString();
+        } else {
+          // Last resort: try toString but validate it's a valid ObjectId format
+          const str = obj.toString?.();
+          if (str && str.length === 24 && /^[0-9a-fA-F]{24}$/.test(str)) {
+            userId = str;
+          } else {
+            console.warn('Cannot extract valid userId from object:', rawUserId);
+            userId = null;
+          }
+        }
+      }
+    }
+    
+    // Final validation: ensure userId is a valid 24-character hex string (MongoDB ObjectId format)
+    // But be more lenient - if it's a string and not empty, use it
+    if (userId) {
+      const trimmed = userId.trim();
+      if (trimmed.length === 24 && /^[0-9a-fA-F]{24}$/.test(trimmed)) {
+        userId = trimmed;
+      } else if (trimmed.length > 0) {
+        // If it's not a valid ObjectId but is a non-empty string, still use it (might be a different ID format)
+        console.warn('userId is not in standard ObjectId format but using it anyway:', trimmed);
+        userId = trimmed;
+      } else {
+        userId = null;
+      }
+    }
+    
+    // Debug logging for first member
+    if (index === 0) {
+      console.log('First member debug:', {
+        rawUserId,
+        userId,
+        projectId,
+        userIdType: typeof userId,
+        userIdLength: userId?.length,
+        willCreateHref: !!(userId && projectId)
+      });
+    }
+    
     const detailHref =
-      member.member.user_id && projectId
-        ? `/supervisor/contributor/detail?userId=${member.member.user_id}&project_id=${projectId}`
+      userId && projectId && typeof userId === 'string' && userId.length > 0
+        ? `/supervisor/contributor/detail?userId=${encodeURIComponent(userId)}&project_id=${encodeURIComponent(projectId)}`
         : null;
 
     const topTypes = TYPE_DISPLAY_ORDER.filter((type) => member.type_counts[type] > 0).slice(0, 3);
@@ -343,15 +435,15 @@ export default function ContributorDashboardPage() {
 
         <td className="px-4 py-4 text-right">
           {detailHref ? (
-            <Link
-              href={detailHref}
+            <button
+              onClick={() => router.push(detailHref)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Chi tiết
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
               </svg>
-            </Link>
+            </button>
           ) : (
             <span className="text-xs text-slate-400">Không khả dụng</span>
           )}
@@ -560,60 +652,148 @@ export default function ContributorDashboardPage() {
               <section className="rounded-lg border border-slate-200 bg-white p-6">
               
               <div className="rounded-lg border border-slate-200 bg-white p-6">
-                    <h3 className="text-lg font-semibold text-slate-900">Task chưa được phân công</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Theo dõi các công việc chưa có người phụ trách để tránh tồn đọng.
-                    </p>
-                    {contribution.unassigned ? (
-                      <div className="mt-4 space-y-4">
-                        <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-600 font-semibold">
-                            UA
-                          </div>
-                          <div>
-                            <p className="font-medium text-slate-900">Unassigned</p>
-                            <p className="text-sm text-slate-500">Chưa có thành viên nhận task</p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
-                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">Tổng task</p>
-                            <p className="mt-1 text-lg font-semibold text-slate-800">
-                              {formatNumber(contribution.unassigned.total_tasks)}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">Estimate giờ</p>
-                            <p className="mt-1 text-lg font-semibold text-slate-800">
-                              {formatNumber(contribution.unassigned.estimate_hours)}h
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">Actual giờ</p>
-                            <p className="mt-1 text-lg font-semibold text-slate-800">
-                              {formatNumber(contribution.unassigned.actual_hours)}h
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                            <p className="text-xs uppercase tracking-wide text-slate-400">Tỉ lệ hoàn thành</p>
-                            <p className="mt-1 text-lg font-semibold text-slate-800">
-                              {formatPercent(contribution.unassigned.completion_rate)}
-                            </p>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loại task</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {TYPE_DISPLAY_ORDER.map((type) => (
-                              <span key={type} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_BADGE_COLOR[type]}`}>
-                                {type}: {formatNumber(contribution.unassigned?.type_counts[type] ?? 0)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">Task chưa được phân công</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Danh sách các công việc chưa có người phụ trách để tránh tồn đọng.
+                        </p>
                       </div>
-                    ) : (
+                      {contribution.unassigned && (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                          {formatNumber(contribution.unassigned.total_tasks)} task
+                        </span>
+                      )}
+                    </div>
+                    
+                    {loadingUnassignedTasks ? (
+                      <div className="flex h-64 flex-col items-center justify-center">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
+                        <p className="mt-4 text-sm font-medium text-slate-500">Đang tải danh sách task...</p>
+                      </div>
+                    ) : unassignedTasks.length === 0 ? (
                       <ContributionPlaceholder message="Hiện tất cả task đều đã có người phụ trách." />
+                    ) : (
+                      <div className="space-y-3">
+                        {unassignedTasks.map((task) => {
+                          const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Unknown";
+                          const taskPriority = typeof task.priority === "object" ? task.priority?.name : task.priority || "";
+                          const isOverdue = task.deadline 
+                            ? new Date(task.deadline).getTime() < Date.now() && !taskStatus.toLowerCase().includes('done') && !taskStatus.toLowerCase().includes('completed')
+                            : false;
+                          const deadlineDate = task.deadline ? new Date(task.deadline) : null;
+                          const daysUntilDeadline = deadlineDate 
+                            ? Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                            : null;
+                          
+                          // Get task type
+                          let taskType = "Simple";
+                          if (task.estimate) {
+                            if (task.estimate >= 40) taskType = "Very Complex";
+                            else if (task.estimate >= 20) taskType = "Complex";
+                            else if (task.estimate >= 8) taskType = "Medium";
+                            else taskType = "Simple";
+                          }
+                          
+                          return (
+                            <div
+                              key={task._id}
+                              onClick={() => {
+                                if (projectId) {
+                                  router.push(`/projects/${projectId}/tasks?taskId=${task._id}`);
+                                }
+                              }}
+                              className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-600 font-semibold flex-shrink-0">
+                                      UA
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-semibold text-slate-900 text-base mb-1 line-clamp-2">
+                                        {task.title || "Task không có tiêu đề"}
+                                      </h4>
+                                      {task.description && (
+                                        <p className="text-sm text-slate-600 line-clamp-2 mb-2">
+                                          {task.description}
+                                        </p>
+                                      )}
+                                      
+                                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                                        {/* Status */}
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                          taskStatus.toLowerCase().includes('done') || taskStatus.toLowerCase().includes('completed')
+                                            ? 'bg-green-100 text-green-800'
+                                            : taskStatus.toLowerCase().includes('doing') || taskStatus.toLowerCase().includes('progress')
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-orange-100 text-orange-800'
+                                        }`}>
+                                          {taskStatus}
+                                        </span>
+                                        
+                                        {/* Priority */}
+                                        {taskPriority && (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                            {taskPriority}
+                                          </span>
+                                        )}
+                                        
+                                        {/* Type */}
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLOR[taskType as TypeKey] || TYPE_BADGE_COLOR.Simple}`}>
+                                          {taskType}
+                                        </span>
+                                        
+                                        {/* Deadline */}
+                                        {deadlineDate && (
+                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            isOverdue
+                                              ? 'bg-red-100 text-red-800'
+                                              : daysUntilDeadline !== null && daysUntilDeadline <= 3
+                                              ? 'bg-yellow-100 text-yellow-800'
+                                              : 'bg-slate-100 text-slate-700'
+                                          }`}>
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            {isOverdue 
+                                              ? `Quá hạn ${Math.abs(daysUntilDeadline!)} ngày`
+                                              : daysUntilDeadline === 0
+                                              ? 'Hôm nay'
+                                              : daysUntilDeadline === 1
+                                              ? 'Ngày mai'
+                                              : daysUntilDeadline! > 0
+                                              ? `Còn ${daysUntilDeadline} ngày`
+                                              : deadlineDate.toLocaleDateString('vi-VN')
+                                            }
+                                          </span>
+                                        )}
+                                        
+                                        {/* Estimate */}
+                                        {task.estimate && (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {task.estimate}h
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex-shrink-0">
+                                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div></section>
               

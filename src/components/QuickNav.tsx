@@ -31,9 +31,9 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
       ),
     },
     {
-      key: "report",
-      label: "Tài liệu",
-      href: selectedProject ? `/supervisor/contributor/detail?project_id=${selectedProject}` : "/supervisor/contributor/detail",
+      key: "kanban",
+      label: "Kanban Board",
+      href: selectedProject ? `/supervisor/kanban-board?project_id=${selectedProject}` : "/supervisor/kanban-board",
       projectScoped: true,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,6 +41,17 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
         </svg>
       ),
     },
+    {
+      key: "progress",
+      label: "Progress",
+      href: selectedProject ? `/supervisor/progress-task?project_id=${selectedProject}` : "/supervisor/progress-task",
+      projectScoped: true,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+    }
   ];
 
   return (

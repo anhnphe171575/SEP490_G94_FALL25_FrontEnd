@@ -25,9 +25,10 @@ import { toast } from "sonner";
 
 interface TaskDetailsCommentsProps {
   taskId: string | null;
+  readonly?: boolean;
 }
 
-export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps) {
+export default function TaskDetailsComments({ taskId, readonly = false }: TaskDetailsCommentsProps) {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -285,16 +286,18 @@ export default function TaskDetailsComments({ taskId }: TaskDetailsCommentsProps
                     </Stack>
 
                     {/* Actions Menu */}
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        setAnchorEl(e.currentTarget);
-                        setSelectedComment(comment);
-                      }}
-                      sx={{ color: '#9ca3af' }}
-                    >
-                      <MoreVertIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
+                    {!readonly && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          setAnchorEl(e.currentTarget);
+                          setSelectedComment(comment);
+                        }}
+                        sx={{ color: '#9ca3af' }}
+                      >
+                        <MoreVertIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    )}
                   </Stack>
 
                   {/* Comment Content */}

@@ -5,7 +5,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
-import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import DependencyDateConflictDialog from "@/components/DependencyDateConflictDialog";
 import dynamic from 'next/dynamic';
 import './tasks.module.css';
@@ -917,16 +916,6 @@ export default function ProjectTasksPage() {
       <ResponsiveSidebar />
       <main>
         <div className="w-full">
-          {/* Breadcrumb Navigation */}
-          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
-            <ProjectBreadcrumb 
-              projectId={projectId}
-              items={[
-                { label: 'Công việc', icon: <CheckCircleIcon sx={{ fontSize: 16 }} /> }
-              ]}
-            />
-          </Box>
-
           {/* ClickUp-style Top Bar */}
           <Box 
             sx={{ 
@@ -1058,28 +1047,7 @@ export default function ProjectTasksPage() {
             }}
           >
             <Stack direction="row" spacing={0.5}>
-              <Button
-                onClick={() => router.push(`/projects/${projectId}/tasks/dashboard`)}
-                startIcon={<DashboardIcon fontSize="small" />}
-                sx={{
-                  minWidth: 'auto',
-                  px: 2,
-                  py: 0.75,
-                  color: '#49516f',
-                  bgcolor: 'transparent',
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: 1.5,
-                  '&:hover': {
-                    bgcolor: '#f3f4f6',
-                  }
-                }}
-              >
-                Dashboard
-              </Button>
-              <Box sx={{ width: '1px', height: 24, bgcolor: '#e8e9eb', mx: 0.5 }} />
-              <Button
+                <Button
                 onClick={() => setView('table')}
                 startIcon={<ListIcon fontSize="small" />}
                 sx={{
@@ -2520,38 +2488,61 @@ export default function ProjectTasksPage() {
                                   />
                                   </Tooltip>
                                 )}
-                                {t.feature_id && typeof t.feature_id === 'object' && (
-                                  <Tooltip title={`Feature: ${(t.feature_id as any).title}`} arrow>
-                                  <Chip 
-                                    label={`⚡ ${(t.feature_id as any).title}`}
-                                    size="small"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      router.push(`/projects/${projectId}/features`);
-                                    }}
-                                    sx={{ 
-                                      height: 18,
-                                        maxWidth: 120,
-                                      fontSize: '10px',
-                                      fontWeight: 600,
-                                      bgcolor: '#dbeafe',
-                                      color: '#1e40af',
-                                      cursor: 'pointer',
-                                        '& .MuiChip-label': { 
-                                          px: 0.75,
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                          whiteSpace: 'nowrap',
-                                        },
-                                      '&:hover': {
-                                        bgcolor: '#bfdbfe',
-                                        transform: 'scale(1.05)',
-                                      },
-                                      transition: 'all 0.2s',
-                                    }}
-                                  />
-                                  </Tooltip>
-                                )}
+                                {(() => {
+                                  // Try to get feature from task.feature_id first, then from function_id.feature_id
+                                  let featureId: string | null = null;
+                                  let featureTitle: string | null = null;
+                                  
+                                  if (t.feature_id) {
+                                    featureId = typeof t.feature_id === 'object' ? (t.feature_id as any)?._id : t.feature_id;
+                                    featureTitle = typeof t.feature_id === 'object' 
+                                      ? (t.feature_id as any)?.title 
+                                      : (featureId ? allFeatures.find(f => String(f._id) === String(featureId))?.title : null);
+                                  } else if ((t as any).function_id && typeof (t as any).function_id === 'object') {
+                                    const func = (t as any).function_id;
+                                    if (func.feature_id) {
+                                      featureId = typeof func.feature_id === 'object' ? func.feature_id._id : func.feature_id;
+                                      featureTitle = typeof func.feature_id === 'object' 
+                                        ? func.feature_id.title 
+                                        : (featureId ? allFeatures.find(f => String(f._id) === String(featureId))?.title : null);
+                                    }
+                                  }
+                                  
+                                  if (!featureId || !featureTitle) return null;
+                                  
+                                  return (
+                                    <Tooltip title={`Feature: ${featureTitle}`} arrow>
+                                      <Chip 
+                                        label={`⚡ ${featureTitle}`}
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          router.push(`/projects/${projectId}/features`);
+                                        }}
+                                        sx={{ 
+                                          height: 18,
+                                          maxWidth: 250,
+                                          fontSize: '10px',
+                                          fontWeight: 600,
+                                          bgcolor: '#dbeafe',
+                                          color: '#1e40af',
+                                          cursor: 'pointer',
+                                          '& .MuiChip-label': { 
+                                            px: 0.75,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                          },
+                                          '&:hover': {
+                                            bgcolor: '#bfdbfe',
+                                            transform: 'scale(1.05)',
+                                          },
+                                          transition: 'all 0.2s',
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  );
+                                })()}
                                 {(t as any).function_id && typeof (t as any).function_id === 'object' && (
                                   <Tooltip title={`Function: ${((t as any).function_id as any).title}`} arrow>
                                   <Chip 
@@ -3245,6 +3236,60 @@ export default function ProjectTasksPage() {
                                     }}
                                   />
                                 )}
+                                {(() => {
+                                  // Try to get feature from task.feature_id first, then from function_id.feature_id
+                                  let featureId: string | null = null;
+                                  let featureTitle: string | null = null;
+                                  
+                                  if (task.feature_id) {
+                                    featureId = typeof task.feature_id === 'object' ? (task.feature_id as any)?._id : task.feature_id;
+                                    featureTitle = typeof task.feature_id === 'object' 
+                                      ? (task.feature_id as any)?.title 
+                                      : (featureId ? allFeatures.find(f => String(f._id) === String(featureId))?.title : null);
+                                  } else if ((task as any).function_id && typeof (task as any).function_id === 'object') {
+                                    const func = (task as any).function_id;
+                                    if (func.feature_id) {
+                                      featureId = typeof func.feature_id === 'object' ? func.feature_id._id : func.feature_id;
+                                      featureTitle = typeof func.feature_id === 'object' 
+                                        ? func.feature_id.title 
+                                        : (featureId ? allFeatures.find(f => String(f._id) === String(featureId))?.title : null);
+                                    }
+                                  }
+                                  
+                                  if (!featureId || !featureTitle) return null;
+                                  
+                                  return (
+                                    <Chip
+                                      label={`⚡ ${featureTitle}`}
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        router.push(`/projects/${projectId}/features`);
+                                      }}
+                                      sx={{
+                                        height: 22,
+                                        maxWidth: 200,
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        bgcolor: '#dbeafe',
+                                        color: '#1e40af',
+                                        border: '1px solid #93c5fd',
+                                        cursor: 'pointer',
+                                        '& .MuiChip-label': {
+                                          px: 0.75,
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                        },
+                                        '&:hover': {
+                                          bgcolor: '#bfdbfe',
+                                          transform: 'scale(1.05)',
+                                        },
+                                        transition: 'all 0.2s',
+                                      }}
+                                    />
+                                  );
+                                })()}
                               </Stack>
 
 

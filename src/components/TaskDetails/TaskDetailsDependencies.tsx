@@ -34,9 +34,10 @@ interface TaskDetailsDependenciesProps {
   taskId: string | null;
   projectId?: string;
   onTaskUpdate?: () => void | Promise<void>;
+  readonly?: boolean;
 }
 
-export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdate }: TaskDetailsDependenciesProps) {
+export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdate, readonly = false }: TaskDetailsDependenciesProps) {
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [dependents, setDependents] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
@@ -545,19 +546,21 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                     </Box>
 
                     {/* Delete Button */}
-                    <IconButton
-                      size="small"
-                      onClick={() => removeDependency(dep._id)}
-                      sx={{
-                        color: '#9ca3af',
-                        '&:hover': {
-                          color: '#ef4444',
-                          bgcolor: '#fee2e2'
-                        }
-                      }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
+                    {!readonly && (
+                      <IconButton
+                        size="small"
+                        onClick={() => removeDependency(dep._id)}
+                        sx={{
+                          color: '#9ca3af',
+                          '&:hover': {
+                            color: '#ef4444',
+                            bgcolor: '#fee2e2'
+                          }
+                        }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    )}
                   </Stack>
 
                   {/* Dependency Type Description */}
@@ -595,7 +598,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
         )}
 
         {/* Add Dependency Form */}
-        {showAddForm ? (
+        {showAddForm && !readonly ? (
           <Paper
             elevation={0}
             sx={{
@@ -703,7 +706,19 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                   }
                 />
               </Stack>
-
+              <Box sx={{ mt: 1, p: 1.5, bgcolor: '#f0f9ff', borderRadius: 1, border: '1px solid #bae6fd' }}>
+                            <Typography fontSize="10px" fontWeight={600} color="#0284c7" sx={{ mb: 0.5 }}>
+                              💡 Giải thích:
+                            </Typography>
+                            <Typography fontSize="10px" color="#0369a1" component="div">
+                              <Box component="span" sx={{ display: 'block', mb: 0.5 }}>
+                                • <strong>Lag (số dương):</strong> Độ trễ - công việc sau phải đợi thêm X ngày sau khi điều kiện đáp ứng
+                              </Box>
+                              <Box component="span" sx={{ display: 'block' }}>
+                                • <b>Lead (số âm):</b> Độ sớm - công việc sau có thể bắt đầu sớm X ngày trước khi điều kiện đáp ứng
+                              </Box>
+                            </Typography>
+                          </Box>
               {/* Is Mandatory Checkbox */}
               <FormControl fullWidth size="small">
                 <Stack direction="row" alignItems="center" spacing={1.5} sx={{ p: 1.5, bgcolor: '#f8f9fb', borderRadius: 1.5, border: '1px solid #e8e9eb' }}>
@@ -789,29 +804,31 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             </Stack>
           </Paper>
         ) : (
-          <Button
-            fullWidth
-            startIcon={<AddIcon />}
-            onClick={() => setShowAddForm(true)}
-            sx={{
-              mt: 2,
-              py: 1.5,
-              borderRadius: 2,
-              border: '2px dashed #e8e9eb',
-              bgcolor: 'transparent',
-              color: '#9ca3af',
-              fontSize: '13px',
-              fontWeight: 600,
-              textTransform: 'none',
-              '&:hover': {
-                borderColor: '#7b68ee',
-                bgcolor: '#f5f3ff',
-                color: '#7b68ee'
-              }
-            }}
-          >
-            Thêm Phụ thuộc Chặn
-          </Button>
+          !readonly && (
+            <Button
+              fullWidth
+              startIcon={<AddIcon />}
+              onClick={() => setShowAddForm(true)}
+              sx={{
+                mt: 2,
+                py: 1.5,
+                borderRadius: 2,
+                border: '2px dashed #e8e9eb',
+                bgcolor: 'transparent',
+                color: '#9ca3af',
+                fontSize: '13px',
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#7b68ee',
+                  bgcolor: '#f5f3ff',
+                  color: '#7b68ee'
+                }
+              }}
+            >
+              Thêm Phụ thuộc Chặn
+            </Button>
+          )
         )}
       </Box>
 

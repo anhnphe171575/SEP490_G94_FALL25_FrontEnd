@@ -11,13 +11,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const redirectUrl = searchParams.get('redirect');
 
-  // Initialize Google Identity Services
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) return; // silently skip if not configured
+    if (!clientId) return;
 
     const loadScript = () => {
       if (document.getElementById("google-identity")) return initGoogle();
@@ -31,16 +30,16 @@ export default function LoginPage() {
     };
 
     const initGoogle = () => {
-      // @ts-expect-error - Google Identity Services types not available
+      // @ts-expect-error
       if (!window.google || !google.accounts || !google.accounts.id) return;
-      // @ts-expect-error - Google Identity Services types not available
+      // @ts-expect-error
       google.accounts.id.initialize({
         client_id: clientId,
         callback: handleGoogleResponse,
         ux_mode: "popup",
       });
       if (googleBtnRef.current) {
-        // @ts-expect-error - Google Identity Services types not available
+        // @ts-expect-error
         google.accounts.id.renderButton(googleBtnRef.current, {
           theme: "outline",
           size: "medium",
@@ -60,25 +59,22 @@ export default function LoginPage() {
       setLoading(true);
       const idToken = response?.credential;
       if (!idToken) throw new Error("Không nhận được phản hồi từ Google");
-      
-      // Decode JWT token để lấy thông tin email
+
       const payload = JSON.parse(atob(idToken.split('.')[1]));
       const email = payload.email;
-      
-      // Kiểm tra domain email
+
       if (!email || (!email.endsWith('@fpt.edu.vn') && !email.includes('he'))) {
         throw new Error("Chỉ cho phép đăng nhập bằng tài khoản FPT (@fpt.edu.vn)");
       }
-      
+
       const res = await axiosInstance.post("/api/auth/google", { idToken });
       const token = res.data?.token;
       const userRole = res.data?.user?.role;
       if (token) {
         sessionStorage.setItem("token", token);
-        localStorage.setItem("token", token); // keep both for existing interceptor behavior
+        localStorage.setItem("token", token);
       }
-      
-      // Redirect based on role
+
       if (userRole === 4) {
         router.replace("/supervisor/projects");
       } else {
@@ -92,186 +88,129 @@ export default function LoginPage() {
     }
   };
 
- const onSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  try {
-    setLoading(true);
-    setError(null);
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      setError(null);
 
-    const res = await axiosInstance.post("/api/auth/login", { email, password });
-    const token = res.data?.token;
-    const user = res.data?.user;
+      const res = await axiosInstance.post("/api/auth/login", { email, password });
+      const token = res.data?.token;
+      const user = res.data?.user;
 
-    if (token) {
-      sessionStorage.setItem("token", token);
-      localStorage.setItem("token", token);
+      if (token) {
+        sessionStorage.setItem("token", token);
+        localStorage.setItem("token", token);
+      }
+
+      if (user?.redirectUrl) {
+        router.replace(user.redirectUrl);
+      } else if (user?.role === 4) {
+        router.replace("/supervisor/projects");
+      } else {
+        router.replace("/dashboard");
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Đăng nhập thất bại");
+    } finally {
+      setLoading(false);
     }
-
-    // ✅ Ưu tiên redirectUrl từ backend nếu có
-    if (user?.redirectUrl) {
-      router.replace(user.redirectUrl);
-    } 
-    // ✅ Hoặc fallback theo role
-    else if (user?.role === 4) {
-      router.replace("/supervisor/projects");
-    } else {
-      router.replace("/dashboard");
-    }
-
-  } catch (e: any) {
-    setError(e?.response?.data?.message || "Đăng nhập thất bại");
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
-    <div className="h-screen relative overflow-hidden flex flex-col">
-      {/* Background với gradient động */}
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-orange-100 dark:from-gray-900 dark:via-gray-800 dark:to-orange-900">
-        {/* Các hình tròn trang trí - tối ưu cho mobile */}
-        <div className="absolute top-5 left-5 w-32 h-32 sm:w-48 sm:h-48 lg:w-72 lg:h-72 bg-orange-200 dark:bg-orange-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob"></div>
-        <div className="absolute top-10 right-5 w-32 h-32 sm:w-48 sm:h-48 lg:w-72 lg:h-72 bg-yellow-200 dark:bg-yellow-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-2 left-10 w-32 h-32 sm:w-48 sm:h-48 lg:w-72 lg:h-72 bg-pink-200 dark:bg-pink-800 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 sm:opacity-30 animate-blob animation-delay-4000"></div>
-      </div>
-
-      {/* Nội dung chính - căn giữa hoàn hảo */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 pt-6 pb-6 sm:pt-8 sm:pb-8 lg:pt-10 lg:pb-10 overflow-hidden">
-        <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
-          {/* Logo hoặc tiêu đề - căn giữa hoàn hảo */}
-          <div className="text-center mb-4 sm:mb-5 lg:mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 bg-gradient-to-r from-orange-500 to-pink-500 rounded-xl sm:rounded-2xl mb-3 sm:mb-4 shadow-lg">
-              <svg className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Chào mừng trở lại</h1>
-            <p className="text-xs sm:text-sm lg:text-base text-gray-600 dark:text-gray-400">Đăng nhập để tiếp tục công việc của bạn</p>
-          </div>
-
-          {/* Form đăng nhập - padding tối ưu */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl border border-white/20 dark:border-gray-700/20">
-            {error && (
-              <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-red-700 dark:text-red-300 text-xs font-medium">{error}</span>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={onSubmit} className="space-y-3.5 sm:space-y-4">
-              <div className="space-y-1.5">
-                <label htmlFor="email" className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Địa chỉ Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                    </svg>
-                  </div>
-                  <input
-                    id="email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 text-sm"
-                    placeholder="you@example.com"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="password" className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Mật khẩu
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 text-sm"
-                    placeholder="••••••••"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-semibold py-2.5 sm:py-3 px-4 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm sm:text-base"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Đang xử lý...
-                  </div>
-                ) : (
-                  "Đăng nhập"
-                )}
-              </button>
-            </form>
-
-            {/* Register Button */}
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => router.push("/register")}
-                className="w-full border-2 border-orange-500 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-semibold py-2.5 sm:py-3 px-4 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 text-sm sm:text-base"
-              >
-                Đăng ký tài khoản mới
-              </button>
-            </div>
-
-            {/* Đường phân cách */}
-            <div className="my-4 sm:my-5 flex items-center">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
-              <span className="px-3 sm:px-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-medium">hoặc</span>
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
-            </div>
-
-            {/* Google Sign In */}
-            <div className="text-center">
-              <div className="mb-2.5 sm:mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <div className="flex items-center justify-center mb-1">
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Lưu ý quan trọng</span>
-                </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 leading-tight">
-                  Chỉ cho phép đăng nhập bằng tài khoản Google có đuôi <strong>@fpt.edu.vn</strong>
-                </p>
-              </div>
-              <div 
-                ref={googleBtnRef} 
-                className="flex justify-center transform hover:scale-105 transition-transform duration-200 scale-90 sm:scale-100"
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-100">
+      <div className="w-full max-w-4xl bg-white/80 rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-white/30">
+        {/* Left side: intro */}
+<div className="hidden md:flex flex-col justify-center items-center bg-gradient-to-br from-green-100 via-white to-pink-100 px-8 py-10 w-1/2">
+  <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center leading-tight">
+    Hệ thống quản lý đồ án ngành
+  </h2>
+  <h2 className="text-4xl font-extrabold text-green-600 mb-2 text-center leading-tight">
+    Kỹ thuật phần mềm
+  </h2>
+  <p className="text-gray-700 text-lg mb-6 text-center">
+    Nền tảng giúp bạn quản lý các dự án học tập và làm việc nhóm một cách thông minh
+  </p>
+  <img
+    src="/illustration.png"
+    alt="Login illustration"
+    className="w-[400px] h-[220px] object-contain mb-2"
+    style={{ maxWidth: "100%" }}
+  />
+</div>
+        {/* Right side: login form */}
+        <div className="flex-1 flex flex-col justify-center px-6 py-10 md:px-10">
+          <h3 className="text-2xl font-bold text-green-600 mb-2 text-center">SoftCapstone</h3>
+          <h4 className="text-lg font-semibold text-gray-800 mb-4 text-center">Welcome to SoftCapstone</h4>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Địa chỉ Email *
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
+                placeholder="your@email.com"
               />
             </div>
-
-            {/* Forgot Password Link */}
-            <div className="mt-4 text-center">
-              <a href="/forgotpassword" className="text-xs sm:text-sm text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200">
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Mật khẩu *
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input type="checkbox" id="remember" className="mr-2" />
+                <label htmlFor="remember" className="text-sm text-gray-600">Ghi nhớ đăng nhập</label>
+              </div>
+              <a href="/forgotpassword" className="text-sm text-green-600 hover:underline font-medium">
                 Quên mật khẩu?
               </a>
             </div>
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
+                {error}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold py-2 rounded-lg shadow-md transition-all duration-200 disabled:opacity-50"
+            >
+              {loading ? "Đang xử lý..." : "Đăng nhập"}
+            </button>
+          </form>
+          {/* Divider */}
+          <div className="flex items-center my-4">
+            <div className="flex-1 h-px bg-gray-300" />
+            <span className="px-3 text-gray-500 text-sm font-medium">HOẶC</span>
+            <div className="flex-1 h-px bg-gray-300" />
           </div>
-
+          {/* Google Sign In */}
+          <div className="mb-2 flex justify-center">
+            <div ref={googleBtnRef} />
+          </div>
+          {/* Register */}
+          <button
+            type="button"
+            onClick={() => router.push("/register")}
+            className="w-full border-2 border-green-400 text-green-600 hover:bg-green-50 font-semibold py-2 rounded-lg shadow-sm transition-all duration-200 mt-2"
+          >
+            Đăng ký tài khoản mới
+          </button>
         </div>
       </div>
     </div>

@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../ultis/axios";
 import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar"; // Import ResponsiveSidebar để sử dụng cho sidebar
+import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link } from "@mui/material";
+import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -26,7 +26,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import ListIcon from "@mui/icons-material/List";
 import FlagIcon from "@mui/icons-material/Flag";
 import TuneIcon from "@mui/icons-material/Tune";
-import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 
 type User = {
   _id: string;
@@ -110,6 +109,14 @@ export default function ProjectDetailPage() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
+  const [createMilestoneModal, setCreateMilestoneModal] = useState(false);
+  const [newMilestone, setNewMilestone] = useState({
+    title: '',
+    description: '',
+    start_date: '',
+    deadline: '',
+    tags: [] as string[],
+  });
 
   useEffect(() => {
     if (!projectId) return;
@@ -503,17 +510,10 @@ export default function ProjectDetailPage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           {/* Modern Header */}
           <Box sx={{ mb: 3 }}>
-            <ProjectBreadcrumb 
-              projectId={projectId}
-              items={[
-                { label: 'Cột mốc', icon: <FlagIcon sx={{ fontSize: 16 }} /> }
-              ]}
-            />
-            
             <Box sx={{ 
               bgcolor: 'white', 
               borderRadius: 3,
@@ -611,7 +611,7 @@ export default function ProjectDetailPage() {
                   <Button
                     variant="contained"
                     startIcon={<AddIcon />}
-                    onClick={() => router.push(`/projects/${projectId}/milestones/new`)}
+                    onClick={() => setCreateMilestoneModal(true)}
                     sx={{
                       textTransform: 'none',
                       fontWeight: 600,
@@ -1079,6 +1079,148 @@ export default function ProjectDetailPage() {
                     />
                   )}
 
+        {/* Create Milestone Dialog */}
+        <Dialog 
+          open={createMilestoneModal} 
+          onClose={() => {
+            setCreateMilestoneModal(false);
+            setNewMilestone({
+              title: '',
+              description: '',
+              start_date: '',
+              deadline: '',
+              tags: [],
+            });
+          }} 
+          maxWidth="md" 
+          fullWidth
+        >
+          <DialogTitle>Tạo Cột Mốc Mới</DialogTitle>
+          <DialogContent>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              <TextField
+                label="Tên cột mốc"
+                value={newMilestone.title}
+                onChange={(e) => setNewMilestone(prev => ({ ...prev, title: e.target.value }))}
+                fullWidth
+                required
+              />
+              <TextField
+                label="Mô tả"
+                value={newMilestone.description}
+                onChange={(e) => setNewMilestone(prev => ({ ...prev, description: e.target.value }))}
+                fullWidth
+                multiline
+                rows={3}
+              />
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="Ngày bắt đầu"
+                  type="date"
+                  value={newMilestone.start_date}
+                  onChange={(e) => setNewMilestone(prev => ({ ...prev, start_date: e.target.value }))}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  label="Hạn chót"
+                  type="date"
+                  value={newMilestone.deadline}
+                  onChange={(e) => setNewMilestone(prev => ({ ...prev, deadline: e.target.value }))}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Stack>
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={newMilestone.tags}
+                onChange={(_, newValue) => {
+                  setNewMilestone(prev => ({ ...prev, tags: newValue }));
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Tags"
+                    placeholder="Nhập tag và nhấn Enter"
+                  />
+                )}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip
+                      variant="outlined"
+                      label={option}
+                      {...getTagProps({ index })}
+                      key={index}
+                    />
+                  ))
+                }
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => {
+              setCreateMilestoneModal(false);
+              setNewMilestone({
+                title: '',
+                description: '',
+                start_date: '',
+                deadline: '',
+                tags: [],
+              });
+            }}>
+              Hủy
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={async () => {
+                if (!newMilestone.title.trim()) {
+                  toast.error('Vui lòng nhập tên cột mốc');
+                  return;
+                }
+                try {
+                  await axiosInstance.post(`/api/projects/${projectId}/milestones`, {
+                    title: newMilestone.title,
+                    description: newMilestone.description,
+                    start_date: newMilestone.start_date || undefined,
+                    deadline: newMilestone.deadline || undefined,
+                    tags: newMilestone.tags,
+                  });
+                  toast.success('Tạo cột mốc thành công');
+                  setCreateMilestoneModal(false);
+                  setNewMilestone({
+                    title: '',
+                    description: '',
+                    start_date: '',
+                    deadline: '',
+                    tags: [],
+                  });
+                  // Reload milestones
+                  const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
+                  const milestonesData = Array.isArray(res.data) ? res.data : [];
+                  const milestonesWithProgress = await Promise.all(
+                    milestonesData.map(async (milestone: Milestone) => {
+                      try {
+                        const progressRes = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestone._id}/progress`);
+                        return { ...milestone, progress: progressRes.data.progress };
+                      } catch (e) {
+                        return milestone;
+                      }
+                    })
+                  );
+                  setMilestones(milestonesWithProgress);
+                } catch (error: any) {
+                  toast.error(error?.response?.data?.message || 'Không thể tạo cột mốc');
+                }
+              }}
+              disabled={!newMilestone.title.trim()}
+            >
+              Tạo
+            </Button>
+          </DialogActions>
+        </Dialog>
+
                   {viewTab === 'timeline' && (
                     <Timeline
                       milestones={getFilteredMilestones()}
@@ -1424,6 +1566,7 @@ function MilestonesList({
             }}
           />
         )}
+
       </CardContent>
     </Card>
   );

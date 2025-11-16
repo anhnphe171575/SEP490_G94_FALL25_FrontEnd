@@ -10,6 +10,7 @@ import QuickNav from "@/components/QuickNav"
 import { GanttFilter } from "@/components/gantt-filter"
 import type { GanttProject } from "@/components/gantt-chart"
 import DHtmlxGanttChart from "@/components/DHtmlxGanttChart"
+import TaskDetailsModal from "@/components/TaskDetailsModal"
 
 type FlattenedTask = {
   id: string
@@ -128,6 +129,15 @@ export default function SupervisorTaskGanttPage() {
   const [chartTasks, setChartTasks] = useState<any[]>([])
   const [dependencyMap, setDependencyMap] = useState<Record<string, DependencyBucket>>({})
   const [tasksLoading, setTasksLoading] = useState(false)
+
+  // Task details modal state
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [openTaskDetails, setOpenTaskDetails] = useState(false)
+
+  const openTaskDetailsModal = (taskId: string) => {
+    setSelectedTaskId(taskId)
+    setOpenTaskDetails(true)
+  }
 
   useEffect(() => {
     if (!projectId) return
@@ -308,7 +318,11 @@ export default function SupervisorTaskGanttPage() {
                     Đang tải tasks...
                   </div>
                 ) : chartTasks.length > 0 ? (
-                  <DHtmlxGanttChart tasks={chartTasks} dependencies={dependencyMap} />
+                  <DHtmlxGanttChart 
+                    tasks={chartTasks} 
+                    dependencies={dependencyMap}
+                    onTaskClick={openTaskDetailsModal}
+                  />
                 ) : (
                   <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-400">
                     Không có task phù hợp bộ lọc hiện tại.
@@ -317,6 +331,53 @@ export default function SupervisorTaskGanttPage() {
               </>
             )}
           </section>
+
+          {/* Task Details Modal */}
+          {selectedTaskId && (
+            <TaskDetailsModal
+              open={openTaskDetails}
+              onClose={() => {
+                setOpenTaskDetails(false)
+                setSelectedTaskId(null)
+              }}
+              taskId={selectedTaskId}
+              projectId={projectId || undefined}
+              onUpdate={() => {
+                // Reload tasks if needed
+                const fetchTasks = async () => {
+                  try {
+                    setTasksLoading(true)
+                    const params = new URLSearchParams()
+                    
+                    if (selectedMilestones.size > 0) {
+                      params.append("milestone_ids", Array.from(selectedMilestones).join(","))
+                    }
+                    if (selectedFeatures.size > 0) {
+                      params.append("feature_ids", Array.from(selectedFeatures).join(","))
+                    }
+                    if (selectedFunctions.size > 0) {
+                      params.append("function_ids", Array.from(selectedFunctions).join(","))
+                    }
+
+                    const response = await axiosInstance.get(
+                      `/api/projects/${projectId}/tasks/gantt?${params.toString()}`
+                    )
+                    
+                    setChartTasks(response.data.tasks || [])
+                    setDependencyMap(response.data.dependencies || {})
+                  } catch (err: any) {
+                    console.error("Error fetching tasks:", err)
+                    setChartTasks([])
+                    setDependencyMap({})
+                  } finally {
+                    setTasksLoading(false)
+                  }
+                }
+                fetchTasks()
+              }}
+              readonly={true}
+            />
+          )}
         </div>
       </main>
     </div>
