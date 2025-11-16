@@ -431,23 +431,41 @@ export default function ProjectFeaturesPage() {
               px: 3,
               py: 2,
               position: 'sticky',
-              top: 0,
-              zIndex: 100,
+              top: 64, // Below the Header component (h-16 = 64px)
+              zIndex: 30, // Lower than Header dropdown but higher than content
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {/* Title */}
+              {/* Title with Icon */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    fontWeight: 700,
-                    color: '#1f2937',
-                    fontSize: '24px',
-                  }}
-                >
-                  Tính năng
-                </Typography>
+                <Box sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 2.5,
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+                }}>
+                  <StarIcon sx={{ fontSize: 28, color: 'white' }} />
+                </Box>
+                <Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700,
+                      color: '#1f2937',
+                      fontSize: '24px',
+                      mb: 0.5
+                    }}
+                  >
+                    Tính năng
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                    Quản lý các tính năng trong dự án
+                  </Typography>
+                </Box>
                 {selectedFeatureIds.length > 0 && (
                   <Chip 
                     label={`${selectedFeatureIds.length} đã chọn`} 
