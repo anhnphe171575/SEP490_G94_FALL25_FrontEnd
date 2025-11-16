@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import axiosInstance from "../../ultis/axios";
 import Link from "next/link";
@@ -10,10 +11,40 @@ export default function Header() {
   const pathname = usePathname();
   const [me, setMe] = useState<{ _id?: string; id?: string; full_name?: string; email?: string; avatar?: string; role?: number } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setShowDropdown(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (showDropdown && buttonRef.current) {
+      const updatePosition = () => {
+        if (buttonRef.current) {
+          const rect = buttonRef.current.getBoundingClientRect();
+          setDropdownPosition({
+            top: rect.bottom + 8,
+            right: window.innerWidth - rect.right,
+          });
+        }
+      };
+
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [showDropdown]);
 
   useEffect(() => {
     (async () => {
@@ -85,10 +116,11 @@ export default function Header() {
 
         {/* User Profile Dropdown */}
         {me && (
-          <div className="relative">
+          <div className="relative z-50">
             <button
+              ref={buttonRef}
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors duration-200 relative z-50"
             >
               <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center overflow-hidden">
                 {me.avatar ? (
@@ -126,14 +158,20 @@ export default function Header() {
               </svg>
             </button>
 
-            {/* Dropdown Menu */}
-            {showDropdown && (
+            {/* Dropdown Menu - Render via Portal to avoid stacking context issues */}
+            {showDropdown && mounted && typeof window !== 'undefined' && createPortal(
               <>
                 <div
-                  className="fixed inset-0 z-10"
+                  className="fixed inset-0 z-[9998]"
                   onClick={() => setShowDropdown(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
+                <div 
+                  className="fixed w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[9999]"
+                  style={{
+                    top: `${dropdownPosition.top}px`,
+                    right: `${dropdownPosition.right}px`,
+                  }}
+                >
                   <div className="px-4 py-3 border-b border-gray-200 md:hidden">
                     <p className="text-sm font-medium text-gray-900">
                       {me.full_name || "Người dùng"}
@@ -181,7 +219,8 @@ export default function Header() {
                     <span>Đăng xuất</span>
                   </button>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
         )}

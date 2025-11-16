@@ -19,6 +19,9 @@ import {
   DialogActions,
   Badge,
   Divider,
+  Breadcrumbs,
+  Link,
+  Stack,
 } from "@mui/material";
 import {
   CalendarToday as CalendarIcon,
@@ -31,10 +34,16 @@ import {
   CheckCircle as CheckIcon,
   Cancel as CancelIcon,
   Close as CloseIcon,
+  Home as HomeIcon,
+  NavigateNext as NavigateNextIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import axiosInstance from "../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import CreateMeetingModal from "@/components/CreateMeetingModal";
+import EditMeetingModal from "@/components/EditMeetingModal";
+import { useRouter } from "next/navigation";
 
 interface Meeting {
   _id: string;
@@ -95,6 +104,7 @@ interface MeetingsData {
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
   const [meetingsData, setMeetingsData] = useState<MeetingsData | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
@@ -102,6 +112,7 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const [editMeetingOpen, setEditMeetingOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
@@ -321,12 +332,12 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-[#f8f9fb]">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-56">
-          <div className="flex justify-center items-center min-h-screen">
-            <CircularProgress />
-          </div>
+        <main>
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <CircularProgress size={28} />
+          </Box>
         </main>
       </div>
     );
@@ -334,10 +345,12 @@ export default function CalendarPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-[#f8f9fb]">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-56">
-          <Alert severity="error">{error}</Alert>
+        <main>
+          <Box sx={{ px: 3, py: 3 }}>
+            <Alert severity="error">{error}</Alert>
+          </Box>
         </main>
       </div>
     );
@@ -364,6 +377,37 @@ export default function CalendarPage() {
   // Check if user can manage meeting (mentor for their projects)
   const canManageMeeting = (meeting: Meeting) => {
     return userRole === "4" && meeting.mentor_id?._id === currentUserId;
+  };
+
+  // Check if user can edit/delete meeting (only creator when pending)
+  const canEditDeleteMeeting = (meeting: Meeting) => {
+    return meeting.status === 'pending' && meeting.requested_by?._id === currentUserId;
+  };
+
+  // Handle delete meeting
+  const handleDeleteMeeting = async (meetingId: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa lịch họp này?')) {
+      return;
+    }
+
+    try {
+      const response = await axiosInstance.delete(`/api/meetings/${meetingId}`);
+      
+      if (response.data.success) {
+        // Reload data to reflect changes
+        window.location.reload();
+      }
+    } catch (error: any) {
+      console.error('Error deleting meeting:', error);
+      setError(error?.response?.data?.message || 'Có lỗi xảy ra khi xóa lịch họp');
+    }
+  };
+
+  // Handle edit meeting
+  const handleEditMeeting = (meeting: Meeting) => {
+    setSelectedMeeting(meeting);
+    setDetailDialogOpen(false);
+    setEditMeetingOpen(true);
   };
 
   const meetingsToDisplay = meetingsData?.allMeetings || [];
@@ -446,7 +490,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f8f9fb]">
       <style>{`
         /* Custom scrollbar for calendar cells - Horizontal */
         .calendar-scroll::-webkit-scrollbar {
@@ -475,62 +519,185 @@ export default function CalendarPage() {
         .gc-all-day-chip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       `}</style>
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-56">
-        <div className="mx-auto w-full max-w-7xl">
-          {/* Header */}
-          <div className="mb-6 md:mb-8 flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="text-[10px] md:text-xs uppercase tracking-wider text-gray-500 font-medium">📅 Lịch họp</div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight" style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                Lịch họp của tôi
-              </h1>
-            </div>
-          </div>
-
-          {/* Week Navigation & Controls */}
-          <Card className="mb-6" sx={{ boxShadow: 2 }}>
-            <CardContent>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Button variant="outlined" onClick={goToPrevWeek}>‹</Button>
-                  <Button variant="outlined" onClick={goToToday}>Hôm nay</Button>
-                  <Button variant="outlined" onClick={goToNextWeek}>›</Button>
-                  <Typography variant="h6" className="ml-2">
-                    {startOfWeek.toLocaleDateString('vi-VN', { month: 'long', day: 'numeric' })}
-                    {" – "}
-                    {new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6)
-                      .toLocaleDateString('vi-VN', { month: 'long', day: 'numeric', year: 'numeric' })}
+      <main>
+        <div className="w-full">
+          {/* ClickUp-style Top Bar (standardized) */}
+          <Box 
+            sx={{ 
+              bgcolor: 'white',
+              borderBottom: '1px solid #e8e9eb',
+              px: 3,
+              py: 2,
+              position: 'sticky',
+              top: 64, // Below the Header component (h-16 = 64px)
+              zIndex: 90, // Lower than Header dropdown but higher than content
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Title with Icon */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 2.5,
+                  background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(123, 104, 238, 0.25)',
+                }}>
+                  <CalendarIcon sx={{ fontSize: 28, color: 'white' }} />
+                </Box>
+                <Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700,
+                      color: '#1f2937',
+                      fontSize: '24px',
+                      mb: 0.5
+                    }}
+                  >
+                    Lịch họp
                   </Typography>
-                </div>
-                <div className="flex gap-2">
-                  {userRole === "4" && (
+                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                    Quản lý và theo dõi lịch họp của bạn
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Right Actions */}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                {userRole === "4" && (
                   <Button
                     variant="outlined"
-                      onClick={() => setPendingDialogOpen(true)}
-                    >
-                      Yêu cầu chờ duyệt
+                    onClick={() => setPendingDialogOpen(true)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      borderColor: '#e8e9eb',
+                      color: '#49516f',
+                      '&:hover': {
+                        borderColor: '#7b68ee',
+                        bgcolor: '#f3f0ff',
+                      }
+                    }}
+                  >
+                    Yêu cầu chờ duyệt
                   </Button>
-                  )}
-                  <div className="mr-2">
-                    <div className="inline-flex rounded-md overflow-hidden border">
-                      <button className={`px-3 py-1 text-sm ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white'}`} onClick={() => setViewMode('day')}>Day</button>
-                      <button className={`px-3 py-1 text-sm ${viewMode === 'week' ? 'bg-blue-600 text-white' : 'bg-white'}`} onClick={() => setViewMode('week')}>Week</button>
-                </div>
-                  </div>
-                  {(userRole === "1" || userRole === "4") && (
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateMeetingOpen(true)}>
-                      Tạo lịch họp
+                )}
+                {(userRole === "1" || userRole === "4") && (
+                  <Button 
+                    variant="contained" 
+                    startIcon={<AddIcon />} 
+                    onClick={() => setCreateMeetingOpen(true)}
+                    sx={{
+                      textTransform: 'none',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #6a5acd, #8b4a9f)',
+                      }
+                    }}
+                  >
+                    Tạo lịch họp
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          </Box>
+
+          {/* Week Navigation & Controls */}
+          <Box sx={{ px: 3, py: 3 }}>
+            <Card className="mb-6" sx={{ boxShadow: 2 }}>
+              <CardContent>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outlined" 
+                      onClick={goToPrevWeek}
+                      sx={{
+                        textTransform: 'none',
+                        minWidth: '40px',
+                        borderColor: '#e8e9eb',
+                        color: '#49516f',
+                        '&:hover': {
+                          borderColor: '#7b68ee',
+                          bgcolor: '#f3f0ff',
+                        }
+                      }}
+                    >
+                      ‹
                     </Button>
-                  )}
+                    <Button 
+                      variant="outlined" 
+                      onClick={goToToday}
+                      sx={{
+                        textTransform: 'none',
+                        borderColor: '#e8e9eb',
+                        color: '#49516f',
+                        '&:hover': {
+                          borderColor: '#7b68ee',
+                          bgcolor: '#f3f0ff',
+                        }
+                      }}
+                    >
+                      Hôm nay
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      onClick={goToNextWeek}
+                      sx={{
+                        textTransform: 'none',
+                        minWidth: '40px',
+                        borderColor: '#e8e9eb',
+                        color: '#49516f',
+                        '&:hover': {
+                          borderColor: '#7b68ee',
+                          bgcolor: '#f3f0ff',
+                        }
+                      }}
+                    >
+                      ›
+                    </Button>
+                    <Typography variant="h6" className="ml-2" sx={{ fontSize: '16px', fontWeight: 600, color: '#1f2937' }}>
+                      {startOfWeek.toLocaleDateString('vi-VN', { month: 'long', day: 'numeric' })}
+                      {" – "}
+                      {new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6)
+                        .toLocaleDateString('vi-VN', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </Typography>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="mr-2">
+                      <div className="inline-flex rounded-md overflow-hidden border border-gray-300">
+                        <button 
+                          className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                            viewMode === 'day' 
+                              ? 'bg-[#7b68ee] text-white' 
+                              : 'bg-white text-gray-700 hover:bg-gray-50'
+                          }`} 
+                          onClick={() => setViewMode('day')}
+                        >
+                          Day
+                        </button>
+                        <button 
+                          className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                            viewMode === 'week' 
+                              ? 'bg-[#7b68ee] text-white' 
+                              : 'bg-white text-gray-700 hover:bg-gray-50'
+                          }`} 
+                          onClick={() => setViewMode('week')}
+                        >
+                          Week
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
           {/* Week Grid (Google Calendar-like) */}
           {loading ? (
@@ -738,6 +905,7 @@ export default function CalendarPage() {
               </CardContent>
             </Card>
           )}
+          </Box>
         </div>
       </main>
 
@@ -749,6 +917,20 @@ export default function CalendarPage() {
           // Reload data after successful creation
           window.location.reload();
         }}
+      />
+
+      {/* Edit Meeting Modal */}
+      <EditMeetingModal
+        open={editMeetingOpen}
+        onClose={() => {
+          setEditMeetingOpen(false);
+          setSelectedMeeting(null);
+        }}
+        onSuccess={() => {
+          // Reload data after successful update
+          window.location.reload();
+        }}
+        meeting={selectedMeeting}
       />
 
       {/* Meeting Detail Modal */}
@@ -929,51 +1111,97 @@ export default function CalendarPage() {
             </DialogContent>
 
             <DialogActions sx={{ p: 3, backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-              {/* Mentor Actions */}
-              {canManageMeeting(selectedMeeting) && selectedMeeting.status === 'pending' && (
-                <>
+              <Box display="flex" justifyContent="space-between" width="100%" alignItems="center">
+                <Box>
+                  {/* Creator Actions - Edit & Delete (only when pending) */}
+                  {canEditDeleteMeeting(selectedMeeting) && (
+                    <>
+                      <Button
+                        variant="outlined"
+                        startIcon={<EditIcon />}
+                        onClick={() => handleEditMeeting(selectedMeeting)}
+                        sx={{
+                          mr: 1,
+                          borderColor: '#7b68ee',
+                          color: '#7b68ee',
+                          '&:hover': {
+                            borderColor: '#6a5acd',
+                            backgroundColor: '#f3f0ff',
+                          }
+                        }}
+                      >
+                        Sửa
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => {
+                          handleDeleteMeeting(selectedMeeting._id);
+                          setDetailDialogOpen(false);
+                        }}
+                        sx={{
+                          mr: 1,
+                          borderColor: '#ef4444',
+                          color: '#ef4444',
+                          '&:hover': {
+                            borderColor: '#dc2626',
+                            backgroundColor: '#fef2f2',
+                          }
+                        }}
+                      >
+                        Xóa
+                      </Button>
+                    </>
+                  )}
+                </Box>
+                
+                <Box display="flex" gap={1}>
+                  {/* Mentor Actions */}
+                  {canManageMeeting(selectedMeeting) && selectedMeeting.status === 'pending' && (
+                    <>
+                      <Button
+                        variant="contained"
+                        startIcon={<CheckIcon />}
+                        onClick={() => {
+                          handleMeetingStatusUpdate(selectedMeeting._id, 'approved');
+                          setDetailDialogOpen(false);
+                        }}
+                        sx={{
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                          }
+                        }}
+                      >
+                        Chấp nhận
+                      </Button>
+                      <Button
+                        variant="contained"
+                        startIcon={<CancelIcon />}
+                        onClick={() => {
+                          const reason = prompt('Nhập lý do từ chối (tùy chọn):');
+                          handleMeetingStatusUpdate(selectedMeeting._id, 'rejected', reason || 'Không có lý do cụ thể');
+                          setDetailDialogOpen(false);
+                        }}
+                        sx={{
+                          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                          }
+                        }}
+                      >
+                        Từ chối
+                      </Button>
+                    </>
+                  )}
                   <Button
-                    variant="contained"
-                    startIcon={<CheckIcon />}
-                    onClick={() => {
-                      handleMeetingStatusUpdate(selectedMeeting._id, 'approved');
-                      setDetailDialogOpen(false);
-                    }}
-                    sx={{
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                      }
-                    }}
+                    onClick={() => setDetailDialogOpen(false)}
+                    variant="outlined"
                   >
-                    Chấp nhận
+                    Đóng
                   </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<CancelIcon />}
-                    onClick={() => {
-                      const reason = prompt('Nhập lý do từ chối (tùy chọn):');
-                      handleMeetingStatusUpdate(selectedMeeting._id, 'rejected', reason || 'Không có lý do cụ thể');
-                      setDetailDialogOpen(false);
-                    }}
-                    sx={{
-                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                      }
-                    }}
-                  >
-                    Từ chối
-                  </Button>
-                </>
-              )}
-              <Button
-                onClick={() => setDetailDialogOpen(false)}
-                variant="outlined"
-                sx={{ ml: 'auto' }}
-              >
-                Đóng
-              </Button>
+                </Box>
+              </Box>
             </DialogActions>
           </>
         )}
