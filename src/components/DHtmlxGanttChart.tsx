@@ -51,12 +51,20 @@ interface DHtmlxGanttChartProps {
 
 // Helper function for status colors
 function getStatusColor(status?: string): string {
-  const s = (status || '').toLowerCase();
-  if (s.includes('done') || s.includes('completed')) return '#00c875';
-  if (s.includes('progress')) return '#00d4ff';
-  if (s.includes('review')) return '#a25ddc';
-  if (s.includes('blocked')) return '#e44258';
-  return '#579bfc';
+  const s = (status || '').trim();
+  // Map exact status values
+  if (s === 'Done') return '#00c875'; // Green
+  if (s === 'Doing') return '#579bfc'; // Blue
+  if (s === 'To Do') return '#f59e0b'; // Orange
+  
+  // Fallback for other status formats (case-insensitive)
+  const sLower = s.toLowerCase();
+  if (sLower.includes('done') || sLower.includes('completed')) return '#00c875';
+  if (sLower.includes('doing') || sLower.includes('progress')) return '#579bfc';
+  if (sLower.includes('to do') || sLower.includes('todo')) return '#f59e0b';
+  if (sLower.includes('review')) return '#a25ddc';
+  if (sLower.includes('blocked')) return '#e44258';
+  return '#579bfc'; // Default blue
 }
 
 export default function DHtmlxGanttChart({ 
@@ -233,12 +241,20 @@ export default function DHtmlxGanttChart({
         return "gantt-task-function"; // Special class for functions
       }
       
-      const status = (task.status_name || '').toLowerCase();
-      if (status.includes('done') || status.includes('completed')) return "gantt-task-completed";
-      if (status.includes('progress')) return "gantt-task-progress";
-      if (status.includes('review')) return "gantt-task-review";
-      if (status.includes('blocked')) return "gantt-task-blocked";
-      return "gantt-task-default";
+      const status = (task.status_name || '').trim();
+      // Map exact status values
+      if (status === 'Done') return "gantt-task-completed"; // Green
+      if (status === 'Doing') return "gantt-task-progress"; // Blue
+      if (status === 'To Do') return "gantt-task-todo"; // Orange
+      
+      // Fallback for other status formats (case-insensitive)
+      const statusLower = status.toLowerCase();
+      if (statusLower.includes('done') || statusLower.includes('completed')) return "gantt-task-completed";
+      if (statusLower.includes('doing') || statusLower.includes('progress')) return "gantt-task-progress";
+      if (statusLower.includes('to do') || statusLower.includes('todo')) return "gantt-task-todo";
+      if (statusLower.includes('review')) return "gantt-task-review";
+      if (statusLower.includes('blocked')) return "gantt-task-blocked";
+      return "gantt-task-default"; // Default blue
     };
 
     // Task text - always show full text
@@ -1152,14 +1168,24 @@ export default function DHtmlxGanttChart({
           background: linear-gradient(135deg, #00c875 0%, #00a560 100%);
         }
 
-        /* Task Bars - In Progress */
+        /* Task Bars - In Progress / Doing (Blue) */
         .gantt-task-progress .gantt_task_progress {
-          background: linear-gradient(135deg, #00d4ff 0%, #00a6cc 100%);
-          box-shadow: 0 2px 6px rgba(0, 212, 255, 0.3);
+          background: linear-gradient(135deg, #579bfc 0%, #4179d6 100%);
+          box-shadow: 0 2px 6px rgba(87, 155, 252, 0.3);
         }
 
         .gantt-task-progress .gantt_task_content {
-          background: linear-gradient(135deg, #00d4ff 0%, #00a6cc 100%);
+          background: linear-gradient(135deg, #579bfc 0%, #4179d6 100%);
+        }
+
+        /* Task Bars - To Do (Orange) */
+        .gantt-task-todo .gantt_task_progress {
+          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+        }
+
+        .gantt-task-todo .gantt_task_content {
+          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
         }
 
         /* Task Bars - Review */

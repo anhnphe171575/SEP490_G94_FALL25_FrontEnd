@@ -34,9 +34,10 @@ interface TaskDetailsDependenciesProps {
   taskId: string | null;
   projectId?: string;
   onTaskUpdate?: () => void | Promise<void>;
+  readonly?: boolean;
 }
 
-export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdate }: TaskDetailsDependenciesProps) {
+export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdate, readonly = false }: TaskDetailsDependenciesProps) {
   const [dependencies, setDependencies] = useState<any[]>([]);
   const [dependents, setDependents] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
@@ -545,19 +546,21 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                     </Box>
 
                     {/* Delete Button */}
-                    <IconButton
-                      size="small"
-                      onClick={() => removeDependency(dep._id)}
-                      sx={{
-                        color: '#9ca3af',
-                        '&:hover': {
-                          color: '#ef4444',
-                          bgcolor: '#fee2e2'
-                        }
-                      }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
+                    {!readonly && (
+                      <IconButton
+                        size="small"
+                        onClick={() => removeDependency(dep._id)}
+                        sx={{
+                          color: '#9ca3af',
+                          '&:hover': {
+                            color: '#ef4444',
+                            bgcolor: '#fee2e2'
+                          }
+                        }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    )}
                   </Stack>
 
                   {/* Dependency Type Description */}
@@ -595,7 +598,7 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
         )}
 
         {/* Add Dependency Form */}
-        {showAddForm ? (
+        {showAddForm && !readonly ? (
           <Paper
             elevation={0}
             sx={{
@@ -789,29 +792,31 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             </Stack>
           </Paper>
         ) : (
-          <Button
-            fullWidth
-            startIcon={<AddIcon />}
-            onClick={() => setShowAddForm(true)}
-            sx={{
-              mt: 2,
-              py: 1.5,
-              borderRadius: 2,
-              border: '2px dashed #e8e9eb',
-              bgcolor: 'transparent',
-              color: '#9ca3af',
-              fontSize: '13px',
-              fontWeight: 600,
-              textTransform: 'none',
-              '&:hover': {
-                borderColor: '#7b68ee',
-                bgcolor: '#f5f3ff',
-                color: '#7b68ee'
-              }
-            }}
-          >
-            Thêm Phụ thuộc Chặn
-          </Button>
+          !readonly && (
+            <Button
+              fullWidth
+              startIcon={<AddIcon />}
+              onClick={() => setShowAddForm(true)}
+              sx={{
+                mt: 2,
+                py: 1.5,
+                borderRadius: 2,
+                border: '2px dashed #e8e9eb',
+                bgcolor: 'transparent',
+                color: '#9ca3af',
+                fontSize: '13px',
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#7b68ee',
+                  bgcolor: '#f5f3ff',
+                  color: '#7b68ee'
+                }
+              }}
+            >
+              Thêm Phụ thuộc Chặn
+            </Button>
+          )
         )}
       </Box>
 

@@ -24,9 +24,10 @@ import CancelIcon from "@mui/icons-material/Cancel";
 interface TaskDetailsOverviewProps {
   task: any;
   onUpdate: (updates: any) => Promise<void>;
+  readonly?: boolean;
 }
 
-export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverviewProps) {
+export default function TaskDetailsOverview({ task, onUpdate, readonly = false }: TaskDetailsOverviewProps) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     title: task?.title || '',
@@ -80,7 +81,7 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
           <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
             Mô tả
           </Typography>
-          {!editing && (
+          {!editing && !readonly && (
             <Button 
               size="small"
               startIcon={<EditIcon sx={{ fontSize: 16 }} />}
@@ -158,13 +159,13 @@ export default function TaskDetailsOverview({ task, onUpdate }: TaskDetailsOverv
               borderRadius: 2,
               border: '1px solid #e8e9eb',
               minHeight: 120,
-              cursor: 'text',
-              '&:hover': {
+              cursor: readonly ? 'default' : 'text',
+              '&:hover': readonly ? {} : {
                 borderColor: '#d1d5db',
                 bgcolor: '#f9fafb'
               }
             }}
-            onClick={() => setEditing(true)}
+            onClick={readonly ? undefined : () => setEditing(true)}
           >
             {task?.description ? (
               <Typography 

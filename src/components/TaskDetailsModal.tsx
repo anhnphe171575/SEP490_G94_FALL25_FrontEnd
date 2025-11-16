@@ -76,9 +76,10 @@ interface TaskDetailsModalProps {
   projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
+  readonly?: boolean; // If true, disable edit, add dependency, etc. Only allow view and add comment
 }
 
-export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate }: TaskDetailsModalProps) {
+export default function TaskDetailsModal({ open, taskId, projectId, onClose, onUpdate, readonly = false }: TaskDetailsModalProps) {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -474,13 +475,13 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   <Typography 
                     variant="h5" 
                     fontWeight={700}
-                    onClick={handleStartEditTitle}
+                    onClick={readonly ? undefined : handleStartEditTitle}
                     sx={{ 
                       color: '#1f2937',
                       lineHeight: 1.3,
-                      cursor: 'text',
+                      cursor: readonly ? 'default' : 'text',
                       flex: 1,
-                      '&:hover': {
+                      '&:hover': readonly ? {} : {
                         bgcolor: '#f9fafb',
                         px: 1,
                         mx: -1,
@@ -625,9 +626,9 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
             <>
               {getTabContent(currentTab) === 'overview' && <TaskDetailsOverview key={task?.updatedAt || task?._id} task={task} onUpdate={async (updates: any) => {
                 await handleTaskUpdate(updates);
-              }} />}
-              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} />}
-              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments key={task?.updatedAt || task?._id} taskId={taskId} />}
+              }} readonly={readonly} />}
+              {getTabContent(currentTab) === 'dependencies' && <TaskDetailsDependencies key={task?.updatedAt || task?._id} taskId={taskId} projectId={projectId} onTaskUpdate={loadTaskDetails} readonly={readonly} />}
+              {getTabContent(currentTab) === 'comments' && <TaskDetailsComments key={task?.updatedAt || task?._id} taskId={taskId} readonly={readonly} />}
               {getTabContent(currentTab) === 'files' && <TaskDetailsAttachments key={task?.updatedAt || task?._id} taskId={taskId} />}
               {getTabContent(currentTab) === 'activity' && <TaskDetailsActivity key={task?.updatedAt || task?._id} taskId={taskId} />}
             </>
@@ -658,6 +659,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
+                  disabled={readonly}
                   value={typeof task?.status === 'object' ? (task.status as any)?._id : task?.status || ''}
                   onChange={async (e) => {
                     try {
@@ -702,6 +704,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
+                  disabled={readonly}
                   value={typeof task?.priority === 'object' ? (task.priority as any)?._id : task?.priority || ''}
                   onChange={async (e) => {
                     try {
@@ -802,6 +805,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
+                  disabled={readonly}
                   value={typeof task?.function_id === 'object' ? task.function_id?._id || '' : task?.function_id || ''}
                   onChange={async (e) => {
                     const newFunctionId = e.target.value;
@@ -894,6 +898,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
+                  disabled={readonly}
                   value={typeof task?.assignee_id === 'object' ? task.assignee_id?._id || '' : task?.assignee_id || ''}
                   onChange={async (e) => {
                     try {
@@ -992,6 +997,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 type="date"
                 fullWidth
                 size="small"
+                disabled={readonly}
                 value={task?.start_date ? new Date(task.start_date).toISOString().split('T')[0] : ''}
                 onChange={async (e) => {
                   if (hasMandatoryDependencies) {
@@ -1052,6 +1058,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                 type="date"
                 fullWidth
                 size="small"
+                disabled={readonly}
                 value={task?.deadline ? new Date(task.deadline).toISOString().split('T')[0] : ''}
                 onChange={async (e) => {
                   if (hasMandatoryDependencies) {
