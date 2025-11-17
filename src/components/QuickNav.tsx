@@ -6,11 +6,17 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
   const router = useRouter();
   const pathname = usePathname();
 
-  const items = [
+  const supervisorBasePath = selectedProject ? `/supervisor/projects/${selectedProject}` : "/supervisor/projects";
+  const buildHref = (segment: string) => {
+    if (!selectedProject) return supervisorBasePath;
+    return `${supervisorBasePath}/${segment}?project_id=${selectedProject}`;
+  };
+
+  const navItems = [
     {
       key: "contributors",
       label: "Đóng góp",
-      href: selectedProject ? `/supervisor/contributor?project_id=${selectedProject}` : "/supervisor/contributor",
+      segment: "contributor",
       projectScoped: true,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -18,12 +24,11 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
         </svg>
       ),
     },
-    
     {
       key: "task",
       label: "Công việc",
-      href: selectedProject ? `/supervisor/task?project_id=${selectedProject}` : "/supervisor/task",
-      projectScoped: false,
+      segment: "task",
+      projectScoped: true,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -33,7 +38,7 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
     {
       key: "kanban",
       label: "Kanban Board",
-      href: selectedProject ? `/supervisor/kanban-board?project_id=${selectedProject}` : "/supervisor/kanban-board",
+      segment: "kanban-board",
       projectScoped: true,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,42 +49,45 @@ export default function QuickNav({ selectedProject }: { selectedProject?: string
     {
       key: "progress",
       label: "Progress",
-      href: selectedProject ? `/supervisor/progress-task?project_id=${selectedProject}` : "/supervisor/progress-task",
+      segment: "progress-task",
       projectScoped: true,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-    }
+    },
   ];
 
   return (
     <nav className="flex items-center gap-1 bg-white/60 backdrop-blur-sm rounded-xl border border-slate-200/80 p-1 shadow-sm">
-      {items.map((it) => {
-        const disabled = !selectedProject && it.projectScoped;
-        const isActive = pathname?.startsWith(it.href.split('?')[0]);
-        
+      {navItems.map((item) => {
+        const disabled = !selectedProject && item.projectScoped;
+        const href = buildHref(item.segment);
+        const hrefWithoutQuery = href.split("?")[0];
+        const isActive =
+          pathname === hrefWithoutQuery || pathname?.startsWith(`${hrefWithoutQuery}/`);
+
         return (
           <button
-            key={it.key}
+            key={item.key}
             onClick={() => {
               if (!disabled) {
-                router.push(it.href);
+                router.push(href);
               }
             }}
             disabled={disabled}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
               disabled
-                ? 'opacity-40 cursor-not-allowed text-gray-400'
+                ? "opacity-40 cursor-not-allowed text-gray-400"
                 : isActive
-                ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md'
-                : 'text-slate-700 hover:bg-slate-100 hover:text-indigo-600'
+                ? "bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md"
+                : "text-slate-700 hover:bg-slate-100 hover:text-indigo-600"
             }`}
-            title={disabled ? 'Vui lòng chọn project trước' : it.label}
+            title={disabled ? "Vui lòng chọn project trước" : item.label}
           >
-            {it.icon}
-            <span className="hidden sm:inline">{it.label}</span>
+            {item.icon}
+            <span className="hidden sm:inline">{item.label}</span>
           </button>
         );
       })}

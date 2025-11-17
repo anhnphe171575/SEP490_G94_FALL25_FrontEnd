@@ -502,6 +502,22 @@ export default function DHtmlxGanttChart({
     removeErrorMessages();
     messageCleanupInterval = setInterval(removeErrorMessages, 100);
 
+    // Helper: safely parse start_date which may be string or Date
+    const safeParseDate = (value: any): Date | null => {
+      if (!value) return null;
+      if (value instanceof Date) {
+        return isNaN(value.getTime()) ? null : value;
+      }
+      if (typeof value === "string") {
+        const parser = gantt.date.str_to_date("%Y-%m-%d");
+        const d = parser(value);
+        return d && !isNaN(d.getTime()) ? d : null;
+      }
+      // Fallback: try Date constructor
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     // Auto-fit timeline to show all tasks
     setTimeout(() => {
       if (ganttData.data && ganttData.data.length > 0) {
@@ -509,14 +525,14 @@ export default function DHtmlxGanttChart({
         const allDates: Date[] = [];
         ganttData.data.forEach((task: any) => {
           if (task.start_date) {
-            const startDate = gantt.date.str_to_date("%Y-%m-%d")(task.start_date);
-            if (startDate && !isNaN(startDate.getTime())) {
+            const startDate = safeParseDate(task.start_date);
+            if (startDate) {
               allDates.push(startDate);
             }
           }
           if (task.duration && task.start_date) {
-            const startDate = gantt.date.str_to_date("%Y-%m-%d")(task.start_date);
-            if (startDate && !isNaN(startDate.getTime())) {
+            const startDate = safeParseDate(task.start_date);
+            if (startDate) {
               const endDate = gantt.date.add(startDate, task.duration, 'day');
               allDates.push(endDate);
             }
