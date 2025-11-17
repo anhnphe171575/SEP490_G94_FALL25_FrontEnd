@@ -37,13 +37,6 @@ export default function ResponsiveSidebar() {
   // Use projectId from URL if available, otherwise use fetched projectId
   const projectId = urlProjectId || fetchedProjectId;
   
-  // Debug: log projectId to console (remove in production)
-  useEffect(() => {
-    if (projectId) {
-      console.log('Sidebar projectId:', projectId, 'from URL:', !!urlProjectId, 'from API:', !!fetchedProjectId);
-    }
-  }, [projectId, urlProjectId, fetchedProjectId]);
-
   useEffect(() => {
     setOpen(false);
     setShowDropdown(false);
@@ -62,21 +55,31 @@ export default function ResponsiveSidebar() {
         const userData = res.data || null;
         setMe(userData);
         
+        const userId = userData?._id || userData?.id;
+        const isSupervisorUser = userData?.role === 4;
+
         // Get current project from user's projects list
         try {
-          const projectsRes = await axiosInstance.get('/api/projects');
-          const data = projectsRes.data;
-          // Check different possible response structures (based on dashboard page)
-          const projects = data?.projects || data?.data?.projects || data?.data || [];
-          console.log('Projects response:', { data, projects, length: projects?.length });
+          let projects: any[] = [];
+          if (isSupervisorUser && userId) {
+            const projectsRes = await axiosInstance.get(`/api/projects/supervisor/${userId}`);
+            const supervisorData = projectsRes.data;
+            projects = Array.isArray(supervisorData?.data) ? supervisorData.data : [];
+          } else {
+            const projectsRes = await axiosInstance.get('/api/projects');
+            const data = projectsRes.data;
+            projects = data?.projects || data?.data?.projects || data?.data || [];
+          }
+
           if (Array.isArray(projects) && projects.length > 0) {
             // Get the first project (or you can use the most recent one)
             const firstProject = projects[0];
-            const projectId = firstProject?._id || firstProject?.id;
-            console.log('Setting fetchedProjectId:', projectId);
-            if (projectId) {
-              setFetchedProjectId(projectId);
+            const newProjectId = firstProject?._id || firstProject?.id;
+            if (newProjectId) {
+              setFetchedProjectId(newProjectId);
             }
+          } else if (userData?.current_project) {
+            setFetchedProjectId(userData.current_project);
           }
         } catch (err) {
           console.error('Error fetching projects:', err);
@@ -240,8 +243,12 @@ export default function ResponsiveSidebar() {
   };
 
 
+  const isSupervisor = me?.role === 4;
+  const supervisorProjectBasePath = isSupervisor && projectId ? `/supervisor/projects/${projectId}` : null;
+  const supervisorProjectQuery = supervisorProjectBasePath ? `?project_id=${projectId}` : "";
+
   // Project-specific navigation items
-  const projectNavItems = projectId ? [
+  const baseProjectNavItems = projectId ? [
     {
       href: `/projects/${projectId}/tasks/dashboard`,
       label: "Bảng điều khiển",
@@ -286,6 +293,7 @@ export default function ResponsiveSidebar() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       )
+      
     },
     {
       href: `/projects/${projectId}/documents`,
@@ -343,6 +351,94 @@ export default function ResponsiveSidebar() {
       )
     }
   ] : [];
+  const supervisorProjectNavItems =
+    isSupervisor && supervisorProjectBasePath
+      ? [
+          {
+            href: `${supervisorProjectBasePath}/contributor${supervisorProjectQuery}`,
+            label: "Đóng góp",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            )
+          },
+          {
+            href: `${supervisorProjectBasePath}/task${supervisorProjectQuery}`,
+            label: "Công việc",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            )
+          },
+          {
+            href: `${supervisorProjectBasePath}/kanban-board${supervisorProjectQuery}`,
+            label: "Kanban Board",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            )
+          },
+          {
+            href: `${supervisorProjectBasePath}/progress-task${supervisorProjectQuery}`,
+            label: "Tiến độ",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            )
+          },
+          {
+            href: `/projects/${projectId}/documents`,
+            label: "Tài liệu",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            )
+          },
+          {
+            href: `/projects/${projectId}/team`,
+            label: "Đội nhóm",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            )
+          },
+          {
+            href: `/notifications`,
+            label: "Thông báo",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            )
+          },
+          {
+            href: `/messages`,
+            label: "Tin nhắn nhóm",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            )
+          },
+          {
+            href: `/calendar`,
+            label: "Lịch họp",
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            )
+          }
+        ]
+      : [];
+
+  const projectNavItems = isSupervisor ? supervisorProjectNavItems : baseProjectNavItems;
 
   return (
     <>
@@ -435,16 +531,27 @@ export default function ResponsiveSidebar() {
                     </h3>
                   </div>
                   {projectNavItems.map((item) => {
+                    const itemHrefWithoutQuery = item.href.split("?")[0];
+                    const projectRootPath = projectId ? `/projects/${projectId}` : null;
+                    const supervisorRootPath = projectId ? `/supervisor/projects/${projectId}` : null;
                     // Special handling for milestone (base project page)
                     let active = false;
-                    if (item.href === `/projects/${projectId}`) {
+                    if (projectRootPath && itemHrefWithoutQuery === projectRootPath) {
                       // For milestone, check if we're on the base project page (not in sub-routes)
-                      active = pathname === item.href || (pathname?.startsWith(item.href) && !pathname?.match(/\/projects\/[^\/]+\/(tasks|features|functions|documents|team|details|monitoring|notifications|messages|calendar)/));
+                      active =
+                        pathname === itemHrefWithoutQuery ||
+                        (pathname?.startsWith(itemHrefWithoutQuery) &&
+                          !pathname?.match(/\/projects\/[^\/]+\/(tasks|features|functions|documents|team|details|monitoring|notifications|messages|calendar)/));
+                    } else if (supervisorRootPath && itemHrefWithoutQuery === supervisorRootPath) {
+                      active =
+                        pathname === itemHrefWithoutQuery ||
+                        (pathname?.startsWith(itemHrefWithoutQuery) &&
+                          !pathname?.match(/\/supervisor\/projects\/[^\/]+\/(contributor|task|kanban-board|progress-task|documents|team)/));
                     } else {
-                      active = pathname === item.href || pathname?.startsWith(item.href + '/');
+                      active = pathname === itemHrefWithoutQuery || pathname?.startsWith(itemHrefWithoutQuery + '/');
                     }
-                    const isNotification = item.href === `/notifications`;
-                    const isMessages = item.href === `/messages`;
+                    const isNotification = itemHrefWithoutQuery === `/notifications`;
+                    const isMessages = itemHrefWithoutQuery === `/messages`;
                     return (
                       <Link
                         key={item.href}
@@ -525,16 +632,27 @@ export default function ResponsiveSidebar() {
                   </div>
                   <div className="space-y-1">
                     {projectNavItems.map((item) => {
+                      const itemHrefWithoutQuery = item.href.split("?")[0];
+                      const projectRootPath = projectId ? `/projects/${projectId}` : null;
+                      const supervisorRootPath = projectId ? `/supervisor/projects/${projectId}` : null;
                       // Special handling for milestone (base project page)
                       let active = false;
-                      if (item.href === `/projects/${projectId}`) {
+                      if (projectRootPath && itemHrefWithoutQuery === projectRootPath) {
                         // For milestone, check if we're on the base project page (not in sub-routes)
-                        active = pathname === item.href || (pathname?.startsWith(item.href) && !pathname?.match(/\/projects\/[^\/]+\/(tasks|features|functions|documents|team|details|monitoring|notifications|messages|calendar)/));
+                        active =
+                          pathname === itemHrefWithoutQuery ||
+                          (pathname?.startsWith(itemHrefWithoutQuery) &&
+                            !pathname?.match(/\/projects\/[^\/]+\/(tasks|features|functions|documents|team|details|monitoring|notifications|messages|calendar)/));
+                      } else if (supervisorRootPath && itemHrefWithoutQuery === supervisorRootPath) {
+                        active =
+                          pathname === itemHrefWithoutQuery ||
+                          (pathname?.startsWith(itemHrefWithoutQuery) &&
+                            !pathname?.match(/\/supervisor\/projects\/[^\/]+\/(contributor|task|kanban-board|progress-task|documents|team)/));
                       } else {
-                        active = pathname === item.href || pathname?.startsWith(item.href + '/');
+                        active = pathname === itemHrefWithoutQuery || pathname?.startsWith(itemHrefWithoutQuery + '/');
                       }
-                      const isNotification = item.href === `/projects/${projectId}/notifications`;
-                      const isMessages = item.href === `/projects/${projectId}/messages`;
+                      const isNotification = itemHrefWithoutQuery === `/projects/${projectId}/notifications` || itemHrefWithoutQuery === `/notifications`;
+                      const isMessages = itemHrefWithoutQuery === `/projects/${projectId}/messages` || itemHrefWithoutQuery === `/messages`;
                       return (
                         <Link
                           key={item.href}
