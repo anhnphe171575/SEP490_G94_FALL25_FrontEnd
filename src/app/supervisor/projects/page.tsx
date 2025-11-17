@@ -90,7 +90,6 @@ const ProjectCard = ({ project, router }: {
       </div>
     )}
 
- 
 
     {project.progress !== undefined && (
       <div className="mb-4">
@@ -108,13 +107,13 @@ const ProjectCard = ({ project, router }: {
     )}
 
     <div className="pt-4 border-t border-gray-200">
-
+     
 
       {/* Open project button */}
       <button
         onClick={(e) => {
           e.stopPropagation();
-          router.push(`/supervisor/contributor?project_id=${project._id}`);
+          router.push(`/supervisor/projects/${project._id}/task`);
         }}
         className="w-full text-purple-500 hover:text-purple-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-purple-200 hover:bg-purple-50 rounded-lg"
       >
@@ -266,7 +265,6 @@ export default function DashboardSupervisorPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <ResponsiveSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         {/* Header Section */}
         <div className="mb-8">
@@ -281,7 +279,7 @@ export default function DashboardSupervisorPage() {
                 Supervisor Dashboard
               </div>
               <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-                Dashboard Giảng viên 👨‍🏫
+                Dashboard Giảng viên 
               </h1>
               <p className="text-purple-100">
                 Quản lý và theo dõi các dự án bạn đang hướng dẫn

@@ -10,6 +10,8 @@ import dynamic from 'next/dynamic';
 import './tasks.module.css';
 import { STATUS_OPTIONS, PRIORITY_OPTIONS, TASK_TYPE_OPTIONS, normalizeStatusValue } from "@/constants/settings";
 import { toast } from "sonner";
+import { GanttFilter } from "@/components/gantt-filter";
+import type { GanttProject } from "@/components/gantt-chart";
 
 
 const DHtmlxGanttChart = dynamic(
@@ -104,6 +106,31 @@ type TaskStats = {
   total: number;
   by_status?: Record<string, number>;
   by_priority?: Record<string, number>;
+};
+
+type ApiMilestone = {
+  id: string;
+  name: string;
+  features: Array<{
+    id: string;
+    name: string;
+    functions: Array<{
+      id: string;
+      name: string;
+    }>;
+  }>;
+};
+
+type ChartDependency = {
+  _id: string;
+  task_id: string;
+  depends_on_task_id: { _id: string };
+  dependency_type: "FS" | "FF" | "SS" | "SF";
+};
+
+type DependencyBucket = {
+  dependencies: ChartDependency[];
+  dependents: ChartDependency[];
 };
 
 export default function ProjectTasksPage() {
@@ -217,6 +244,19 @@ export default function ProjectTasksPage() {
     estimate: 0,
   });
 
+  // --- Gantt chart specific state ---
+  const [ganttHierarchy, setGanttHierarchy] = useState<ApiMilestone[]>([]);
+  const [ganttProjectName, setGanttProjectName] = useState<string>("");
+  const [ganttHierarchyLoading, setGanttHierarchyLoading] = useState(false);
+  const [ganttHierarchyError, setGanttHierarchyError] = useState<string | null>(null);
+  const [selectedMilestones, setSelectedMilestones] = useState<Set<string>>(new Set());
+  const [selectedFeatures, setSelectedFeatures] = useState<Set<string>>(new Set());
+  const [selectedFunctions, setSelectedFunctions] = useState<Set<string>>(new Set());
+  const [ganttTasks, setGanttTasks] = useState<any[]>([]);
+  const [ganttDependencies, setGanttDependencies] = useState<Record<string, DependencyBucket>>({});
+  const [ganttTasksLoading, setGanttTasksLoading] = useState(false);
+  const [ganttTasksError, setGanttTasksError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!projectId) return;
     loadAll();
@@ -233,6 +273,64 @@ export default function ProjectTasksPage() {
     if (!projectId) return;
     loadTeamMembers();
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    const fetchHierarchy = async () => {
+      try {
+        setGanttHierarchyLoading(true);
+        setGanttHierarchyError(null);
+        const response = await axiosInstance.get(`/api/projects/${projectId}/gantt/hierarchy`);
+        setGanttHierarchy(response.data || []);
+
+        const projectResponse = await axiosInstance.get(`/api/projects/${projectId}`);
+        setGanttProjectName(projectResponse.data?.topic || projectResponse.data?.code || "Project");
+      } catch (err: any) {
+        setGanttHierarchy([]);
+        setGanttHierarchyError(err?.response?.data?.message || "Không thể tải dữ liệu Gantt");
+      } finally {
+        setGanttHierarchyLoading(false);
+      }
+    };
+
+    fetchHierarchy();
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || view !== "gantt") return;
+
+    const fetchGanttTasks = async () => {
+      try {
+        setGanttTasksLoading(true);
+        setGanttTasksError(null);
+        const params = new URLSearchParams();
+
+        if (selectedMilestones.size > 0) {
+          params.append("milestone_ids", Array.from(selectedMilestones).join(","));
+        }
+        if (selectedFeatures.size > 0) {
+          params.append("feature_ids", Array.from(selectedFeatures).join(","));
+        }
+        if (selectedFunctions.size > 0) {
+          params.append("function_ids", Array.from(selectedFunctions).join(","));
+        }
+
+        const response = await axiosInstance.get(`/api/projects/${projectId}/tasks/gantt?${params.toString()}`);
+        setGanttTasks(response.data?.tasks || []);
+        setGanttDependencies(response.data?.dependencies || {});
+      } catch (err: any) {
+        console.error("Error fetching gantt tasks:", err);
+        setGanttTasks([]);
+        setGanttDependencies({});
+        setGanttTasksError(err?.response?.data?.message || "Không thể tải dữ liệu Gantt");
+      } finally {
+        setGanttTasksLoading(false);
+      }
+    };
+
+    fetchGanttTasks();
+  }, [projectId, selectedMilestones, selectedFeatures, selectedFunctions, view]);
 
   // Load functions when feature_id changes
   useEffect(() => {
@@ -855,6 +953,38 @@ export default function ProjectTasksPage() {
   const resolveStatusName = (value: any) => normalizeStatusValue(
     typeof value === "object" ? value?.name : value
   );
+
+  const ganttProjectData: GanttProject | null = useMemo(() => {
+    if (!ganttHierarchy.length || !projectId) return null;
+
+    return {
+      id: projectId,
+      name: ganttProjectName,
+      milestones: ganttHierarchy.map((m) => ({
+        id: m.id,
+        name: m.name,
+        features: m.features.map((f) => ({
+          id: f.id,
+          name: f.name,
+          functions: f.functions.map((fn) => ({
+            id: fn.id,
+            name: fn.name,
+            tasks: [],
+          })),
+        })),
+      })),
+    };
+  }, [ganttHierarchy, projectId, ganttProjectName]);
+
+  const handleGanttFilterChange = (filters: {
+    milestones: Set<string>;
+    features: Set<string>;
+    functions: Set<string>;
+  }) => {
+    setSelectedMilestones(filters.milestones);
+    setSelectedFeatures(filters.features);
+    setSelectedFunctions(filters.functions);
+  };
 
   const groupedByStatus = useMemo(() => {
     const groups: Record<string, Task[]> = {};
@@ -3613,12 +3743,43 @@ export default function ProjectTasksPage() {
 
           {/* ClickUp Gantt Chart View */}
           {view === "gantt" && (
-            <Box sx={{ height: 'calc(100vh - 250px)' }}>
-              <DHtmlxGanttChart 
-                tasks={tasks}
-                dependencies={taskDependencies}
-                onTaskClick={openTaskDetailsModal}
-              />
+            <Box sx={{ height: 'calc(100vh - 250px)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {ganttHierarchyLoading ? (
+                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'white', borderRadius: 2 }}>
+                  <CircularProgress />
+                </Box>
+              ) : ganttHierarchyError ? (
+                <Alert severity="error">{ganttHierarchyError}</Alert>
+              ) : !ganttProjectData ? (
+                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'white', borderRadius: 2, color: '#94a3b8' }}>
+                  Không có dữ liệu milestone/feature/function cho dự án này.
+                </Box>
+              ) : (
+                <>
+                  <Box sx={{ bgcolor: 'white', p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                    <GanttFilter milestones={ganttProjectData.milestones} onFilterChange={handleGanttFilterChange} />
+                  </Box>
+                  {ganttTasksLoading ? (
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'white', borderRadius: 2 }}>
+                      Đang tải dữ liệu Gantt...
+                    </Box>
+                  ) : ganttTasksError ? (
+                    <Alert severity="error">{ganttTasksError}</Alert>
+                  ) : ganttTasks.length > 0 ? (
+                    <Box sx={{ flex: 1 }}>
+                      <DHtmlxGanttChart
+                        tasks={ganttTasks}
+                        dependencies={ganttDependencies}
+                        onTaskClick={openTaskDetailsModal}
+                      />
+                    </Box>
+                  ) : (
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'white', borderRadius: 2, color: '#94a3b8' }}>
+                      Không có task phù hợp với bộ lọc hiện tại.
+                    </Box>
+                  )}
+                </>
+              )}
             </Box>
           )}
 

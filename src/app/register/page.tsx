@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -29,6 +30,22 @@ export default function RegisterPage() {
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [country, setCountry] = useState("Việt Nam");
+
+  useEffect(() => {
+    const shouldVerify = searchParams.get("verify");
+    const emailFromQuery = searchParams.get("email");
+    const messageFromQuery = searchParams.get("msg");
+
+    if (shouldVerify === "1" && emailFromQuery) {
+      setRegisteredEmail(emailFromQuery);
+      setStep("verify");
+      setSuccess(
+        messageFromQuery ||
+          "Tài khoản của bạn chưa được xác thực. Vui lòng nhập mã OTP đã được gửi đến email."
+      );
+      setError(null);
+    }
+  }, [searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,7 +283,7 @@ export default function RegisterPage() {
             className="w-[400px] h-[220px] object-contain mb-2"
             style={{ maxWidth: "100%" }}
           />
-        </div>
+      </div>
 
         {/* Right side: register form or OTP verification */}
         <div className="flex-1 flex flex-col justify-center px-6 py-6 md:px-8 md:py-8">
@@ -276,21 +293,21 @@ export default function RegisterPage() {
                 <h3 className="text-xl md:text-2xl font-bold text-green-600 mb-1">SoftCapstone</h3>
                 <h4 className="text-base md:text-lg font-semibold text-gray-800 mb-0.5">Tạo tài khoản mới</h4>
                 <p className="text-xs md:text-sm text-gray-600">Điền thông tin để đăng ký tài khoản</p>
-              </div>
+          </div>
 
-              {/* Form đăng ký */}
+          {/* Form đăng ký */}
               <div className="bg-white/50 rounded-xl p-3 md:p-4">
-                {error && (
+            {error && (
                   <div className={`mb-3 border px-3 py-2 rounded text-sm ${
                     error.includes('không cần phải đăng ký') || error.includes('đăng nhập')
                       ? 'bg-blue-50 border-blue-400 text-blue-700'
                       : 'bg-red-100 border-red-400 text-red-700'
                   }`}>
-                    <div className="flex items-start">
+                <div className="flex items-start">
                       {(error.includes('không cần phải đăng ký') || error.includes('đăng nhập')) && (
                         <svg className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
+                  </svg>
                       )}
                       <div className="flex-1">
                         <p className="font-semibold mb-1">{error}</p>
@@ -306,9 +323,9 @@ export default function RegisterPage() {
                           </div>
                         )}
                       </div>
-                    </div>
-                  </div>
-                )}
+                </div>
+              </div>
+            )}
 
             <form onSubmit={onSubmit} className="space-y-2.5 md:space-y-3">
               {/* Full Name */}
@@ -316,15 +333,15 @@ export default function RegisterPage() {
                 <label htmlFor="fullName" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                   Họ và tên <span className="text-red-500">*</span>
                 </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  <input
+                    id="fullName"
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                   className="w-full px-3 py-1.5 md:px-4 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
-                  placeholder="Nguyễn Văn A"
-                />
+                    placeholder="Nguyễn Văn A"
+                  />
               </div>
 
               {/* Email */}
@@ -332,11 +349,11 @@ export default function RegisterPage() {
                 <label htmlFor="email" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                   Địa chỉ Email <span className="text-red-500">*</span>
                 </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     setError(null); // Clear error when typing
@@ -358,7 +375,7 @@ export default function RegisterPage() {
                       </a>
                       {" "}thay vì đăng ký.
                     </p>
-                  </div>
+                </div>
                 ) : (
                   <p className="text-xs text-gray-500 mt-0.5">
                     Email FPT (@fpt.edu.vn) không thể đăng ký. Nếu bạn có email FPT, vui lòng{" "}
@@ -376,30 +393,30 @@ export default function RegisterPage() {
                   <label htmlFor="password" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                     Mật khẩu <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    <input
+                      id="password"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                     className="w-full px-3 py-1.5 md:px-4 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
-                    placeholder="••••••••"
-                  />
+                      placeholder="••••••••"
+                    />
                 </div>
 
                 <div>
                   <label htmlFor="confirmPassword" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                     Xác nhận mật khẩu <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full px-3 py-1.5 md:px-4 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
-                    placeholder="••••••••"
-                  />
+                      placeholder="••••••••"
+                    />
                 </div>
               </div>
 
@@ -409,25 +426,25 @@ export default function RegisterPage() {
                   <label htmlFor="phone" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                     Số điện thoại <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    id="phone"
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    <input
+                      id="phone"
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
                     className="w-full px-3 py-1.5 md:px-4 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
-                    placeholder="0123456789"
-                  />
+                      placeholder="0123456789"
+                    />
                 </div>
 
                 <div>
                   <label htmlFor="dob" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                     Ngày sinh <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    id="dob"
+                    <input
+                      id="dob"
                     type="text"
-                    required
+                      required
                     value={dobDisplay}
                     onChange={(e) => {
                       let value = e.target.value;
@@ -470,14 +487,14 @@ export default function RegisterPage() {
                 <label htmlFor="major" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                   Chuyên ngành
                 </label>
-                <input
-                  id="major"
-                  type="text"
-                  value={major}
-                  onChange={(e) => setMajor(e.target.value)}
+                  <input
+                    id="major"
+                    type="text"
+                    value={major}
+                    onChange={(e) => setMajor(e.target.value)}
                   className="w-full px-3 py-1.5 md:px-4 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
-                  placeholder="Software Engineering"
-                />
+                    placeholder="Software Engineering"
+                  />
               </div>
 
               {/* Address Section */}
@@ -489,15 +506,15 @@ export default function RegisterPage() {
                   <label htmlFor="street" className="block text-xs md:text-sm font-medium text-gray-700 mb-0.5">
                     Đường/Phố <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    id="street"
-                    type="text"
-                    required
-                    value={street}
-                    onChange={(e) => setStreet(e.target.value)}
+                    <input
+                      id="street"
+                      type="text"
+                      required
+                      value={street}
+                      onChange={(e) => setStreet(e.target.value)}
                     className="w-full px-3 py-1.5 md:px-4 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 text-gray-900 bg-white"
-                    placeholder="123 Đường ABC"
-                  />
+                      placeholder="123 Đường ABC"
+                    />
                 </div>
 
                 {/* City và Postal Code - Grid trên tablet/desktop */}
@@ -560,7 +577,7 @@ export default function RegisterPage() {
               </button>
             </form>
 
-                {/* Link to Login */}
+            {/* Link to Login */}
                 <div className="mt-2 md:mt-3 text-center">
                   <p className="text-xs md:text-sm text-gray-600">
                     Đã có tài khoản?{" "}
@@ -661,13 +678,13 @@ export default function RegisterPage() {
 
                 <div className="mt-3 text-center">
                   <p className="text-xs md:text-sm text-gray-600">
-                    Đã có tài khoản?{" "}
+                Đã có tài khoản?{" "}
                     <a href="/login" className="font-semibold text-green-600 hover:text-green-700 hover:underline transition-colors duration-200">
-                      Đăng nhập ngay
-                    </a>
-                  </p>
-                </div>
-              </div>
+                  Đăng nhập ngay
+                </a>
+              </p>
+            </div>
+          </div>
             </>
           )}
         </div>
