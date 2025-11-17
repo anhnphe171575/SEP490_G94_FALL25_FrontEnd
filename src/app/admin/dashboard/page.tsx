@@ -102,24 +102,24 @@ const AdminDashboard = () => {
         setStats({
           users: {
             total: users.length,
-            active: users.filter(u => u.status !== 'inactive').length,
+            active: users.filter((u: any) => u.status !== 'inactive').length,
             byRole: {
-              admin: users.filter(u => u.role === 8).length,
-              supervisor: users.filter(u => u.role === 4).length,
-              student: users.filter(u => u.role === 1).length
+              admin: users.filter((u: any) => u.role === 8).length,
+              supervisor: users.filter((u: any) => u.role === 4).length,
+              student: users.filter((u: any) => u.role === 1).length
             },
             monthlyGrowth: calculateMonthlyGrowth(users)
           },
           projects: {
             total: projects.length,
-            active: projects.filter(p => p.status === 'active').length,
-            completed: projects.filter(p => p.status === 'completed').length,
+            active: projects.filter((p: any) => p.status === 'active').length,
+            completed: projects.filter((p: any) => p.status === 'completed').length,
             status: {
-              planned: projects.filter(p => p.status === 'planned').length,
-              active: projects.filter(p => p.status === 'active').length,
-              onHold: projects.filter(p => p.status === 'on-hold').length,
-              completed: projects.filter(p => p.status === 'completed').length,
-              cancelled: projects.filter(p => p.status === 'cancelled').length
+              planned: projects.filter((p: any) => p.status === 'planned').length,
+              active: projects.filter((p: any) => p.status === 'active').length,
+              onHold: projects.filter((p: any) => p.status === 'on-hold').length,
+              completed: projects.filter((p: any) => p.status === 'completed').length,
+              cancelled: projects.filter((p: any) => p.status === 'cancelled').length
             }
           }
         });
