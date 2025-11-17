@@ -64,18 +64,23 @@ axiosInstance.interceptors.response.use(
     }
     if (error.response?.status === 403) {
       if (typeof window !== 'undefined') {
-        // Không redirect cho các API liên quan đến team/messages khi đang ở trang messages
-        const isMessagesPage = window.location.pathname.includes('/messages');
-        const isTeamApi = error.config?.url?.includes('/api/team/');
-        const isMessagesApi = error.config?.url?.includes('/api/messages/');
-        
-        // Chỉ skip redirect nếu đang ở messages page VÀ là team/messages API
-        const shouldSkipRedirect = isMessagesPage && (isTeamApi || isMessagesApi);
-        
+        const pathname = window.location.pathname || '';
+        const requestUrl = error.config?.url || '';
+
+        const isMessagesPage = pathname.includes('/messages');
+        const isTeamApi = requestUrl.includes('/api/team/');
+        const isMessagesApi = requestUrl.includes('/api/messages/');
+        const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
+        const isAuthApi = requestUrl.includes('/api/auth/');
+
+        const shouldSkipRedirect =
+          (isMessagesPage && (isTeamApi || isMessagesApi)) ||
+          isAuthPage ||
+          isAuthApi;
+
         if (!shouldSkipRedirect) {
           window.location.href = '/not-found';
         }
-        // Nếu skip redirect, chỉ reject error để component xử lý
       }
     }
     
