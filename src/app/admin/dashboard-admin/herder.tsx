@@ -12,7 +12,10 @@ import {
   ChevronRight, 
   Bell,
   Settings,
-  Menu
+  Menu,
+  Folder,
+  UserRound,
+  LockOpen
 } from 'lucide-react';
 
 let socket: Socket | null = null;
@@ -36,7 +39,22 @@ const navItems = [
     href: "/admin/user", 
     label: "Quản lý người dùng", 
     icon: <Users className="w-5 h-5" /> 
-  }
+  },
+  { 
+    href: "/admin/project", 
+    label: "Quản lý dự án", 
+    icon: <Folder className="w-5 h-5" /> 
+  },
+  { 
+    href: "/admin/profile", 
+    label: "Thông tin cá nhân", 
+    icon: <UserRound className="w-5 h-5" /> 
+  },
+  { 
+    href: "/admin/change-password", 
+    label: "Đổi mật khẩu", 
+    icon: <LockOpen className="w-5 h-5" /> 
+  },
 ];
 
 export default function LeftSidebarHeader() {

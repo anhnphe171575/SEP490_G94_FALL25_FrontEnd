@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axiosInstance from "../../../ultis/axios";
+import axiosInstance from "../../../../ultis/axios";
 import Image from "next/image";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import AddressForm from "./AddressForm";
+
+import AddressForm from "@/app/myprofile/AddressForm";
 import { User, FolderKanban, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Project from "./project";
+import Project from "@/app/myprofile/project";
+import LeftSidebarHeader from "../dashboard-admin/herder";
 
 type Address = {
   street: string;
@@ -134,7 +135,7 @@ export default function MyProfilePage() {
 
   return (
     <div className="flex min-h-screen">     
-      <ResponsiveSidebar />
+      <LeftSidebarHeader />
       <main className="flex-1 p-6 ml-64">
         <div className="mx-auto w-full max-w-5xl">
           {/* Header actions */}
