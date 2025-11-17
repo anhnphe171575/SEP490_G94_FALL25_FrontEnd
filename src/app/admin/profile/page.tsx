@@ -7,7 +7,6 @@ import Image from "next/image";
 import AddressForm from "@/app/myprofile/AddressForm";
 import { User, FolderKanban, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Project from "@/app/myprofile/project";
 import LeftSidebarHeader from "../dashboard-admin/herder";
 
 type Address = {
@@ -339,7 +338,7 @@ export default function MyProfilePage() {
 
           {activeTab === "project" && (
             <div className="mx-auto w-full max-w-5xl">
-              <Project userId={me._id} />
+              {/* <Project userId={me._id} /> */}
             </div>
           )}
 
