@@ -56,8 +56,18 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
-        // Chỉ redirect nếu không phải trang messages
-        if (!window.location.pathname.includes('/messages')) {
+        const pathname = window.location.pathname || '';
+        const requestUrl = error.config?.url || '';
+
+        const isMessagesPage = pathname.includes('/messages');
+        const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
+        const isAuthApi =
+          requestUrl.includes('/api/auth/login') ||
+          requestUrl.includes('/api/auth/register') ||
+          requestUrl.includes('/api/auth/google');
+
+        const shouldRedirect = !isMessagesPage && !isAuthPage && !isAuthApi;
+        if (shouldRedirect) {
           window.location.href = '/login';
         }
       }
