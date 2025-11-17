@@ -113,6 +113,29 @@ export default function LoginPage() {
     }
   };
 
+  const handleUnverifiedAccount = async (targetEmail: string, message?: string) => {
+    const finalMessage =
+      message ||
+      "Tài khoản chưa xác thực. Mã OTP mới đã được gửi đến email của bạn.";
+
+    setError(finalMessage);
+
+    try {
+      await axiosInstance.post("/api/auth/resend-registration-otp", {
+        email: targetEmail,
+      });
+    } catch (resendError) {
+      console.error("Resend OTP error:", resendError);
+    }
+
+    const query = new URLSearchParams({
+      verify: "1",
+      email: targetEmail,
+      msg: finalMessage,
+    });
+    router.push(`/register?${query.toString()}`);
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -122,6 +145,13 @@ export default function LoginPage() {
       const res = await axiosInstance.post("/api/auth/login", { email, password });
       const token = res.data?.token;
       const user = res.data?.user;
+
+       const userEmail = user?.email || email.trim();
+
+      if (user && user.verified === false) {
+        await handleUnverifiedAccount(userEmail, "Tài khoản chưa xác thực. Vui lòng nhập mã OTP đã được gửi.");
+        return;
+      }
 
       if (token) {
         sessionStorage.setItem("token", token);
@@ -136,7 +166,19 @@ export default function LoginPage() {
         router.replace("/dashboard");
       }
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Đăng nhập thất bại");
+      const status = e?.response?.status;
+      const message = e?.response?.data?.message || "Đăng nhập thất bại";
+      const targetEmail = e?.response?.data?.email || email.trim();
+
+      if (
+        status === 403 &&
+        message.toLowerCase().includes("chưa") &&
+        message.toLowerCase().includes("xác thực")
+      ) {
+        await handleUnverifiedAccount(targetEmail, message);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
