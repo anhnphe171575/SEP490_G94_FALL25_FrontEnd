@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../ultis/axios";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -29,6 +30,22 @@ export default function RegisterPage() {
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [country, setCountry] = useState("Việt Nam");
+
+  useEffect(() => {
+    const shouldVerify = searchParams.get("verify");
+    const emailFromQuery = searchParams.get("email");
+    const messageFromQuery = searchParams.get("msg");
+
+    if (shouldVerify === "1" && emailFromQuery) {
+      setRegisteredEmail(emailFromQuery);
+      setStep("verify");
+      setSuccess(
+        messageFromQuery ||
+          "Tài khoản của bạn chưa được xác thực. Vui lòng nhập mã OTP đã được gửi đến email."
+      );
+      setError(null);
+    }
+  }, [searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
