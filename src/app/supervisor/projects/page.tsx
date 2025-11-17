@@ -90,22 +90,7 @@ const ProjectCard = ({ project, router }: {
       </div>
     )}
 
-    {/* Status badge */}
-    <div className="mb-4">
-      <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-        project.status === 'active' ? 'bg-green-100 text-green-700' :
-        project.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-        project.status === 'on-hold' ? 'bg-yellow-100 text-yellow-700' :
-        project.status === 'planned' ? 'bg-gray-100 text-gray-700' :
-        'bg-red-100 text-red-700'
-      }`}>
-        {project.status === 'active' ? 'Đang thực hiện' :
-         project.status === 'completed' ? 'Đã hoàn thành' :
-         project.status === 'on-hold' ? 'Tạm dừng' :
-         project.status === 'planned' ? 'Đã lên kế hoạch' :
-         project.status === 'cancelled' ? 'Đã hủy' : 'Không xác định'}
-      </span>
-    </div>
+ 
 
     {project.progress !== undefined && (
       <div className="mb-4">
@@ -123,12 +108,7 @@ const ProjectCard = ({ project, router }: {
     )}
 
     <div className="pt-4 border-t border-gray-200">
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        {project.updatedAt ? new Date(project.updatedAt).toLocaleDateString('vi-VN') : 'Vừa cập nhật'}
-      </div>
+
 
       {/* Open project button */}
       <button
