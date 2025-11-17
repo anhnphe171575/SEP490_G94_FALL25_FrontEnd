@@ -132,9 +132,8 @@ export default function MyProfilePage() {
   if (!me) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen">     
       <ResponsiveSidebar />
-
       <main className="flex-1 p-6 ml-64">
         <div className="mx-auto w-full max-w-5xl">
           <div className="flex justify-end mb-4">
@@ -416,7 +415,7 @@ export default function MyProfilePage() {
                     <div className="rounded-lg border border-orange-100 bg-orange-50/30 p-3 shadow-inner">
                       <AddressForm
                         address={editForm.address}
-                        onChange={(newAddress) =>
+                        onChange={(newAddress: any) =>
                           setEditForm((prev) => ({
                             ...prev,
                             address: newAddress,
