@@ -6,10 +6,13 @@ import Link from "next/link";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
+import TaskDetailsModal from "@/components/TaskDetailsModal";
 
 export default function ContributorDetailPage() {
   const searchParams = useSearchParams();
-  const userId = searchParams.get("userId");
+  const userIdParam = searchParams.get("userId");
+  // Ensure userId is a clean string (searchParams.get always returns string | null)
+  const userId = userIdParam ? userIdParam.trim() : null;
   const projectId = searchParams.get("project_id") || undefined;
 
   type TaskItem = {
@@ -35,21 +38,34 @@ export default function ContributorDetailPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Task details modal state
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [openTaskDetails, setOpenTaskDetails] = useState(false);
+
+  const openTaskDetailsModal = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setOpenTaskDetails(true);
+  };
+
   useEffect(() => {
     if (!userId) {
       setError("Missing userId");
       setLoading(false);
       return;
     }
+    if (!projectId) {
+      setError("Missing projectId");
+      setLoading(false);
+      return;
+    }
+    
     (async () => {
       try {
         setError(null);
         setLoading(true);
         
-        // Fetch tasks
-        const params = new URLSearchParams();
-        if (projectId) params.append("project_id", projectId);
-        const res = await axiosInstance.get(`/api/users/${userId}/tasks?${params.toString()}`);
+        // Fetch tasks using the correct endpoint
+        const res = await axiosInstance.get(`/api/users/${userId}/projects/${projectId}/tasks`);
         const data = res.data;
         console.log("data", data)
         setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
@@ -76,29 +92,22 @@ export default function ContributorDetailPage() {
     })();
   }, [userId, projectId]);
 
-  // Normalize status name to handle various formats (Completed, In Progress, In Review, etc.)
+  // Normalize status name to handle various formats (To Do, Doing, Done, etc.)
   const normalizeStatus = (status: string | undefined): string => {
     if (!status) return "";
-    // First, trim and normalize whitespace, remove special characters
+    // First, trim and normalize whitespace
     const trimmed = String(status).trim();
-    // Remove any special characters and normalize to lowercase
-    const cleaned = trimmed.replace(/[^\w\s-]/g, "").toLowerCase();
-    const normalized = cleaned.replace(/\s+/g, "-");
+    const normalized = trimmed.toLowerCase();
     
-    // Handle exact matches first (most common cases)
-    if (normalized === "testing") return "in-review";
-    if (normalized === "planning" || normalized === "planing" || normalized === "plan") return "pending";
-    if (normalized === "complete" || normalized === "completed") return "completed";
+    // Handle exact matches first
+    if (normalized === "to do" || normalized === "todo") return "to-do";
+    if (normalized === "doing" || normalized === "in progress" || normalized === "in-progress" || normalized === "inprogress") return "doing";
+    if (normalized === "done" || normalized === "completed" || normalized === "complete") return "done";
     
-    // Handle status that starts with "plan" (to catch "planing", "planning", "plan", etc.)
-    // This will catch "planing", "planning", "plan-xxx", etc.
-    if (normalized.startsWith("plan")) return "pending";
-    
-    // Handle common variations with includes (for partial matches)
-    if (normalized.includes("completed") || normalized.includes("complete")) return "completed";
-    if (normalized.includes("in-review") || normalized.includes("inreview") || normalized.includes("review") || normalized.includes("testing")) return "in-review";
-    if (normalized.includes("in-progress") || normalized.includes("inprogress") || normalized.includes("progress")) return "in-progress";
-    if (normalized.includes("pending")) return "pending";
+    // Handle common variations
+    if (normalized.includes("todo") || normalized.includes("to do") || normalized.includes("pending") || normalized.includes("planning")) return "to-do";
+    if (normalized.includes("doing") || normalized.includes("progress")) return "doing";
+    if (normalized.includes("done") || normalized.includes("completed") || normalized.includes("complete")) return "done";
     
     return normalized;
   };
@@ -157,23 +166,19 @@ export default function ContributorDetailPage() {
 
   // Calculate statistics
   const totalTasks = tasks.length;
-  const planningCount = tasks.filter(t => {
+  const todoCount = tasks.filter(t => {
     const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return normalizeStatus(taskStatus) === "pending";
+    return normalizeStatus(taskStatus) === "to-do";
   }).length;
-  const inProgressCount = tasks.filter(t => {
+  const doingCount = tasks.filter(t => {
     const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return normalizeStatus(taskStatus) === "in-progress";
+    return normalizeStatus(taskStatus) === "doing";
   }).length;
-  const testingCount = tasks.filter(t => {
+  const doneCount = tasks.filter(t => {
     const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return normalizeStatus(taskStatus) === "in-review";
+    return normalizeStatus(taskStatus) === "done";
   }).length;
-  const completeCount = tasks.filter(t => {
-    const taskStatus = typeof t.status === "object" ? t.status?.name : t.status;
-    return normalizeStatus(taskStatus) === "completed";
-  }).length;
-  const completionRate = totalTasks > 0 ? Math.round((completeCount / totalTasks) * 100) : 0;
+  const completionRate = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0;
 
   // Get user info from first task
   const contributorName = tasks[0]?.assignee_id?.full_name || "Thành viên";
@@ -183,10 +188,9 @@ export default function ContributorDetailPage() {
   // Get status color
   const getStatusColor = (status: string) => {
     const normalized = normalizeStatus(status);
-    if (normalized === "completed") return "bg-green-100 text-green-700";
-    if (normalized === "in-review") return "bg-purple-100 text-purple-700";
-    if (normalized === "in-progress") return "bg-blue-100 text-blue-700";
-    if (normalized === "pending") return "bg-amber-100 text-amber-700";
+    if (normalized === "done") return "bg-green-100 text-green-700";
+    if (normalized === "doing") return "bg-blue-100 text-blue-700";
+    if (normalized === "to-do") return "bg-amber-100 text-amber-700";
     return "bg-gray-100 text-gray-700";
   };
 
@@ -202,10 +206,9 @@ export default function ContributorDetailPage() {
   // Translate status to Vietnamese
   const getStatusLabel = (status: string) => {
     const normalized = normalizeStatus(status);
-    if (normalized === "pending") return "Đang lên kế hoạch";
-    if (normalized === "in-progress") return "Đang thực hiện";
-    if (normalized === "in-review") return "Đang kiểm thử";
-    if (normalized === "completed") return "Hoàn thành";
+    if (normalized === "to-do") return "To Do";
+    if (normalized === "doing") return "Doing";
+    if (normalized === "done") return "Done";
     return status || "Chưa xác định";
   };
 
@@ -297,7 +300,7 @@ export default function ContributorDetailPage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-start mb-4">
                   <div>
@@ -314,21 +317,21 @@ export default function ContributorDetailPage() {
               <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-amber-200 text-sm mb-1">Đang lên kế hoạch</p>
-                    <p className="text-4xl font-bold">{planningCount}</p>
+                    <p className="text-amber-200 text-sm mb-1">To Do</p>
+                    <p className="text-4xl font-bold">{todoCount}</p>
                   </div>
                   <svg className="w-8 h-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                   </svg>
                 </div>
-                <p className="text-sm text-amber-200">Tasks đang lên kế hoạch</p>
+                <p className="text-sm text-amber-200">Tasks cần làm</p>
               </div>
 
               <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-blue-200 text-sm mb-1">Đang thực hiện</p>
-                    <p className="text-4xl font-bold">{inProgressCount}</p>
+                    <p className="text-blue-200 text-sm mb-1">Doing</p>
+                    <p className="text-4xl font-bold">{doingCount}</p>
                   </div>
                   <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -337,24 +340,11 @@ export default function ContributorDetailPage() {
                 <p className="text-sm text-blue-200">Tasks đang thực hiện</p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="text-purple-200 text-sm mb-1">Đang kiểm thử</p>
-                    <p className="text-4xl font-bold">{testingCount}</p>
-                  </div>
-                  <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="text-sm text-purple-200">Tasks đang kiểm thử</p>
-              </div>
-
               <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-green-200 text-sm mb-1">Hoàn thành</p>
-                    <p className="text-4xl font-bold">{completeCount}</p>
+                    <p className="text-green-200 text-sm mb-1">Done</p>
+                    <p className="text-4xl font-bold">{doneCount}</p>
                   </div>
                   <svg className="w-8 h-8 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -387,10 +377,9 @@ export default function ContributorDetailPage() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="Pending">Đang lên kế hoạch</option>
-                <option value="In Progress">Đang thực hiện</option>
-                <option value="In Review">Đang kiểm thử</option>
-                <option value="Completed">Hoàn thành</option>
+                <option value="To Do">To Do</option>
+                <option value="Doing">Doing</option>
+                <option value="Done">Done</option>
               </select>
               {projectId && features.length > 0 && (
                 <select
@@ -448,7 +437,8 @@ export default function ContributorDetailPage() {
                     return (
                       <div
                         key={task._id}
-                        className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1"
+                        onClick={() => openTaskDetailsModal(task._id)}
+                        className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1 cursor-pointer"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -608,6 +598,38 @@ export default function ContributorDetailPage() {
               </>
             )}
           </div>
+
+          {/* Task Details Modal */}
+          {selectedTaskId && (
+            <TaskDetailsModal
+              open={openTaskDetails}
+              onClose={() => {
+                setOpenTaskDetails(false);
+                setSelectedTaskId(null);
+              }}
+              taskId={selectedTaskId}
+              projectId={projectId}
+              onUpdate={() => {
+                // Reload tasks if needed
+                if (userId && projectId) {
+                  (async () => {
+                    try {
+                      setError(null);
+                      setLoading(true);
+                      const res = await axiosInstance.get(`/api/tasks/users/${userId}/projects/${projectId}/tasks`);
+                      const data = res.data;
+                      setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
+                    } catch (e: any) {
+                      setError(e?.response?.data?.message || "Failed to load tasks");
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }
+              }}
+              readonly={true}
+            />
+          )}
         </div>
       </main>
     </div>

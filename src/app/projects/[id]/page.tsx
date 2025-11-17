@@ -519,7 +519,10 @@ export default function ProjectDetailPage() {
               borderRadius: 3,
               boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
               border: '1px solid #e8e9eb',
-              mb: 3
+              mb: 3,
+              position: 'sticky',
+              top: 64, // Below the Header component (h-16 = 64px)
+              zIndex: 30, // Lower than Header dropdown but higher than content
             }}>
               <Box sx={{ 
                 px: 3, 
