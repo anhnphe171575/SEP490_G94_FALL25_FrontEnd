@@ -7,6 +7,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
+  const googleButtonRendered = useRef<boolean>(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,10 +17,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
+    if (!clientId || !googleBtnRef.current || googleButtonRendered.current) return;
 
     const loadScript = () => {
-      if (document.getElementById("google-identity")) return initGoogle();
+      if (document.getElementById("google-identity")) {
+        // Script already loaded, just initialize
+        setTimeout(initGoogle, 100);
+        return;
+      }
       const script = document.createElement("script");
       script.src = "https://accounts.google.com/gsi/client";
       script.async = true;
@@ -32,13 +37,23 @@ export default function LoginPage() {
     const initGoogle = () => {
       // @ts-expect-error
       if (!window.google || !google.accounts || !google.accounts.id) return;
+      
+      // Prevent multiple renders
+      if (googleButtonRendered.current) return;
+      
+      // Clear any existing button first
+      if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = '';
+      }
+      
       // @ts-expect-error
       google.accounts.id.initialize({
         client_id: clientId,
         callback: handleGoogleResponse,
         ux_mode: "popup",
       });
-      if (googleBtnRef.current) {
+      
+      if (googleBtnRef.current && !googleButtonRendered.current) {
         // @ts-expect-error
         google.accounts.id.renderButton(googleBtnRef.current, {
           theme: "outline",
@@ -46,10 +61,19 @@ export default function LoginPage() {
           shape: "pill",
           text: "signin_with",
         });
+        googleButtonRendered.current = true;
       }
     };
 
     loadScript();
+    
+    // Cleanup function
+    return () => {
+      if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = '';
+      }
+      googleButtonRendered.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -63,8 +87,9 @@ export default function LoginPage() {
       const payload = JSON.parse(atob(idToken.split('.')[1]));
       const email = payload.email;
 
-      if (!email || (!email.endsWith('@fpt.edu.vn') && !email.includes('he'))) {
-        throw new Error("Chỉ cho phép đăng nhập bằng tài khoản FPT (@fpt.edu.vn)");
+      // Chỉ chấp nhận email có đuôi @fpt.edu.vn
+      if (!email || !email.endsWith('@fpt.edu.vn')) {
+        throw new Error("Chỉ chấp nhận đăng nhập bằng email FPT (@fpt.edu.vn). Vui lòng sử dụng tài khoản email có đuôi @fpt.edu.vn.");
       }
 
       const res = await axiosInstance.post("/api/auth/google", { idToken });
@@ -198,6 +223,22 @@ export default function LoginPage() {
             <div className="flex-1 h-px bg-gray-300" />
             <span className="px-3 text-gray-500 text-sm font-medium">HOẶC</span>
             <div className="flex-1 h-px bg-gray-300" />
+          </div>
+          {/* Google Sign In Notice */}
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-xs md:text-sm text-blue-800 font-semibold mb-1">
+                  Đăng nhập bằng Google
+                </p>
+                <p className="text-xs text-blue-700">
+                  Chỉ chấp nhận email có đuôi <span className="font-semibold">@fpt.edu.vn</span>. Vui lòng sử dụng tài khoản Google được liên kết với email FPT của bạn.
+                </p>
+              </div>
+            </div>
           </div>
           {/* Google Sign In */}
           <div className="mb-2 flex justify-center">

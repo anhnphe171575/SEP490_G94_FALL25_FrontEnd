@@ -186,16 +186,6 @@ export default function TeamManagementPage() {
       <ResponsiveSidebar />
       <main>
         <div className="w-full">
-          {/* Breadcrumb Navigation */}
-          <Box sx={{ bgcolor: 'white', px: 3, pt: 2, borderBottom: '1px solid #e8e9eb' }}>
-            <ProjectBreadcrumb 
-              projectId={projectId} 
-              items={[
-                { label: 'Quản lý nhóm', icon: <GroupIcon sx={{ fontSize: 16 }} /> }
-              ]} 
-            />
-          </Box>
-
           {/* ClickUp-style Top Bar (standardized) */}
           <Box 
             sx={{ 
@@ -204,8 +194,8 @@ export default function TeamManagementPage() {
               px: 3,
               py: 2,
               position: 'sticky',
-              top: 0,
-              zIndex: 100,
+              top: 64, // Below the Header component (h-16 = 64px)
+              zIndex: 30, // Lower than Header dropdown but higher than content
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

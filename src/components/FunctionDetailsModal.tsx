@@ -27,11 +27,13 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import AssignmentIcon from "@mui/icons-material/Assignment";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
 import axiosInstance from "@/../ultis/axios";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import FunctionDetailsComments from "./FunctionDetails/FunctionDetailsComments";
 import FunctionDetailsActivity from "./FunctionDetails/FunctionDetailsActivity";
 import FunctionDetailsTasks from "./FunctionDetails/FunctionDetailsTasks";
+import FunctionDetailsAttachments from "./FunctionDetails/FunctionDetailsAttachments";
 import { toast } from "sonner";
 
 type FunctionType = {
@@ -68,7 +70,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState('');
 
-  const tabMap = ['overview', 'tasks', 'comments', 'activity'];
+  const tabMap = ['overview', 'tasks', 'comments', 'files', 'activity'];
 
   const getTabContent = (index: number) => {
     return tabMap[index];
@@ -388,6 +390,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
             <Tab label="Tổng quan" />
             <Tab label="Công việc" icon={<AssignmentIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
             <Tab label="Bình luận" icon={<ChatBubbleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
+            <Tab label="Tệp đính kèm" icon={<AttachFileIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
             <Tab label="Hoạt động" icon={<TimelineIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
           </Tabs>
         </Box>
@@ -514,6 +517,10 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
               
               {getTabContent(currentTab) === 'comments' && (
                 <FunctionDetailsComments functionId={functionId} />
+              )}
+              
+              {getTabContent(currentTab) === 'files' && functionId && (
+                <FunctionDetailsAttachments key={func?.updateAt || functionId} functionId={functionId} />
               )}
               
               {getTabContent(currentTab) === 'activity' && (

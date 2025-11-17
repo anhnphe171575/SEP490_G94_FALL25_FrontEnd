@@ -1054,23 +1054,41 @@ export default function ProjectTasksPage() {
               px: 3,
               py: 2,
               position: 'sticky',
-              top: 0,
-              zIndex: 100,
+              top: 64, // Below the Header component (h-16 = 64px)
+              zIndex: 30, // Lower than Header dropdown but higher than content
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {/* Breadcrumb & Title */}
+              {/* Title with Icon */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    fontWeight: 700,
-                    color: '#1f2937',
-                    fontSize: '24px',
-                  }}
-                >
-                  Công việc
-                </Typography>
+                <Box sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 2.5,
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                }}>
+                  <AssignmentIcon sx={{ fontSize: 28, color: 'white' }} />
+                </Box>
+                <Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700,
+                      color: '#1f2937',
+                      fontSize: '24px',
+                      mb: 0.5
+                    }}
+                  >
+                    Công việc
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                    Quản lý các công việc trong dự án
+                  </Typography>
+                </Box>
               </Box>
 
               {/* Right Actions */}

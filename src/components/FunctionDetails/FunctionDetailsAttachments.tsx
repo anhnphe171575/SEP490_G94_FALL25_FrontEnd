@@ -14,8 +14,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Menu,
-  MenuItem,
   Avatar,
   LinearProgress,
   Alert,
@@ -31,7 +29,6 @@ import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import ImageIcon from "@mui/icons-material/Image";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import DescriptionIcon from "@mui/icons-material/Description";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -39,8 +36,8 @@ import ErrorIcon from "@mui/icons-material/Error";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import axiosInstance from "../../../ultis/axios";
 
-interface TaskDetailsAttachmentsProps {
-  taskId: string | null;
+interface FunctionDetailsAttachmentsProps {
+  functionId: string | null;
 }
 
 interface UploadProgress {
@@ -50,7 +47,7 @@ interface UploadProgress {
   error?: string;
 }
 
-export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachmentsProps) {
+export default function FunctionDetailsAttachments({ functionId }: FunctionDetailsAttachmentsProps) {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -73,27 +70,27 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
   const dragCounter = useRef(0);
 
   useEffect(() => {
-    if (taskId) {
+    if (functionId) {
       loadAttachments();
     }
-  }, [taskId]);
+  }, [functionId]);
 
   const loadAttachments = async () => {
-    if (!taskId) {
-      setError('Task ID không hợp lệ');
+    if (!functionId) {
+      setError('Function ID không hợp lệ');
       return;
     }
     
-    // Validate taskId format (should be a non-empty string)
-    if (typeof taskId !== 'string' || taskId.trim() === '') {
-      setError('Task ID không hợp lệ');
+    // Validate functionId format (should be a non-empty string)
+    if (typeof functionId !== 'string' || functionId.trim() === '') {
+      setError('Function ID không hợp lệ');
       return;
     }
     
     try {
       setLoading(true);
       setError(null);
-      const response = await axiosInstance.get(`/api/tasks/${taskId}/attachments`);
+      const response = await axiosInstance.get(`/api/functions/${functionId}/attachments`);
       setAttachments(response.data || []);
     } catch (error: any) {
       console.error("Error loading attachments:", error);
@@ -153,7 +150,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
 
   // Handle file upload (single or multiple)
   const handleFileUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0 || !taskId) return;
+    if (!files || files.length === 0 || !functionId) return;
 
     const filesArray = Array.from(files);
     const validFiles: File[] = [];
@@ -199,7 +196,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
       formData.append('description', file.name);
 
       try {
-        await axiosInstance.post(`/api/tasks/${taskId}/attachments`, formData, {
+        await axiosInstance.post(`/api/functions/${functionId}/attachments`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
@@ -285,10 +282,10 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
 
   // Add link attachment
   const addLink = async () => {
-    if (!taskId || !linkForm.url) return;
+    if (!functionId || !linkForm.url) return;
     
     try {
-      await axiosInstance.post(`/api/tasks/${taskId}/attachments`, {
+      await axiosInstance.post(`/api/functions/${functionId}/attachments`, {
         file_url: linkForm.url,
         file_name: linkForm.file_name || linkForm.url,
         description: linkForm.description || linkForm.file_name || 'Link',
@@ -317,7 +314,7 @@ export default function TaskDetailsAttachments({ taskId }: TaskDetailsAttachment
     if (!confirm('Xóa tệp đính kèm này?')) return;
     
     try {
-      await axiosInstance.delete(`/api/tasks/${taskId}/attachments/${attachmentId}`);
+      await axiosInstance.delete(`/api/functions/${functionId}/attachments/${attachmentId}`);
       await loadAttachments();
       setSnackbar({
         open: true,
