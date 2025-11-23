@@ -6,6 +6,10 @@ export default function HeaderVisibility({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const hideHeader =
     pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/forgotpassword" ||
+    pathname === "/verify-otp" ||
+    pathname === "/reset-password" ||
     pathname.startsWith("/admin");
   return (
     <>

@@ -98,25 +98,39 @@ export default function VerifyOtpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md card rounded-xl p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-6" style={{color:'var(--primary)'}}>Xác thực OTP</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-100 py-4 px-4 sm:py-6 sm:px-6 lg:py-8">
+      <div className="w-full max-w-md bg-white/80 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-white/30 p-6 sm:p-8">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">Xác thực OTP</h1>
+          <p className="text-xs sm:text-sm text-gray-600">
+            Nhập mã OTP đã được gửi đến email của bạn
+          </p>
+        </div>
 
-        {error ? <div className="mb-4 text-red-600 text-sm">{error}</div> : null}
+        {error && (
+          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm">
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="block text-sm">Email</label>
+        <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+              Địa chỉ Email
+            </label>
             <input
               type="email"
               value={email}
               disabled
-              className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
             />
           </div>
-          <div className="space-y-1">
-            <label className="block text-sm">Mã OTP</label>
-            <div className="flex gap-2 justify-center">
+          
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-3 sm:mb-4 text-center">
+              Mã OTP <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2 sm:gap-3 justify-center">
               {otp.map((digit, index) => (
                 <input
                   key={index}
@@ -126,34 +140,53 @@ export default function VerifyOtpPage() {
                   pattern="[0-9]*"
                   maxLength={1}
                   value={digit}
-                  onChange={(e) => handleOtpChange(index, e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    handleOtpChange(index, value);
+                  }}
                   onKeyDown={(e) => handleKeyDown(index, e)}
                   onPaste={handlePaste}
-                  className="w-12 h-12 text-center border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-13.5 h-13.5 text-center border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 text-gray-900 bg-white transition-all duration-200"
                   placeholder=""
                 />
               ))}
             </div>
+            <p className="text-xs sm:text-sm text-gray-500 mt-2 text-center">
+              Nhập 6 chữ số từ email của bạn
+            </p>
           </div>
+          
           <button
             type="submit"
-            disabled={loading}
-            className="w-full btn-primary rounded-lg py-2 disabled:opacity-60"
+            disabled={loading || otp.join("").length !== 6}
+            className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold py-2.5 sm:py-3 md:py-3.5 text-sm sm:text-base rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Đang xác thực..." : "Xác thực"}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center">
           {canResend ? (
-            <button className="text-sm" style={{color:'var(--primary)'}} onClick={() => router.push("/forgotpassword")}>
+            <button 
+              className="text-xs sm:text-sm text-green-600 hover:text-green-700 font-semibold transition-colors duration-200 hover:underline"
+              onClick={() => router.push("/forgotpassword")}
+            >
               Gửi lại OTP
             </button>
           ) : (
-            <div className="text-sm" style={{color:'var(--primary-700)'}}>
-              Gửi lại OTP sau {countdown} giây
+            <div className="text-xs sm:text-sm text-gray-600">
+              Gửi lại OTP sau <span className="font-semibold text-green-600">{countdown}</span> giây
             </div>
           )}
+        </div>
+
+        <div className="mt-4 text-center">
+          <button
+            className="text-xs sm:text-sm text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+            onClick={() => router.push("/login")}
+          >
+            ← Quay lại đăng nhập
+          </button>
         </div>
       </div>
     </div>
