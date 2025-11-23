@@ -17,8 +17,7 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
-  Stack,
-  Divider
+  Stack
 } from "@mui/material";
 import { 
   ExitToApp as ExitToAppIcon,
@@ -233,61 +232,6 @@ export default function TeamManagementPage() {
 
               {/* Right Actions */}
               <Stack direction="row" spacing={1.5} alignItems="center">
-                {/* Quick Navigation */}
-                <Button
-                  variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}`)}
-                  sx={{
-                    textTransform: 'none',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    borderColor: '#e8e9eb',
-                    color: '#49516f',
-                    '&:hover': {
-                      borderColor: '#7b68ee',
-                      bgcolor: '#f3f0ff',
-                    }
-                  }}
-                >
-                  Cột mốc
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}/features`)}
-                  sx={{
-                    textTransform: 'none',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    borderColor: '#e8e9eb',
-                    color: '#49516f',
-                    '&:hover': {
-                      borderColor: '#7b68ee',
-                      bgcolor: '#f3f0ff',
-                    }
-                  }}
-                >
-                  Tính năng
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}/tasks`)}
-                  sx={{
-                    textTransform: 'none',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    borderColor: '#e8e9eb',
-                    color: '#49516f',
-                    '&:hover': {
-                      borderColor: '#7b68ee',
-                      bgcolor: '#f3f0ff',
-                    }
-                  }}
-                >
-                  Công việc
-                </Button>
-                
-                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                
                 <Button
                   variant="outlined"
                   color="error"

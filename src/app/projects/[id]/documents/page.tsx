@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
-import { Box, Button, Card, CardContent, Typography, Stack, Alert, Paper, Breadcrumbs, Link, List, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, ButtonBase, Chip } from "@mui/material";
-import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon } from "@mui/icons-material";
+import { Box, Button, Card, CardContent, Typography, Stack, Alert, Paper, Breadcrumbs, Link, List, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, ButtonBase, Chip, InputAdornment } from "@mui/material";
+import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon, Search as SearchIcon, Clear as ClearIcon } from "@mui/icons-material";
 import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 import DocumentUpload from "@/components/DocumentUpload";
 import { InsertDriveFile as FileIcon, PictureAsPdf as PdfIcon, Image as ImageIcon, TableChart as SheetIcon, Description as DocIcon, Download as DownloadIcon } from "@mui/icons-material";
@@ -117,6 +117,9 @@ export default function DocumentsPage() {
   // Current folder navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Folder[]>([]);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
 
   const findPath = useCallback((nodes: FolderTree[], targetId: string, path: Folder[] = []): Folder[] | null => {
@@ -430,6 +433,22 @@ export default function DocumentsPage() {
     return acc;
   };
 
+  // Filter documents and folders based on search query
+  const filteredDocuments = searchQuery.trim()
+    ? documents.filter(doc => 
+        doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.version.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.type.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : documents;
+
+  const filteredFolders = searchQuery.trim()
+    ? folders.filter(folder => 
+        folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (folder.description && folder.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : folders;
+
   const handleCreateRoot = async () => {
     if (!newFolderName.trim()) return;
     try {
@@ -568,10 +587,48 @@ export default function DocumentsPage() {
 
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>Nội dung</Typography>
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ flex: 1 }}>Nội dung</Typography>
+                <TextField
+                  placeholder="Tìm kiếm tài liệu và thư mục..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  size="small"
+                  sx={{ 
+                    minWidth: 300,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2
+                    }
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon fontSize="small" color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchQuery && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setSearchQuery('')}
+                          edge="end"
+                        >
+                          <ClearIcon fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
+              </Stack>
 
               {docsError && (
                 <Alert severity="error" sx={{ mb: 2 }}>{docsError}</Alert>
+              )}
+
+              {searchQuery.trim() && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Tìm thấy {filteredDocuments.length} tài liệu và {filteredFolders.length} thư mục
+                </Alert>
               )}
 
               <Stack spacing={1}>
@@ -579,11 +636,13 @@ export default function DocumentsPage() {
                   Array.from({ length: 8 }).map((_, i) => (
                     <Paper key={i} variant="outlined" sx={{ px: 2, py: 1.25, height: 52, bgcolor: 'action.hover' }} />
                   ))
-                ) : folders.length === 0 && documents.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">Thư mục trống</Typography>
+                ) : filteredFolders.length === 0 && filteredDocuments.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    {searchQuery.trim() ? 'Không tìm thấy kết quả' : 'Thư mục trống'}
+                  </Typography>
                 ) : (
                   <>
-                    {folders.map((folder) => (
+                    {filteredFolders.map((folder) => (
                       <Paper key={folder._id} variant="outlined" sx={{ px: 2, py: 1.25 }}>
                         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', columnGap: 12 }}>
                           <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
@@ -614,7 +673,7 @@ export default function DocumentsPage() {
                         </Box>
                       </Paper>
                     ))}
-                    {documents.map(doc => (
+                    {filteredDocuments.map(doc => (
                       <Paper 
                         key={doc._id} 
                         variant="outlined" 

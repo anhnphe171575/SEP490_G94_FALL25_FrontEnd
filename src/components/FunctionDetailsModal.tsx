@@ -21,7 +21,6 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
@@ -348,15 +347,6 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                   />
                 )}
 
-                {(func?.start_date || func?.deadline) && (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <CalendarMonthIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                    <Typography fontSize="13px" color="text.secondary">
-                      {func?.start_date ? new Date(func.start_date).toLocaleDateString() : '—'} → {func?.deadline ? new Date(func.deadline).toLocaleDateString() : '—'}
-                    </Typography>
-                  </Stack>
-                )}
-
               </Stack>
             </Box>
           </Stack>
@@ -658,54 +648,6 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                   ))}
                 </Select>
               </FormControl>
-            </Box>
-
-            <Divider />
-
-            {/* Start Date */}
-            <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Ngày bắt đầu
-              </Typography>
-              <TextField
-                type="date"
-                size="small"
-                fullWidth
-                value={func?.start_date ? new Date(func.start_date).toISOString().split('T')[0] : ''}
-                onChange={async (e) => {
-                  try {
-                    await handleFunctionUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
-                  } catch (error) {
-                    console.error('Error updating start date:', error);
-                    // Error already shown in handleFunctionUpdate
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-                sx={{ '& .MuiOutlinedInput-root': { fontSize: '13px' } }}
-              />
-            </Box>
-
-            {/* Deadline */}
-            <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Hạn chót
-              </Typography>
-              <TextField
-                type="date"
-                size="small"
-                fullWidth
-                value={func?.deadline ? new Date(func.deadline).toISOString().split('T')[0] : ''}
-                onChange={async (e) => {
-                  try {
-                    await handleFunctionUpdate({ deadline: e.target.value ? new Date(e.target.value).toISOString() : null });
-                  } catch (error) {
-                    console.error('Error updating deadline:', error);
-                    // Error already shown in handleFunctionUpdate
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-                sx={{ '& .MuiOutlinedInput-root': { fontSize: '13px' } }}
-              />
             </Box>
 
           </Stack>
