@@ -1625,7 +1625,7 @@ function transformToGanttData(
     
       ganttTasks.push({
         id: String(orphanedGroupId), // Ensure ID is string
-        text: 'Tasks Without Function',
+        text: 'Task Group',
         type: "task", // Change to task so it shows a bar
         open: true,
         start_date: orphanedStartDate,

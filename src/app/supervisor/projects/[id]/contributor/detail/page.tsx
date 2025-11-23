@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
@@ -9,11 +9,13 @@ import QuickNav from "@/components/QuickNav";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 
 export default function ContributorDetailPage() {
+  const params = useParams();
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get("userId");
   // Ensure userId is a clean string (searchParams.get always returns string | null)
   const userId = userIdParam ? userIdParam.trim() : null;
-  const projectId = searchParams.get("project_id") || undefined;
+  // Lấy projectId từ route parameter [id] hoặc từ query string (fallback)
+  const projectId = (params?.id as string) || searchParams.get("project_id") || undefined;
 
   type TaskItem = {
     _id: string;
