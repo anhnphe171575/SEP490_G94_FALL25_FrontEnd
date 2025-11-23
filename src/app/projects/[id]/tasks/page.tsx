@@ -335,7 +335,10 @@ export default function ProjectTasksPage() {
   // Load functions when feature_id changes
   useEffect(() => {
     if (form.feature_id) {
+      console.log("Feature ID changed to:", form.feature_id);
       loadFunctionsByFeature(form.feature_id);
+      // Reset function_id when feature changes
+      setForm(prev => ({ ...prev, function_id: "" }));
     } else {
       setFormFunctions([]);
       setForm(prev => ({ ...prev, function_id: "" }));
@@ -444,8 +447,18 @@ export default function ProjectTasksPage() {
         setFormFunctions([]);
         return;
       }
+      console.log("Loading functions for feature:", featureId);
       const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
-      setFormFunctions(response.data || []);
+      // API 返回格式: { message: '...', functions: [...] }
+      const functions = response.data?.functions || response.data;
+      console.log("Functions response:", response.data, "Extracted functions:", functions);
+      if (Array.isArray(functions)) {
+        setFormFunctions(functions);
+        console.log("Set formFunctions with", functions.length, "items");
+      } else {
+        console.warn("API returned non-array data for functions:", response.data);
+        setFormFunctions([]);
+      }
     } catch (e: any) {
       console.error("Error loading functions:", e);
       setFormFunctions([]);
@@ -4125,7 +4138,7 @@ export default function ProjectTasksPage() {
                           }}
                   >
                     <MenuItem value=""><em>Không chọn</em></MenuItem>
-                          {formFunctions.map((fn) => (
+                          {(Array.isArray(formFunctions) ? formFunctions : []).map((fn) => (
                             <MenuItem key={fn._id} value={fn._id}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                 <Box sx={{ 

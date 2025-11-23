@@ -69,7 +69,7 @@ export default function FunctionDetailsActivity({ functionId }: FunctionDetailsA
       
       // Debug: log received activity logs
       if (process.env.NODE_ENV === 'development' && newLogs.length > 0) {
-        console.log('Received activity logs:', newLogs.map(log => ({ action: log.action, metadata: log.metadata })));
+        console.log('Received activity logs:', newLogs.map((log: ActivityLog) => ({ action: log.action, metadata: log.metadata })));
       }
       
       if (reset) {

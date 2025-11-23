@@ -105,13 +105,15 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/api/functions/${functionId}`);
-      setFunc(response.data);
-      setDescription(response.data?.description || '');
+      const functionData = response.data?.func || response.data;
+      setFunc(functionData);
+      setDescription(functionData?.description || '');
     } catch (error: any) {
       console.error("Error loading function:", error);
       toast.error("Không thể tải thông tin function", {
         description: error?.response?.data?.message || 'Vui lòng thử lại'
       });
+      setFunc(null); 
     } finally {
       setLoading(false);
     }

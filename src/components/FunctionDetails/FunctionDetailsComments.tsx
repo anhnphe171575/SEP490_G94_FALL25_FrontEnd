@@ -45,9 +45,10 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/api/functions/${functionId}/comments`);
-      setComments(response.data || []);
+      setComments(Array.isArray(response.data?.comments) ? response.data.comments : []);
     } catch (error: any) {
       console.error("Error loading comments:", error);
+      setComments([]);
     } finally {
       setLoading(false);
     }

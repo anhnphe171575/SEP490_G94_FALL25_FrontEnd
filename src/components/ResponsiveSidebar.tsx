@@ -26,8 +26,6 @@ export default function ResponsiveSidebar() {
   
   const [me, setMe] = useState<{ _id?: string; id?: string; full_name?: string; email?: string; avatar?: string; role?: number; current_project?: string } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadMessages, setUnreadMessages] = useState<{ team_unread: number; direct_unread: number; total_unread: number }>({ team_unread: 0, direct_unread: 0, total_unread: 0 });
   const [fetchedProjectId, setFetchedProjectId] = useState<string | null>(null);
   
   // Extract projectId from pathname if we're in a project
@@ -107,105 +105,6 @@ export default function ResponsiveSidebar() {
     })();
   }, []);
 
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      try {
-        const token = typeof window !== "undefined" ? sessionStorage.getItem("token") || localStorage.getItem("token") : null;
-        if (!token) return;
-        const res = await axiosInstance.get("/api/notifications/unread-count");
-        if (res.data?.unread_count !== undefined) {
-          setUnreadCount(res.data.unread_count);
-        }
-      } catch {
-        // silently ignore
-      }
-    };
-
-    fetchUnreadCount();
-
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("token") || localStorage.getItem("token") : null;
-    if (token) {
-      const sock = getSocket();
-
-      sock.on("connect", () => {
-        if (me?._id || me?.id) {
-          const userId = (me._id || me.id)?.toString();
-          if (userId) {
-            sock.emit("join", userId);
-          }
-        }
-      });
-
-      sock.on("notification", () => {
-        setUnreadCount((prev) => prev + 1);
-      });
-
-      sock.on("notification-read", (data: any) => {
-        if (data?.unread_count !== undefined) {
-          setUnreadCount(data.unread_count);
-        } else {
-          setUnreadCount((prev) => Math.max(0, prev - 1));
-        }
-      });
-
-      return () => {
-        sock.off("notification");
-        sock.off("notification-read");
-      };
-    }
-  }, [me?._id, me?.id]);
-
-  // Fetch unread messages count (team + direct)
-  useEffect(() => {
-    const fetchUnreadMessages = async () => {
-      try {
-        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
-        if (!token) return;
-        const res = await axiosInstance.get('/api/messages/unread-count', {
-          validateStatus: (status) => {
-            // Không throw error cho các status code này, để xử lý trong catch
-            return status < 500;
-          }
-        });
-        if (res.status === 200 && res.data) {
-          setUnreadMessages({
-            team_unread: res.data.team_unread || 0,
-            direct_unread: res.data.direct_unread || 0,
-            total_unread: res.data.total_unread || 0,
-          });
-        }
-      } catch (err: any) {
-        // Chỉ log trong development, không crash app
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Failed to fetch unread messages count:', err?.response?.status || err?.message);
-        }
-        // Giữ nguyên giá trị hiện tại hoặc set về 0 nếu chưa có
-        setUnreadMessages(prev => prev.total_unread === undefined ? { team_unread: 0, direct_unread: 0, total_unread: 0 } : prev);
-      }
-    };
-
-    fetchUnreadMessages();
-    // Poll mỗi 30s
-    const interval = setInterval(fetchUnreadMessages, 30000);
-
-    // Cập nhật realtime theo socket events
-    const sock = getSocket();
-    const refresh = () => fetchUnreadMessages();
-    sock.on('new-team-message', refresh);
-    sock.on('new-direct-message', refresh);
-    sock.on('message-read', refresh);
-    sock.on('joined-team', refresh);
-    sock.on('connect', refresh);
-
-    return () => {
-      clearInterval(interval);
-      sock.off('new-team-message', refresh);
-      sock.off('new-direct-message', refresh);
-      sock.off('message-read', refresh);
-      sock.off('joined-team', refresh);
-      sock.off('connect', refresh);
-    };
-  }, []);
 
   
 
@@ -214,7 +113,6 @@ export default function ResponsiveSidebar() {
       sessionStorage.removeItem("token");
       localStorage.removeItem("token");
     }
-    setUnreadCount(0);
     if (socket) {
       socket.disconnect();
       socket = null;
@@ -314,24 +212,6 @@ export default function ResponsiveSidebar() {
       )
     },
     {
-      href: `/notifications`,
-      label: "Thông báo",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-        </svg>
-      )
-    },
-    {
-      href: `/messages`,
-      label: "Tin nhắn nhóm",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      )
-    },
-    {
       href: `/calendar`,
       label: "Lịch họp",
       icon: (
@@ -405,24 +285,6 @@ export default function ResponsiveSidebar() {
             icon: (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            )
-          },
-          {
-            href: `/notifications`,
-            label: "Thông báo",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            )
-          },
-          {
-            href: `/messages`,
-            label: "Tin nhắn nhóm",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             )
           },
@@ -550,8 +412,6 @@ export default function ResponsiveSidebar() {
                     } else {
                       active = pathname === itemHrefWithoutQuery || pathname?.startsWith(itemHrefWithoutQuery + '/');
                     }
-                    const isNotification = itemHrefWithoutQuery === `/notifications`;
-                    const isMessages = itemHrefWithoutQuery === `/messages`;
                     return (
                       <Link
                         key={item.href}
@@ -564,16 +424,6 @@ export default function ResponsiveSidebar() {
                       >
                         <div className={`mr-3 flex-shrink-0 relative ${active ? 'text-orange-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
                           {item.icon}
-                          {isNotification && unreadCount > 0 && (
-                            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
-                              {unreadCount > 99 ? '99+' : unreadCount}
-                            </span>
-                          )}
-                          {isMessages && unreadMessages.total_unread > 0 && (
-                            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
-                              {unreadMessages.total_unread > 99 ? '99+' : unreadMessages.total_unread}
-                            </span>
-                          )}
                         </div>
                         <span className="truncate">{item.label}</span>
                       </Link>
@@ -651,8 +501,6 @@ export default function ResponsiveSidebar() {
                       } else {
                         active = pathname === itemHrefWithoutQuery || pathname?.startsWith(itemHrefWithoutQuery + '/');
                       }
-                      const isNotification = itemHrefWithoutQuery === `/projects/${projectId}/notifications` || itemHrefWithoutQuery === `/notifications`;
-                      const isMessages = itemHrefWithoutQuery === `/projects/${projectId}/messages` || itemHrefWithoutQuery === `/messages`;
                       return (
                         <Link
                           key={item.href}
@@ -665,16 +513,6 @@ export default function ResponsiveSidebar() {
                         >
                           <div className={`mr-3 flex-shrink-0 relative ${active ? 'text-orange-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
                             {item.icon}
-                            {isNotification && unreadCount > 0 && (
-                              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
-                                {unreadCount > 99 ? '99+' : unreadCount}
-                              </span>
-                            )}
-                            {isMessages && unreadMessages.total_unread > 0 && (
-                              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
-                                {unreadMessages.total_unread > 99 ? '99+' : unreadMessages.total_unread}
-                              </span>
-                            )}
                           </div>
                           <span className="truncate">{item.label}</span>
                         </Link>

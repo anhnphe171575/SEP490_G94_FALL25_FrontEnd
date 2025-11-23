@@ -56,67 +56,85 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md card rounded-xl p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-6" style={{color:'var(--primary)'}}>Đặt lại mật khẩu</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-100 py-4 px-4 sm:py-6 sm:px-6 lg:py-8">
+      <div className="w-full max-w-md bg-white/80 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-white/30 p-6 sm:p-8">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">Đặt lại mật khẩu</h1>
+          <p className="text-xs sm:text-sm text-gray-600">
+            Nhập mật khẩu mới cho tài khoản của bạn
+          </p>
+        </div>
 
-        {message ? (
-          <div className="mb-4 text-green-600 text-sm">{message}</div>
-        ) : null}
-        {error ? (
-          <div className="mb-4 text-red-600 text-sm">{error}</div>
-        ) : null}
+        {message && (
+          <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm">
+            {message}
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm">
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="block text-sm">Email</label>
+        <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+              Địa chỉ Email
+            </label>
             <input
               type="email"
               value={email}
               disabled
-              className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
             />
           </div>
-          <div className="space-y-1">
-            <label htmlFor="password" className="block text-sm">Mật khẩu mới</label>
+          
+          <div>
+            <label htmlFor="password" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+              Mật khẩu mới <span className="text-red-500">*</span>
+            </label>
             <input
               id="password"
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none"
+              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 text-gray-900 bg-white transition-colors"
               placeholder="••••••••"
             />
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Mật khẩu phải có ít nhất 6 ký tự</p>
           </div>
-          <div className="space-y-1">
-            <label htmlFor="confirmPassword" className="block text-sm">Xác nhận mật khẩu</label>
+          
+          <div>
+            <label htmlFor="confirmPassword" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+              Xác nhận mật khẩu <span className="text-red-500">*</span>
+            </label>
             <input
               id="confirmPassword"
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none"
+              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 text-gray-900 bg-white transition-colors"
               placeholder="••••••••"
             />
           </div>
+          
           <button
             type="submit"
             disabled={loading}
-            className="w-full btn-primary rounded-lg py-2 disabled:opacity-60"
+            className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold py-2.5 sm:py-3 md:py-3.5 text-sm sm:text-base rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center">
           <button 
-            className="text-sm" 
-            style={{color:'var(--primary)'}} 
+            className="text-xs sm:text-sm text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
             onClick={() => router.push("/login")}
           >
-            Quay lại đăng nhập
+            ← Quay lại đăng nhập
           </button>
         </div>
       </div>
