@@ -55,9 +55,10 @@ export default function FeatureDetailsActivity({ featureId, onUpdate }: FeatureD
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/api/features/${featureId}/activity-logs`);
-      setActivityLogs(response.data || []);
+      setActivityLogs(Array.isArray(response.data?.data) ? response.data.data : []);
     } catch (error: any) {
       console.error("Error loading activity logs:", error);
+      setActivityLogs([]); 
     } finally {
       setLoading(false);
     }
