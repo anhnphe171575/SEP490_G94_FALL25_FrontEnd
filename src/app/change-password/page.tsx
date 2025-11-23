@@ -75,73 +75,51 @@ export default function ChangePasswordPage() {
 
   if (success) {
     return (
-      <div className="w-full flex justify-center">
-        <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-orange-100 p-8 mt-10 animate-fade-in"
-          style={{
-            boxShadow: "0 4px 24px 0 rgba(251,146,60,0.10)",
-          }}
-        >
-          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-orange-200 to-orange-400 rounded-full flex items-center justify-center shadow">
-            <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-100 py-4 px-4 sm:py-6 sm:px-6 lg:py-8">
+        <div className="w-full max-w-md bg-white/80 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-white/30 p-6 sm:p-8">
+          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path>
             </svg>
           </div>
-          <h1 className="text-2xl font-bold mb-2 text-orange-600 text-center drop-shadow">
+          <h1 className="text-xl sm:text-2xl font-bold mb-2 text-gray-900 text-center">
             Thay đổi mật khẩu thành công!
           </h1>
-          <p className="text-gray-600 mb-4 text-center">
+          <p className="text-sm sm:text-base text-gray-600 mb-4 text-center">
             Mật khẩu của bạn đã được cập nhật thành công.
           </p>
-          <p className="text-sm text-gray-500 text-center">
+          <p className="text-xs sm:text-sm text-gray-500 text-center">
             Đang chuyển hướng về trang hồ sơ...
           </p>
         </div>
-        <style jsx global>{`
-          .animate-fade-in { animation: fade-in 0.5s; }
-          @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        `}</style>
       </div>
     );
   }
 
   return (
-    <div className="w-full flex justify-center">
-      <div
-        className="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-orange-200 mt-10 animate-fade-in relative"
-        style={{
-          boxShadow: "0 4px 24px 0 rgba(251,146,60,0.13)",
-        }}
-      >
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-100 py-4 px-4 sm:py-6 sm:px-6 lg:py-8">
+      <div className="w-full max-w-md bg-white/80 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-white/30 p-6 sm:p-8 relative overflow-hidden">
         {/* Hiệu ứng ánh sáng cam */}
         <div className="absolute -top-8 -left-8 w-40 h-40 bg-gradient-to-br from-orange-300 via-orange-100 to-transparent rounded-full opacity-20 blur-2xl pointer-events-none animate-pulse"></div>
         <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-gradient-to-tr from-orange-400 via-orange-200 to-transparent rounded-full opacity-15 blur-2xl pointer-events-none animate-pulse"></div>
-        <div className="w-full flex justify-center">
-  <h1 className="w-max text-2xl font-bold mb-6 pt-8 pb-2 tracking-wide text-center relative z-10">
-    <span
-      className="bg-gradient-to-r from-orange-400 via-pink-400 via-purple-500 to-fuchsia-600 bg-clip-text text-transparent drop-shadow-lg"
-      style={{
-        WebkitBackgroundClip: "text",
-        WebkitTextFillColor: "transparent",
-        backgroundClip: "text",
-        color: "transparent",
-        display: "inline-block",
-      }}
-    >
-      Thay đổi mật khẩu
-    </span>
-  </h1>
-</div>
-        <div className="px-8 pb-8">
+        
+        <div className="w-full flex justify-center mb-6 relative z-10">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Thay đổi mật khẩu
+          </h1>
+        </div>
+        
+        <div className="relative z-10">
           {error && (
-            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-orange-600 text-sm animate-shake">
+            <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-orange-700 mb-1">
-                Mật khẩu hiện tại
+              <label htmlFor="currentPassword" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+                Mật khẩu hiện tại <span className="text-red-500">*</span>
               </label>
               <input
                 id="currentPassword"
@@ -149,14 +127,14 @@ export default function ChangePasswordPage() {
                 required
                 value={formData.currentPassword}
                 onChange={(e) => handleInputChange('currentPassword', e.target.value)}
-                className="w-full border border-orange-200 rounded-lg px-3 py-2 text-orange-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-200 transition"
+                className="w-full border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-colors text-gray-900"
                 placeholder="Nhập mật khẩu hiện tại"
               />
             </div>
 
             <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-orange-700 mb-1">
-                Mật khẩu mới
+              <label htmlFor="newPassword" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+                Mật khẩu mới <span className="text-red-500">*</span>
               </label>
               <input
                 id="newPassword"
@@ -164,17 +142,17 @@ export default function ChangePasswordPage() {
                 required
                 value={formData.newPassword}
                 onChange={(e) => handleInputChange('newPassword', e.target.value)}
-                className="w-full border border-orange-200 rounded-lg px-3 py-2 text-orange-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-200 transition"
+                className="w-full border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-colors text-gray-900"
                 placeholder="Nhập mật khẩu mới"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
                 Mật khẩu phải có ít nhất 6 ký tự
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-orange-700 mb-1">
-                Xác nhận mật khẩu mới
+              <label htmlFor="confirmPassword" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-1.5">
+                Xác nhận mật khẩu mới <span className="text-red-500">*</span>
               </label>
               <input
                 id="confirmPassword"
@@ -182,32 +160,32 @@ export default function ChangePasswordPage() {
                 required
                 value={formData.confirmPassword}
                 onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                className="w-full border border-orange-200 rounded-lg px-3 py-2 text-orange-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-200 transition"
+                className="w-full border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-colors text-gray-900"
                 placeholder="Nhập lại mật khẩu mới"
               />
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2 sm:pt-4">
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="flex-1 px-4 py-2 border border-orange-200 rounded-lg text-orange-700 hover:bg-orange-50 transition-colors"
+                className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold text-sm sm:text-base shadow-sm hover:shadow transition-all duration-200"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-lg font-semibold shadow hover:shadow-lg transition disabled:opacity-60"
+                className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Đang xử lý..." : "Thay đổi mật khẩu"}
               </button>
             </div>
           </form>
 
-          <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-            <h3 className="text-sm font-medium text-orange-700 mb-2">Lưu ý:</h3>
-            <ul className="text-xs text-orange-700 space-y-1">
+          <div className="mt-5 sm:mt-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Lưu ý:</h3>
+            <ul className="text-xs sm:text-sm text-gray-700 space-y-1">
               <li>• Mật khẩu mới phải có ít nhất 6 ký tự</li>
               <li>• Mật khẩu mới phải khác mật khẩu hiện tại</li>
               <li>• Sau khi thay đổi, bạn sẽ cần đăng nhập lại</li>
@@ -215,24 +193,6 @@ export default function ChangePasswordPage() {
           </div>
         </div>
       </div>
-      <style jsx global>{`
-        .animate-fade-in { animation: fade-in 0.5s; }
-        .animate-shake { animation: shake 0.3s; }
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes shake {
-          0% { transform: translateX(0); }
-          20% { transform: translateX(-6px); }
-          40% { transform: translateX(6px); }
-          60% { transform: translateX(-4px); }
-          80% { transform: translateX(4px); }
-          100% { transform: translateX(0); }
-        }
-        @keyframes bounceTitle {
-          0% { transform: translateY(0);}
-          50% { transform: translateY(-12px);}
-          100% { transform: translateY(0);}
-        }
-      `}</style>
     </div>
   );
 }

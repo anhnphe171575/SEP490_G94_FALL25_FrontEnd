@@ -132,17 +132,18 @@ export default function MyProfilePage() {
   if (!me) return null;
 
   return (
-    <div className="flex min-h-screen">     
+    <div className="flex min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100">     
       <ResponsiveSidebar />
-      <main className="flex-1 p-6 ml-64">
+      <main className="flex-1 p-4 sm:p-6 lg:ml-64 bg-gradient-to-br from-orange-50 via-white to-orange-100 min-h-screen">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 sm:mb-6">
             <button
               onClick={() => setShowEdit(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-400 to-orange-600 text-white font-semibold shadow hover:scale-105 hover:shadow-orange-300 transition-all duration-200"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all duration-200"
             >
-              <Settings className="w-5 h-5" />
-              Chỉnh Sửa
+              <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Chỉnh Sửa</span>
+              <span className="sm:hidden">Sửa</span>
             </button>
           </div>
 
@@ -154,11 +155,11 @@ export default function MyProfilePage() {
                 <div className="absolute -top-10 -left-10 w-40 h-40 bg-gradient-to-br from-orange-300 via-orange-100 to-transparent rounded-full opacity-30 blur-2xl pointer-events-none animate-pulse"></div>
                 <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-gradient-to-tr from-orange-400 via-orange-100 to-transparent rounded-full opacity-20 blur-2xl pointer-events-none animate-pulse"></div>
                 {/* Top section */}
-                <div className="grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-6 mb-8 z-10 relative">
+                <div className="grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-4 sm:gap-6 mb-6 sm:mb-8 z-10 relative">
                   {/* Avatar card */}
-                  <div className="card rounded-xl p-6 flex items-center gap-5 bg-white/90 border border-orange-200 shadow-xl">
+                  <div className="card rounded-xl p-4 sm:p-6 flex flex-col sm:flex-row items-center gap-4 sm:gap-5 bg-white/90 border border-orange-200 shadow-xl">
                     <div
-                      className="w-24 h-24 rounded-xl overflow-hidden flex items-center justify-center text-3xl font-semibold border bg-orange-50"
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden flex items-center justify-center text-2xl sm:text-3xl font-semibold border bg-orange-50 flex-shrink-0"
                       style={{ borderColor: "#fdba74" }}
                     >
                       {me.avatar ? (
@@ -190,13 +191,13 @@ export default function MyProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex-1">
-                      <div className="text-lg font-bold text-orange-700">
+                    <div className="flex-1 text-center sm:text-left w-full sm:w-auto">
+                      <div className="text-base sm:text-lg font-bold text-gray-900">
                         {me.full_name || "Chưa cập nhật tên"}
                       </div>
-                      <div className="text-sm opacity-80 text-orange-600">{me.email}</div>
+                      <div className="text-xs sm:text-sm text-gray-600 break-words">{me.email}</div>
                       {me.major && (
-                        <div className="text-xs opacity-60 mt-1 text-orange-500">{me.major}</div>
+                        <div className="text-xs text-gray-500 mt-1">{me.major}</div>
                       )}
                     </div>
                   </div>
@@ -211,17 +212,17 @@ export default function MyProfilePage() {
                     !me.address[0]?.city ||
                     !me.address[0]?.postalCode ||
                     !me.address[0]?.contry) && (
-                    <div className="card rounded-xl p-6 flex items-center justify-between bg-orange-50 border border-orange-200 shadow">
-                      <div>
-                        <div className="font-medium mb-1 text-orange-800">
+                    <div className="card rounded-xl p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 bg-orange-50 border border-orange-200 shadow">
+                      <div className="flex-1">
+                        <div className="font-medium mb-1 text-sm sm:text-base text-gray-900">
                           Thông báo
                         </div>
-                        <div className="text-sm opacity-75 text-orange-900">
+                        <div className="text-xs sm:text-sm text-gray-700">
                           Cập nhật hồ sơ để tăng mức độ hoàn thiện tài khoản của bạn.
                         </div>
                       </div>
                       <button
-                        className="px-4 py-2 rounded-lg border border-orange-300 text-orange-800 hover:bg-orange-100 transition"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-orange-300 text-gray-900 hover:bg-orange-100 transition text-xs sm:text-sm whitespace-nowrap font-medium"
                         onClick={() => setShowEdit(true)}
                       >
                         Hoàn thiện
@@ -233,7 +234,7 @@ export default function MyProfilePage() {
                 {/* Details */}
                 <div className="w-full flex justify-center">
              <h2
-  className="text-2xl font-extrabold mb-6 text-center pt-8 pb-2 tracking-wide"
+  className="text-xl sm:text-2xl font-extrabold mb-4 sm:mb-6 text-center pt-6 sm:pt-8 pb-2 tracking-wide"
 >
   <span
     className="bg-gradient-to-r from-orange-400 via-yellow-400 via-green-400 via-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-lg"
@@ -249,7 +250,7 @@ export default function MyProfilePage() {
 </h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 z-10 relative">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 z-10 relative">
                   {[
                     {
                       label: "Họ và Tên",
@@ -289,12 +290,12 @@ export default function MyProfilePage() {
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="card rounded-xl p-4 bg-white/80 border border-orange-100 shadow hover:shadow-orange-200 transition-all duration-200"
+                      className="card rounded-xl p-3 sm:p-4 bg-white/80 border border-orange-100 shadow hover:shadow-orange-200 transition-all duration-200"
                     >
-                      <div className="text-xs opacity-70 mb-2 text-orange-700">{item.label}</div>
+                      <div className="text-xs text-gray-600 mb-2">{item.label}</div>
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{item.icon}</span>
-                        <div className="font-semibold text-orange-900">{item.value}</div>
+                        <span className="text-base sm:text-lg flex-shrink-0">{item.icon}</span>
+                        <div className="font-semibold text-sm sm:text-base text-gray-900 break-words">{item.value}</div>
                       </div>
                     </div>
                   ))}
@@ -306,40 +307,29 @@ export default function MyProfilePage() {
 
           {/* Trang cập nhật thông tin cá nhân */}
           {showEdit && (
-            <div className="mx-auto w-full max-w-xl">
+            <div className="mx-auto w-full max-w-2xl">
               <div
-                className="relative bg-white/90 rounded-2xl p-5 overflow-hidden"
+                className="relative bg-white/95 rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 overflow-hidden border border-white/50 shadow-xl"
                 style={{
                   boxShadow:
-                    "0 0 24px 6px #fb923c88, 0 2px 12px 0 #fb923c55",
-                  backdropFilter: "blur(1.5px)",
+                    "0 4px 20px rgba(251, 146, 60, 0.15), 0 0 0 1px rgba(251, 146, 60, 0.1)",
                 }}
               >
                 {/* Hiệu ứng ánh sáng cam động */}
-                <div className="absolute -top-8 -left-8 w-40 h-40 bg-gradient-to-br from-orange-400 via-orange-200 to-transparent rounded-full opacity-50 blur-2xl pointer-events-none animate-pulse"></div>
-                <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-gradient-to-tr from-orange-500 via-orange-200 to-transparent rounded-full opacity-40 blur-2xl pointer-events-none animate-pulse"></div>
-                <div className="w-full flex justify-center">
-              <h2
-  className="w-max text-2xl font-extrabold mb-4 pt-8 pb-2 tracking-wide"
->
-  <span
-    className="bg-gradient-to-r from-orange-400 via-yellow-400 via-green-400 via-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-lg"
-    style={{
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-      backgroundClip: "text",
-      color: "transparent",
-    }}
-  >
-    Cập nhật thông tin cá nhân
-  </span>
-</h2>
+                <div className="absolute -top-8 -left-8 w-40 h-40 bg-gradient-to-br from-orange-400 via-orange-200 to-transparent rounded-full opacity-30 blur-2xl pointer-events-none animate-pulse"></div>
+                <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-gradient-to-tr from-orange-500 via-orange-200 to-transparent rounded-full opacity-25 blur-2xl pointer-events-none animate-pulse"></div>
+                
+                <div className="w-full flex justify-center mb-6">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-wide">
+                    Cập nhật thông tin cá nhân
+                  </h2>
                 </div>
-                <form onSubmit={handleEditSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <form onSubmit={handleEditSubmit} className="space-y-5 sm:space-y-6 relative z-10">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Họ và Tên
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Họ và Tên <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -350,14 +340,14 @@ export default function MyProfilePage() {
                             full_name: e.target.value,
                           }))
                         }
-                        className="w-full border border-orange-200 rounded-lg px-3 py-1.5 bg-white/80 shadow focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all duration-200 shadow-sm"
                         placeholder="Nhập họ và tên"
                         autoComplete="off"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Số Điện Thoại
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Số Điện Thoại <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="tel"
@@ -368,14 +358,14 @@ export default function MyProfilePage() {
                             phone: e.target.value,
                           }))
                         }
-                        className="w-full border border-orange-200 rounded-lg px-3 py-1.5 bg-white/80 shadow focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all duration-200 shadow-sm"
                         placeholder="Nhập số điện thoại"
                         autoComplete="off"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Ngày Sinh
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Ngày Sinh <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="date"
@@ -386,11 +376,11 @@ export default function MyProfilePage() {
                             dob: e.target.value,
                           }))
                         }
-                        className="w-full border border-orange-200 rounded-lg px-3 py-1.5 bg-white/80 shadow focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all duration-200 shadow-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Chuyên Ngành
                       </label>
                       <input
@@ -402,17 +392,19 @@ export default function MyProfilePage() {
                             major: e.target.value,
                           }))
                         }
-                        className="w-full border border-orange-200 rounded-lg px-3 py-1.5 bg-white/80 shadow focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm sm:text-base bg-white focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all duration-200 shadow-sm"
                         placeholder="Nhập chuyên ngành"
                         autoComplete="off"
                       />
                     </div>
                   </div>
-                  <div className="border-t border-orange-100 pt-4">
-                    <h3 className="text-base font-semibold text-orange-700 mb-2 flex items-center gap-2">
-                      <span role="img" aria-label="address">📍</span> Địa chỉ
+                  
+                  <div className="border-t border-gray-200 pt-5 sm:pt-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <span role="img" aria-label="address" className="text-lg">📍</span> 
+                      Địa chỉ
                     </h3>
-                    <div className="rounded-lg border border-orange-100 bg-orange-50/30 p-3 shadow-inner">
+                    <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 sm:p-5 shadow-inner">
                       <AddressForm
                         address={editForm.address}
                         onChange={(newAddress: any) =>
@@ -424,31 +416,29 @@ export default function MyProfilePage() {
                       />
                     </div>
                   </div>
-                  <div className="flex justify-end gap-3 pt-4 border-t border-orange-100">
+                  
+                  <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 sm:pt-5 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setShowEdit(false)}
+                      className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold text-sm sm:text-base shadow-sm hover:shadow transition-all duration-200"
+                    >
+                      Hủy
+                    </button>
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="px-5 py-1.5 rounded-lg bg-gradient-to-r from-orange-400 to-orange-500 text-white font-bold shadow-lg hover:scale-105 hover:shadow-orange-300 transition-all duration-200 disabled:opacity-60 border-2 border-transparent hover:border-orange-400"
+                      className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <span className="animate-pulse">Đang cập nhật...</span>
                       ) : (
-                        <>
-                          <span className="drop-shadow">💾</span> Cập nhật
-                        </>
+                        "Cập nhật"
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowEdit(false)}
-                      className="px-5 py-1.5 rounded-lg bg-gradient-to-r from-gray-200 to-gray-300 text-orange-700 font-bold shadow hover:scale-105 hover:shadow-orange-100 transition-all duration-200 border-2 border-transparent"
-                    >
-                      Hủy
                     </button>
                   </div>
                 </form>
               </div>
-            
             </div>
           )}
         </div>
