@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
@@ -119,8 +119,10 @@ const ContributionPlaceholder = ({ message }: { message: string }) => (
 
 export default function ContributorDashboardPage() {
   const router = useRouter();
+  const params = useParams();
   const searchParams = useSearchParams();
-  const projectId = searchParams.get("project_id");
+  // Lấy projectId từ route parameter [id] hoặc từ query string (fallback)
+  const projectId = (params?.id as string) || searchParams.get("project_id") || "";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

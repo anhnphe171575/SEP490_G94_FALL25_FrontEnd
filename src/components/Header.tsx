@@ -87,12 +87,14 @@ export default function Header() {
     setShowDropdown(false);
   };
 
+  const isSupervisor = me?.role === 4;
+
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between px-4 md:px-6 h-16">
         {/* Logo/Brand */}
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-3">
+          <Link href={isSupervisor ? "/supervisor/projects" : "/dashboard"} className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-lg flex items-center justify-center">
               <svg
                 className="w-5 h-5 text-white"

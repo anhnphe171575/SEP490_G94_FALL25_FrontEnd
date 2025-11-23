@@ -495,7 +495,7 @@ export default function ResponsiveSidebar() {
                   />
                 </svg>
               </div>
-              <Link href="/dashboard" className="flex items-center gap-3">
+              <Link href={isSupervisor ? "/supervisor/projects" : "/dashboard"} className="flex items-center gap-3">
               <div>
 
                 <h1 className="text-lg font-bold text-gray-900">
@@ -608,7 +608,7 @@ export default function ResponsiveSidebar() {
                   />
                 </svg>
               </div>
-              <Link href="/dashboard" className="flex items-center gap-3">
+              <Link href={isSupervisor ? "/supervisor/projects" : ""} className="flex items-center gap-3">
               <div>
                 <h1 className="text-lg font-bold text-gray-900">
                   SEP Workspace
