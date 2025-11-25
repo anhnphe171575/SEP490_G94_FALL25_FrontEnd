@@ -476,21 +476,7 @@ export default function ContributorDashboardPage() {
           </div>
         </td>
 
-        <td className="px-4 py-4 text-right">
-          {detailHref ? (
-            <button
-              onClick={() => router.push(detailHref)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              Chi tiết
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ) : (
-            <span className="text-xs text-slate-400">Không khả dụng</span>
-          )}
-        </td>
+        
       </tr>
     );
   };
@@ -498,11 +484,9 @@ export default function ContributorDashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <ResponsiveSidebar />
-      <div className="mx-auto w-full max-w-7xl px-6 py-8 md:ml-64">
-          {/* QuickNav - Always at the top */}
-          <div className="mb-6">
-            <QuickNav selectedProject={projectId ?? undefined} />
-          </div>
+      <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
+        <div className="mx-auto w-full max-w-7xl">
+          
           
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -676,7 +660,6 @@ export default function ContributorDashboardPage() {
                                 <th className="px-4 py-3">Hoàn thành</th>
                                 <th className="px-4 py-3">Tỉ lệ & loại task</th>
                                 <th className="px-4 py-3">Thời gian</th>
-                                <th className="px-4 py-3 text-right">Hành động</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 bg-white">
@@ -812,16 +795,6 @@ export default function ContributorDashboardPage() {
                                             }
                                           </span>
                                         )}
-                                        
-                                        {/* Estimate */}
-                                        {task.estimate && (
-                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            {task.estimate}h
-                                          </span>
-                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -843,6 +816,8 @@ export default function ContributorDashboardPage() {
             </div>
           ) : null}
         </div>
-      </div>
-  );
+      </main>
+    </div>  
+       
+    );
 }
