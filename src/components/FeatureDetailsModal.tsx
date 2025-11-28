@@ -40,8 +40,8 @@ type Feature = {
   _id: string;
   title: string;
   description?: string;
-  status_id?: any;
-  priority_id?: any;
+  status?: any;
+  priority?: any;
   project_id?: any;
   start_date?: string;
   end_date?: string;
@@ -286,7 +286,7 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               sx={{ 
                 mt: 0.5,
                 color: (() => {
-                  const statusName = typeof feature?.status_id === 'object' ? feature?.status_id?.name : feature?.status_id;
+                  const statusName = typeof feature?.status === 'object' ? feature?.status?.name : feature?.status;
                   return (statusName || '').toLowerCase().includes('completed') ? '#10b981' : '#d1d5db';
                 })(),
                 '&:hover': { color: '#10b981' }
@@ -364,34 +364,34 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
                 {/* Status */}
-                {feature?.status_id && (
+                {feature?.status && (
                   <Chip 
-                    label={typeof feature.status_id === 'object' ? feature.status_id.name : feature.status_id} 
+                    label={typeof feature.status === 'object' ? feature.status.name : feature.status} 
                     size="small"
                     sx={{ 
                       height: 24,
                       fontSize: '12px',
                       fontWeight: 600,
-                      bgcolor: `${getStatusColor(feature.status_id)}15`,
-                      color: getStatusColor(feature.status_id),
-                      border: `1px solid ${getStatusColor(feature.status_id)}40`,
+                      bgcolor: `${getStatusColor(feature.status)}15`,
+                      color: getStatusColor(feature.status),
+                      border: `1px solid ${getStatusColor(feature.status)}40`,
                     }}
                   />
                 )}
 
                 {/* Priority */}
-                {feature?.priority_id && (
+                {feature?.priority && (
                   <Chip 
                     icon={<FlagIcon sx={{ fontSize: 14 }} />}
-                    label={typeof feature.priority_id === 'object' ? feature.priority_id.name : feature.priority_id} 
+                    label={typeof feature.priority === 'object' ? feature.priority.name : feature.priority} 
                     size="small"
                     sx={{ 
                       height: 24,
                       fontSize: '12px',
                       fontWeight: 600,
-                      bgcolor: `${getPriorityColor(feature.priority_id)}15`,
-                      color: getPriorityColor(feature.priority_id),
-                      border: `1px solid ${getPriorityColor(feature.priority_id)}40`,
+                      bgcolor: `${getPriorityColor(feature.priority)}15`,
+                      color: getPriorityColor(feature.priority),
+                      border: `1px solid ${getPriorityColor(feature.priority)}40`,
                     }}
                   />
                 )}
@@ -513,10 +513,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  value={typeof feature?.status_id === 'object' ? (feature.status_id as any)?._id : feature?.status_id || ''}
+                  value={typeof feature?.status === 'object' ? (feature.status as any)?._id : feature?.status || ''}
                   onChange={async (e) => {
                     try {
-                      await handleFeatureUpdate({ status_id: e.target.value });
+                      await handleFeatureUpdate({ status: e.target.value });
                     } catch (error) {
                       console.error('Error updating status:', error);
                       // Error already shown in handleFeatureUpdate
@@ -552,10 +552,10 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  value={typeof feature?.priority_id === 'object' ? (feature.priority_id as any)?._id : feature?.priority_id || ''}
+                  value={typeof feature?.priority === 'object' ? (feature.priority as any)?._id : feature?.priority || ''}
                   onChange={async (e) => {
                     try {
-                      await handleFeatureUpdate({ priority_id: e.target.value || null });
+                      await handleFeatureUpdate({ priority: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
                       // Error already shown in handleFeatureUpdate

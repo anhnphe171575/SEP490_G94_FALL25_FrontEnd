@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, useEffect, useMemo, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
@@ -143,6 +143,7 @@ export default function ProjectTasksPage() {
 
   const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt">("table");
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [rawTasks, setRawTasks] = useState<Task[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,10 +176,6 @@ export default function ProjectTasksPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
-
-  // pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   // dialog state
   const [openDialog, setOpenDialog] = useState(false);
@@ -262,12 +259,6 @@ export default function ProjectTasksPage() {
     loadAll();
     loadFilterOptions();
   }, [projectId]);
-
-  // Auto-fetch when filters change
-  useEffect(() => {
-    if (!projectId) return;
-    loadAll();
-  }, [filterAssignee, filterStatus, filterPriority, filterFeature, filterMilestone, debouncedSearch, sortBy, page, pageSize]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -495,21 +486,149 @@ export default function ProjectTasksPage() {
     }
   };
 
+  const buildFilteredTasks = useCallback((source: Task[]) => {
+    let filtered = Array.isArray(source) ? [...source] : [];
+    const term = debouncedSearch.trim().toLowerCase();
+
+    if (term) {
+      filtered = filtered.filter(task => {
+        const candidates = [
+          task.title,
+          task.description,
+          typeof task.feature_id === 'object' ? (task.feature_id as any)?.title : undefined,
+          typeof (task as any).function_id === 'object' ? ((task as any).function_id as any)?.title : undefined,
+          typeof task.milestone_id === 'object' ? (task.milestone_id as any)?.title : undefined,
+          typeof task.assignee_id === 'object'
+            ? ((task.assignee_id as any)?.full_name ?? (task.assignee_id as any)?.email)
+            : undefined,
+        ];
+        return candidates.some(value => value?.toLowerCase().includes(term));
+      });
+    }
+
+    if (filterAssignee !== 'all') {
+      filtered = filtered.filter(task => {
+        const assignee = task.assignee_id || (task as any).assignee;
+        if (!assignee) return false;
+        const assigneeId = typeof assignee === 'object' ? (assignee as any)?._id : assignee;
+        return String(assigneeId || '') === String(filterAssignee);
+      });
+    }
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(task => {
+        const statusName = typeof task.status === 'object' ? (task.status as any)?.name : task.status;
+        if (!statusName) return false;
+        return normalizeStatusValue(statusName) === normalizeStatusValue(filterStatus);
+      });
+    }
+
+    if (filterPriority !== 'all') {
+      filtered = filtered.filter(task => {
+        const priorityName = typeof task.priority === 'object' ? (task.priority as any)?.name : task.priority;
+        if (!priorityName) return false;
+        return String(priorityName) === String(filterPriority);
+      });
+    }
+
+    if (filterFeature !== 'all') {
+      filtered = filtered.filter(task => {
+        const feature = task.feature_id;
+        const featureId = typeof feature === 'object' ? (feature as any)?._id : feature;
+        return String(featureId || '') === String(filterFeature);
+      });
+    }
+
+    if (filterFunction !== 'all') {
+      filtered = filtered.filter(task => {
+        const fn = (task as any).function_id;
+        const fnId = typeof fn === 'object' ? (fn as any)?._id : fn;
+        return String(fnId || '') === String(filterFunction);
+      });
+    }
+
+    if (filterMilestone !== 'all') {
+      filtered = filtered.filter(task => {
+        const milestone = task.milestone_id;
+        const milestoneId = typeof milestone === 'object' ? (milestone as any)?._id : milestone;
+        return String(milestoneId || '') === String(filterMilestone);
+      });
+    }
+
+    const fromDate = filterDateRange.from ? new Date(filterDateRange.from) : null;
+    const toDate = filterDateRange.to ? new Date(filterDateRange.to) : null;
+
+    if (fromDate && !Number.isNaN(fromDate.getTime())) {
+      filtered = filtered.filter(task => {
+        const start = task.start_date ? new Date(task.start_date) : null;
+        const end = task.deadline ? new Date(task.deadline) : null;
+        const candidate = end || start;
+        if (!candidate || Number.isNaN(candidate.getTime())) return true;
+        return candidate >= fromDate;
+      });
+    }
+
+    if (toDate && !Number.isNaN(toDate.getTime())) {
+      filtered = filtered.filter(task => {
+        const start = task.start_date ? new Date(task.start_date) : null;
+        const end = task.deadline ? new Date(task.deadline) : null;
+        const candidate = end || start;
+        if (!candidate || Number.isNaN(candidate.getTime())) return true;
+        return candidate <= toDate;
+      });
+    }
+
+    if (sortBy) {
+      const [field, dir = 'asc'] = sortBy.split(':');
+      const direction = dir === 'desc' ? -1 : 1;
+      filtered.sort((a, b) => {
+        const safeDateValue = (value?: string) => {
+          if (!value) {
+            return direction === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+          }
+          const time = new Date(value).getTime();
+          if (Number.isNaN(time)) {
+            return direction === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+          }
+          return time;
+        };
+
+        if (field === 'deadline') {
+          return (safeDateValue(a.deadline) - safeDateValue(b.deadline)) * direction;
+        }
+        if (field === 'start_date') {
+          return (safeDateValue(a.start_date) - safeDateValue(b.start_date)) * direction;
+        }
+        if (field === 'title') {
+          return ((a.title || '').localeCompare(b.title || '')) * direction;
+        }
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [
+    debouncedSearch,
+    filterAssignee,
+    filterStatus,
+    filterPriority,
+    filterFeature,
+    filterFunction,
+    filterMilestone,
+    filterDateRange.from,
+    filterDateRange.to,
+    sortBy
+  ]);
+
+  useEffect(() => {
+    setTasks(buildFilteredTasks(rawTasks));
+  }, [rawTasks, buildFilteredTasks]);
+
   const loadAll = async () => {
     try {
       setLoading(true);
       const params: any = {
-        q: debouncedSearch || undefined,
-        assignee_id: filterAssignee !== 'all' ? String(filterAssignee) : undefined,
-        status: filterStatus !== 'all' ? String(filterStatus) : undefined,
-        priority: filterPriority !== 'all' ? String(filterPriority) : undefined,
-        feature_id: filterFeature !== 'all' ? String(filterFeature) : undefined,
-        milestone_id: filterMilestone !== 'all' ? String(filterMilestone) : undefined,
-        from: filterDateRange.from || undefined,
-        to: filterDateRange.to || undefined,
-        sortBy,
-        page,
-        pageSize,
+        pageSize: 1000,
       };
       const [tasksRes, statsRes] = await Promise.all([
         axiosInstance.get(`/api/projects/${projectId}/tasks`, { params }),
@@ -525,7 +644,8 @@ export default function ProjectTasksPage() {
             ? raw.tasks
             : [];
 
-      setTasks(normalized);
+      setRawTasks(normalized);
+      setTasks(buildFilteredTasks(normalized));
       setStats(statsRes?.data || null);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Không thể tải danh sách tasks");
@@ -930,23 +1050,7 @@ export default function ProjectTasksPage() {
     });
   }, [allFunctions, filterFeature]);
 
-  const filteredSorted = useMemo(() => {
-    let filtered = tasks;
-    
-    // Additional client-side filtering for Function (since backend doesn't support it yet)
-    if (filterFunction !== 'all') {
-      filtered = filtered.filter(task => {
-        const taskFunctionId = typeof (task as any).function_id === 'object' 
-          ? ((task as any).function_id as any)?._id 
-          : (task as any).function_id;
-        return taskFunctionId === filterFunction;
-      });
-    }
-    
-    return filtered;
-  }, [tasks, filterFunction]);
-
-  const paged = filteredSorted;
+  const paged = tasks;
 
   // Build a stable global index map for STT across groups (consistent with other screens)
   const indexById = useMemo(() => {
@@ -3666,7 +3770,7 @@ export default function ProjectTasksPage() {
                     const isToday = currentDate.toDateString() === today.toDateString();
                     
                     // Get tasks for this date
-                    const dayTasks = filteredSorted.filter(task => {
+                    const dayTasks = tasks.filter(task => {
                       if (!task.deadline) return false;
                       const taskDate = new Date(task.deadline);
                       return taskDate.toDateString() === currentDate.toDateString();

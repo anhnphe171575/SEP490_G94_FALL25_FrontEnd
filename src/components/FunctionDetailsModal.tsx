@@ -40,7 +40,7 @@ type FunctionType = {
   title: string;
   description?: string;
   status?: any;
-  priority_id?: any;
+  priority?: any;
   feature_id?: any;
   start_date?: string;
   deadline?: string;
@@ -331,18 +331,18 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                   />
                 )}
 
-                {func?.priority_id && (
+                {func?.priority && (
                   <Chip 
                     icon={<FlagIcon sx={{ fontSize: 14 }} />}
-                    label={typeof func.priority_id === 'object' ? func.priority_id.name : func.priority_id} 
+                    label={typeof func.priority === 'object' ? func.priority.name : func.priority} 
                     size="small"
                     sx={{ 
                       height: 24,
                       fontSize: '12px',
                       fontWeight: 600,
-                      bgcolor: `${getPriorityColor(func.priority_id)}15`,
-                      color: getPriorityColor(func.priority_id),
-                      border: `1px solid ${getPriorityColor(func.priority_id)}40`,
+                      bgcolor: `${getPriorityColor(func.priority)}15`,
+                      color: getPriorityColor(func.priority),
+                      border: `1px solid ${getPriorityColor(func.priority)}40`,
                     }}
                   />
                 )}
@@ -576,10 +576,10 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
               </Typography>
               <FormControl fullWidth size="small">
                 <Select
-                  value={typeof func?.priority_id === 'object' ? (func.priority_id as any)?._id : func?.priority_id || ''}
+                  value={typeof func?.priority === 'object' ? (func.priority as any)?._id : func?.priority || ''}
                   onChange={async (e) => {
                     try {
-                      await handleFunctionUpdate({ priority_id: e.target.value || null });
+                      await handleFunctionUpdate({ priority: e.target.value || null });
                     } catch (error) {
                       console.error('Error updating priority:', error);
                       // Error already shown in handleFunctionUpdate

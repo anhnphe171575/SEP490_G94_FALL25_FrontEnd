@@ -299,8 +299,8 @@ export default function ProgressTaskPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <ResponsiveSidebar />
-      <div className="mx-auto w-full max-w-7xl px-6 py-8 md:ml-64">
-        <QuickNav selectedProject={projectId ?? undefined} />
+      <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
+        <div className="mx-auto w-full max-w-7xl">
         
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900">Progress Task</h1>
@@ -954,6 +954,7 @@ export default function ProgressTaskPage() {
           />
         )}
       </div>
+    </main>
     </div>
   );
 }

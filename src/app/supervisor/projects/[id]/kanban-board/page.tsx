@@ -178,28 +178,30 @@ export default function SupervisorKanbanBoardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f9fb]">
+      <div className="min-h-screen bg-slate-50">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6">
-          <Box sx={{ 
-            display: "flex", 
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: "center", 
-            py: 12 
-          }}>
-            <CircularProgress 
-              size={60} 
-              thickness={4}
-              sx={{ 
-                color: '#667eea',
-                mb: 3
-              }}
-            />
-            <Typography variant="h6" fontWeight={600} color="text.secondary">
-              Đang tải dữ liệu công việc...
-            </Typography>
-          </Box>
+        <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
+          <div className="mx-auto w-full max-w-7xl">
+            <Box sx={{ 
+              display: "flex", 
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: "center", 
+              py: 12 
+            }}>
+              <CircularProgress 
+                size={60} 
+                thickness={4}
+                sx={{ 
+                  color: '#667eea',
+                  mb: 3
+                }}
+              />
+              <Typography variant="h6" fontWeight={600} color="text.secondary">
+                Đang tải dữ liệu công việc...
+              </Typography>
+            </Box>
+          </div>
         </main>
       </div>
     );
@@ -207,39 +209,41 @@ export default function SupervisorKanbanBoardPage() {
 
   if (!projectId) {
     return (
-      <div className="min-h-screen bg-[#f8f9fb]">
+      <div className="min-h-screen bg-slate-50">
         <ResponsiveSidebar />
-        <main className="p-4 md:p-6">
-          <Box sx={{ 
-            display: "flex", 
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: "center", 
-            py: 12 
-          }}>
-            <Typography variant="h6" fontWeight={600} color="error" sx={{ mb: 2 }}>
-              Vui lòng chọn dự án
-            </Typography>
-            <Button 
-              variant="contained" 
-              onClick={() => router.push('/supervisor/projects')}
-              sx={{ bgcolor: '#7b68ee', '&:hover': { bgcolor: '#6952d6' } }}
-            >
-              Quay lại danh sách dự án
-            </Button>
-          </Box>
+        <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
+          <div className="mx-auto w-full max-w-7xl">
+            <Box sx={{ 
+              display: "flex", 
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: "center", 
+              py: 12 
+            }}>
+              <Typography variant="h6" fontWeight={600} color="error" sx={{ mb: 2 }}>
+                Vui lòng chọn dự án
+              </Typography>
+              <Button 
+                variant="contained" 
+                onClick={() => router.push('/supervisor/projects')}
+                sx={{ bgcolor: '#7b68ee', '&:hover': { bgcolor: '#6952d6' } }}
+              >
+                Quay lại danh sách dự án
+              </Button>
+            </Box>
+          </div>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb]">
+    <div className="min-h-screen bg-slate-50">
       <ResponsiveSidebar />
-      <main className="p-4 md:p-6">
+      <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
+        <div className="mx-auto w-full max-w-7xl">
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-          <QuickNav selectedProject={projectId || undefined} />
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
             <Typography variant="h5" fontWeight={700} color="text.primary">
               Kanban Board
@@ -527,6 +531,7 @@ export default function SupervisorKanbanBoardPage() {
             readonly={true}
           />
         )}
+        </div>
       </main>
     </div>
   );

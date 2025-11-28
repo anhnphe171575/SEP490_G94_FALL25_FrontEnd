@@ -45,7 +45,7 @@ export default function FeatureDetailsFunctions({
   const [form, setForm] = useState({
     title: "",
     description: "",
-    priority_id: "",
+    priority: "",
     status: "",
   });
   const [loading, setLoading] = useState(false);
@@ -86,7 +86,7 @@ export default function FeatureDetailsFunctions({
         feature_id: featureId,
       });
       setOpenDialog(false);
-      setForm({ title: "", description: "", priority_id: "", status: "" });
+      setForm({ title: "", description: "", priority: "", status: "" });
       loadFunctions();
     } catch (error: any) {
       console.error("Error creating function:", error);
@@ -224,17 +224,17 @@ export default function FeatureDetailsFunctions({
                   )}
                 </TableCell>
                 <TableCell>
-                  {func.priority_id ? (
+                  {func.priority ? (
                     <Chip 
-                      label={resolvePriorityName(func.priority_id)} 
+                      label={resolvePriorityName(func.priority)} 
                       size="small"
                       sx={{
                         height: 24,
                         fontSize: '12px',
                         fontWeight: 600,
-                        bgcolor: `${getPriorityColor(resolvePriorityName(func.priority_id))}15`,
-                        color: getPriorityColor(resolvePriorityName(func.priority_id)),
-                        border: `1px solid ${getPriorityColor(resolvePriorityName(func.priority_id))}40`,
+                        bgcolor: `${getPriorityColor(resolvePriorityName(func.priority))}15`,
+                        color: getPriorityColor(resolvePriorityName(func.priority)),
+                        border: `1px solid ${getPriorityColor(resolvePriorityName(func.priority))}40`,
                       }}
                     />
                   ) : (
@@ -302,9 +302,9 @@ export default function FeatureDetailsFunctions({
             <FormControl fullWidth>
               <InputLabel>Ưu tiên</InputLabel>
               <Select
-                value={form.priority_id}
+                value={form.priority}
                 label="Ưu tiên"
-                onChange={(e) => setForm({ ...form, priority_id: e.target.value })}
+                onChange={(e) => setForm({ ...form, priority: e.target.value })}
               >
                 <MenuItem value="">
                   <em>Không có</em>

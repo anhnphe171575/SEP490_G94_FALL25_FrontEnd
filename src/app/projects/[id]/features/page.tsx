@@ -79,8 +79,8 @@ type Feature = {
   _id?: string;
   title: string;
   description?: string;
-  priority_id?: Setting | string;
-  status_id?: Setting | string;
+  priority?: Setting | string;
+  status?: Setting | string;
   created_by?: User | string;
   last_updated_by?: User | string;
   start_date?: string;
@@ -287,15 +287,15 @@ export default function ProjectFeaturesPage() {
       }
       
       // Match status filter
-      const statusId = typeof f.status_id === 'object' 
-        ? (f.status_id as any)?._id 
-        : f.status_id;
+      const statusId = typeof f.status === 'object' 
+        ? (f.status as any)?._id 
+        : f.status;
       const matchStatus = filterStatus === 'all' || String(statusId) === String(filterStatus);
       
       // Match priority filter
-      const priorityId = typeof f.priority_id === 'object' 
-        ? (f.priority_id as any)?._id 
-        : f.priority_id;
+      const priorityId = typeof f.priority === 'object' 
+        ? (f.priority as any)?._id 
+        : f.priority;
       const matchPriority = filterPriority === 'all' || String(priorityId) === String(filterPriority);
       
       return matchSearch && matchStatus && matchPriority;
@@ -332,8 +332,8 @@ export default function ProjectFeaturesPage() {
       const payload = {
         title: form.title,
         description: form.description,
-        priority_id: form.priority_id,
-        status_id: form.status_id,
+        priority: form.priority,
+        status: form.status,
         start_date: form.start_date,
         end_date: form.end_date,
         tags: form.tags || [],
@@ -958,8 +958,9 @@ export default function ProjectFeaturesPage() {
                         return latest;
                       })();
                       const dueDateText = due ? new Date(due).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
-                      const statusName = typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? (f.status_id as any)?.name : '');
-                      const priorityName = typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?.name : '');
+                      const statusName = typeof f.status === 'string' ? f.status : (typeof f.status === 'object' ? (f.status as any)?.name : '');
+                      const priorityName = typeof f.priority === 'string' ? f.priority : (typeof f.priority
+                         === 'object' ? f.priority?.name : '');
                       const statusChip = (
                         <Chip
                           size="small"
@@ -1091,17 +1092,17 @@ export default function ProjectFeaturesPage() {
                             </Stack>
                           </TableCell>
                           
-                          <TableCell onClick={() => startEditCell(f, 'status_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'status_id' ? (
+                          <TableCell onClick={() => startEditCell(f, 'status')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'status' ? (
                               <Select
                                 size="small"
-                                value={typeof f.status_id === 'string' ? f.status_id : (typeof f.status_id === 'object' ? f.status_id?._id : '')}
+                                value={typeof f.status === 'string' ? f.status : (typeof f.status === 'object' ? f.status?._id : '')}
                                 onChange={async (e) => {
                                   const newStatusId = e.target.value;
                                   try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { status_id: newStatusId });
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { status: newStatusId });
                                     setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, status_id: newStatusId } : x
+                                      x._id === f._id ? { ...x, status: newStatusId } : x
                                     ));
                                     cancelEditRow();
                                     toast.success("Đã cập nhật trạng thái thành công");
@@ -1125,17 +1126,17 @@ export default function ProjectFeaturesPage() {
                             )}
                           </TableCell>
                           
-                          <TableCell onClick={() => startEditCell(f, 'priority_id')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'priority_id' ? (
+                          <TableCell onClick={() => startEditCell(f, 'priority')} sx={{ cursor: 'pointer' }}>
+                            {editingId === f._id && editingField === 'priority' ? (
                               <Select
                                 size="small"
-                                value={typeof f.priority_id === 'string' ? f.priority_id : (typeof f.priority_id === 'object' ? f.priority_id?._id : '')}
+                                value={typeof f.priority === 'string' ? f.priority : (typeof f.priority === 'object' ? f.priority?._id : '')}
                                 onChange={async (e) => {
                                   const newPriorityId = e.target.value;
                                   try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority_id: newPriorityId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, priority_id: newPriorityId } : x
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority: newPriorityId });
+                                    setFeatures(prev => prev.map(x =>       
+                                      x._id === f._id ? { ...x, priority: newPriorityId } : x
                                     ));
                                     cancelEditRow();
                                     toast.success("Đã cập nhật ưu tiên thành công");
@@ -1314,8 +1315,8 @@ export default function ProjectFeaturesPage() {
                     <Select
                       labelId="status-label"
                       label="Trạng thái"
-                      value={form.status_id || ''}
-                      onChange={(e) => setForm(prev => ({ ...prev, status_id: e.target.value }))}
+                      value={form.status || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, status: e.target.value }))}
                     >
                       {statuses.length === 0 ? (
                         <MenuItem disabled>Đang tải...</MenuItem>
@@ -1337,8 +1338,8 @@ export default function ProjectFeaturesPage() {
                     <Select
                       labelId="priority-label"
                       label="Ưu tiên"
-                      value={form.priority_id || ''}
-                      onChange={(e) => setForm(prev => ({ ...prev, priority_id: e.target.value }))}
+                      value={form.priority || ''}
+                      onChange={(e) => setForm(prev => ({ ...prev, priority: e.target.value }))}
                     >
                       {priorities.length === 0 ? (
                         <MenuItem disabled>Đang tải...</MenuItem>
@@ -1506,13 +1507,13 @@ export default function ProjectFeaturesPage() {
                       Trạng thái
                     </Typography>
                     <Chip
-                      label={typeof selectedFeatureDetail.status_id === 'string' ? selectedFeatureDetail.status_id : (typeof selectedFeatureDetail.status_id === 'object' ? selectedFeatureDetail.status_id?.name : '-')}
+                      label={typeof selectedFeatureDetail.status === 'string' ? selectedFeatureDetail.status : (typeof selectedFeatureDetail.status === 'object' ? selectedFeatureDetail.status?.name : '-')}
                       size="medium"
                       sx={{
                         color: '#fff',
-                        bgcolor: selectedFeatureDetail.status_id === 'Completed' ? '#22c55e' : 
-                                 selectedFeatureDetail.status_id === 'In Progress' ? '#f59e0b' : 
-                                 selectedFeatureDetail.status_id === 'Testing' ? '#8b5cf6' : '#3b82f6',
+                        bgcolor: selectedFeatureDetail.status === 'Completed' ? '#22c55e' : 
+                                 selectedFeatureDetail.status === 'In Progress' ? '#f59e0b' : 
+                                 selectedFeatureDetail.status === 'Testing' ? '#8b5cf6' : '#3b82f6',
                         fontWeight: 600,
                       }}
                     />
@@ -1522,12 +1523,12 @@ export default function ProjectFeaturesPage() {
                       Ưu tiên
                     </Typography>
                     <Chip
-                      label={typeof selectedFeatureDetail.priority_id === 'string' ? selectedFeatureDetail.priority_id : (typeof selectedFeatureDetail.priority_id === 'object' ? selectedFeatureDetail.priority_id?.name : '-')}
+                      label={typeof selectedFeatureDetail.priority === 'string' ? selectedFeatureDetail.priority : (typeof selectedFeatureDetail.priority === 'object' ? selectedFeatureDetail.priority?.name : '-')}
                       size="medium"
                       color={
-                        selectedFeatureDetail.priority_id === 'Critical' ? 'error' :
-                        selectedFeatureDetail.priority_id === 'High' ? 'warning' :
-                        selectedFeatureDetail.priority_id === 'Medium' ? 'primary' : 'default'
+                        selectedFeatureDetail.priority === 'Critical' ? 'error' :
+                        selectedFeatureDetail.priority === 'High' ? 'warning' :
+                        selectedFeatureDetail.priority === 'Medium' ? 'primary' : 'default'
                       }
                       variant="outlined"
                     />

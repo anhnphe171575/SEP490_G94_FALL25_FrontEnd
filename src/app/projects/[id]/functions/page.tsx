@@ -73,7 +73,7 @@ type FunctionType = {
   _id: string;
   title: string;
   feature_id?: Feature | string;
-  priority_id?: Setting | string;
+  priority?: Setting | string;
   complexity_id?: Setting | string;
   status?: Setting | string;
   description?: string;
@@ -117,7 +117,7 @@ export default function ProjectFunctionsPage() {
   const [functionForm, setFunctionForm] = useState({
     title: "",
     description: "",
-    priority_id: "",
+    priority: "",
     status: "",
     feature_id: "",
   });
@@ -221,7 +221,7 @@ export default function ProjectFunctionsPage() {
       setFunctionForm({
         title: func.title,
         description: func.description || "",
-        priority_id: typeof func.priority_id === "object" ? func.priority_id?._id : func.priority_id || "",
+        priority: typeof func.priority === "object" ? func.priority?._id : func.priority || "",
         status: typeof func.status === "object" ? func.status?._id : func.status || "",
         feature_id: typeof func.feature_id === "object" ? func.feature_id?._id : func.feature_id || "",
       });
@@ -230,7 +230,7 @@ export default function ProjectFunctionsPage() {
       setFunctionForm({
         title: "",
         description: "",
-        priority_id: "",
+        priority: "",
         status: "",
         feature_id: "",
       });
@@ -248,7 +248,7 @@ export default function ProjectFunctionsPage() {
       const payload = {
         title: functionForm.title,
         description: functionForm.description || undefined,
-        priority_id: functionForm.priority_id || undefined,
+        priority: functionForm.priority || undefined,
         feature_id: functionForm.feature_id,
         status: functionForm.status || undefined,
       };
@@ -319,7 +319,7 @@ export default function ProjectFunctionsPage() {
       await loadAllData();
       
       cancelEdit();
-      toast.success(`Đã cập nhật ${field === 'priority_id' ? 'ưu tiên' : field === 'status' ? 'trạng thái' : field} thành công`);
+      toast.success(`Đã cập nhật ${field === 'priority' ? 'ưu tiên' : field === 'status' ? 'trạng thái' : field} thành công`);
     } catch (e: any) {
       const errorMessage = e?.response?.data?.message || `Không thể cập nhật ${field}`;
       setError(errorMessage);
@@ -363,9 +363,9 @@ export default function ProjectFunctionsPage() {
   };
 
   const resolvePriorityName = (func: FunctionType) => {
-    if (typeof func.priority_id === "object") return func.priority_id?.name || "-";
-    if (!func.priority_id) return "-";
-    const target = String(func.priority_id);
+    if (typeof func.priority === "object") return func.priority?.name || "-";
+    if (!func.priority) return "-";
+    const target = String(func.priority);
     const match = priorityTypes.find((p) =>
       String((p as any)?._id) === target ||
       String((p as any)?.value) === target ||
@@ -910,7 +910,7 @@ export default function ProjectFunctionsPage() {
                     const priorityName = resolvePriorityName(func);
                     const statusName = resolveStatusName(func);
                     
-                    const isEditingPriority = editingCell?.funcId === func._id && editingCell?.field === 'priority_id';
+                    const isEditingPriority = editingCell?.funcId === func._id && editingCell?.field === 'priority';
                     const isEditingStatus = editingCell?.funcId === func._id && editingCell?.field === 'status';
                     
                     return (
@@ -966,10 +966,10 @@ export default function ProjectFunctionsPage() {
                         <TableCell 
                           onClick={() => {
                             if (!isEditingPriority) {
-                              const currentPriorityId = typeof func.priority_id === 'object' 
-                                ? func.priority_id?._id 
-                                : func.priority_id;
-                              startEdit(func._id, 'priority_id', currentPriorityId);
+                              const currentPriorityId = typeof func.priority === 'object' 
+                                ? func.priority?._id 
+                                : func.priority;
+                              startEdit(func._id, 'priority', currentPriorityId);
                             }
                           }}
                           sx={{ 
@@ -984,7 +984,7 @@ export default function ProjectFunctionsPage() {
                                 const newValue = e.target.value;
                                 setEditValue(newValue);
                                 // Auto-save immediately with the new value
-                                saveInlineEdit(func._id, 'priority_id', newValue);
+                                saveInlineEdit(func._id, 'priority', newValue);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
@@ -1266,9 +1266,9 @@ export default function ProjectFunctionsPage() {
                   <FormControl fullWidth>
                     <InputLabel>Ưu tiên</InputLabel>
                     <Select
-                      value={functionForm.priority_id}
+                      value={functionForm.priority}
                       label="Ưu tiên"
-                      onChange={(e) => setFunctionForm({ ...functionForm, priority_id: e.target.value })}
+                      onChange={(e) => setFunctionForm({ ...functionForm, priority: e.target.value })}
                     >
                       <MenuItem value="">
                         <em>Không chọn</em>

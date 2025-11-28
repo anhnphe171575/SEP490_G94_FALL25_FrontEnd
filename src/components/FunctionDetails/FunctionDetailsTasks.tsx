@@ -50,7 +50,7 @@ export default function FunctionDetailsTasks({
     title: '',
     description: '',
     status: '',
-    priority_id: '',
+    priority: '',
     assignee_id: '',
     start_date: '',
     deadline: '',
@@ -168,7 +168,7 @@ export default function FunctionDetailsTasks({
         title: '', 
         description: '', 
         status: '', 
-        priority_id: '',
+        priority: '',
         assignee_id: '',
         start_date: '',
         deadline: '',
@@ -312,11 +312,10 @@ export default function FunctionDetailsTasks({
                     sx={{
                       textTransform: 'none',
                       fontSize: '13px',
-                      color: '#7b68ee',
-                      '&:hover': { bgcolor: '#f3f4f6' }
+                      color: '#7b68ee'
                     }}
                   >
-                    View Details
+                    Xem chi tiết
                   </Button>
                 </TableCell>
               </TableRow>
@@ -348,9 +347,9 @@ export default function FunctionDetailsTasks({
             <FormControl fullWidth>
               <InputLabel>Priority</InputLabel>
               <Select
-                value={newTask.priority_id}
+                value={newTask.priority}
                 label="Priority"
-                onChange={(e) => setNewTask({ ...newTask, priority_id: e.target.value })}
+                onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
               >
                 <MenuItem value="">
                   <em>None</em>
