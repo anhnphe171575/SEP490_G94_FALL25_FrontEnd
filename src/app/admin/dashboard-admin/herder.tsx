@@ -10,10 +10,7 @@ import {
   LayoutDashboard, 
   Users, 
   ChevronRight, 
-  Bell,
-  Settings,
   Menu,
-  Folder,
   UserRound,
   LockOpen
 } from 'lucide-react';
@@ -39,11 +36,6 @@ const navItems = [
     href: "/admin/user", 
     label: "Quản lý người dùng", 
     icon: <Users className="w-5 h-5" /> 
-  },
-  { 
-    href: "/admin/project", 
-    label: "Quản lý dự án", 
-    icon: <Folder className="w-5 h-5" /> 
   },
   { 
     href: "/admin/profile", 

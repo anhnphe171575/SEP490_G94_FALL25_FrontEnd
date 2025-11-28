@@ -28,7 +28,7 @@ type FunctionItem = {
   deadline?: string;
   status: string;
   feature_id?: any;
-  priority_id?: string;
+  priority?: string;
   description?: string;
 };
 

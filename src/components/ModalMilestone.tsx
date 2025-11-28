@@ -173,8 +173,8 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
           setFeatures(linkedFeatures.map((f: any) => ({
             _id: f._id,
             title: f.title,
-            status_id: f.status_id,
-            priority_id: f.priority_id
+            status: f.status,
+            priority: f.priority
           })));
         } catch (err) {
           console.error('Error loading features fallback:', err);
