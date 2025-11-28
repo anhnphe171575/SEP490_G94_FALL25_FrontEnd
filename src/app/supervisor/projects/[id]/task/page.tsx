@@ -257,9 +257,7 @@ export default function SupervisorTaskGanttPage() {
       <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
           {/* QuickNav - Always at the top */}
-          <div>
-            <QuickNav selectedProject={projectId} />
-          </div>
+         
 
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-4">
