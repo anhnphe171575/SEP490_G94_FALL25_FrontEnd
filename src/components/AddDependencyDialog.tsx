@@ -503,7 +503,7 @@ const AddDependencyDialog: React.FC<AddDependencyDialogProps> = ({
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <LinkIcon sx={{ color: "#3b82f6" }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Add Task Dependency
+            Thêm phụ thuộc
           </Typography>
         </Box>
       </DialogTitle>

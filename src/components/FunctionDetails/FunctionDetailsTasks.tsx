@@ -22,6 +22,7 @@ import {
   Select,
   MenuItem,
   Stack,
+  Tooltip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -206,7 +207,7 @@ export default function FunctionDetailsTasks({
             '&:hover': { bgcolor: '#6952d6' }
           }}
         >
-          Add Task
+          Thêm công việc
         </Button>
       </Box>
 
@@ -238,7 +239,7 @@ export default function FunctionDetailsTasks({
               }
             }}
           >
-            Add Task
+            Thêm công việc
           </Button>
         </Box>
       ) : (
@@ -246,9 +247,9 @@ export default function FunctionDetailsTasks({
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '60px' }}>STT</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Task</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: 80 }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280',width:'30' }}>Công việc</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Trạng thái</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '50' }}>Hành động</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -276,16 +277,24 @@ export default function FunctionDetailsTasks({
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography
-                    variant="body2"
-                    sx={{ 
-                      color: '#7b68ee',
-                      fontWeight: 600,
-                      fontSize: '14px'
-                    }}
-                  >
-                    {task.title}
-                  </Typography>
+                  <Tooltip title={task.title || ''} placement="top-start">
+                    <Typography
+                      variant="body2"
+                      component="span"
+                      sx={{ 
+                        color: '#7b68ee',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        display: 'block',
+                        maxWidth: 260,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}
+                    >
+                      {task.title}
+                    </Typography>
+                  </Tooltip>
                 </TableCell>
                 <TableCell>
                   <Chip 
@@ -303,7 +312,7 @@ export default function FunctionDetailsTasks({
                 </TableCell>
                 <TableCell>
                   <Button
-                    size="small"
+                    size="medium"
                     startIcon={<VisibilityIcon />}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -312,10 +321,11 @@ export default function FunctionDetailsTasks({
                     sx={{
                       textTransform: 'none',
                       fontSize: '13px',
-                      color: '#7b68ee'
+                      color: '#7b68ee',
+                      '&:hover': { bgcolor: '#f3f4f6' }
                     }}
                   >
-                    Xem chi tiết
+                    Chi tiết
                   </Button>
                 </TableCell>
               </TableRow>

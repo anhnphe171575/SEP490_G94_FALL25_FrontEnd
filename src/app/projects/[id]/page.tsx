@@ -7,7 +7,7 @@ import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete } from "@mui/material";
+import { Button, FormControl, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete, Pagination } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -117,6 +117,9 @@ export default function ProjectDetailPage() {
     deadline: '',
     tags: [] as string[],
   });
+  // Pagination for milestones list (similar to Feature/Function lists)
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
     if (!projectId) return;
@@ -242,6 +245,14 @@ export default function ProjectDetailPage() {
     }
 
     return filtered;
+  };
+
+  // Paginated milestones (list view)
+  const getPaginatedMilestones = () => {
+    const all = getFilteredMilestones();
+    const startIndex = (page - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return all.slice(startIndex, endIndex);
   };
 
   const getFilteredMilestoneFeatures = () => {
@@ -1008,7 +1019,7 @@ export default function ProjectDetailPage() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {getFilteredMilestones().map((m, idx) => (
+                          {getPaginatedMilestones().map((m, idx) => (
                             <TableRow key={m._id} hover>
                               <TableCell>
                                 <Link
@@ -1053,8 +1064,87 @@ export default function ProjectDetailPage() {
                               </TableCell>
                             </TableRow>
                           ))}
-                        </TableBody>
+                          </TableBody>
                       </Table>
+
+                      {/* Pagination for milestones */}
+                      {getFilteredMilestones().length > 0 && (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            px: 3,
+                            py: 2,
+                            borderTop: '1px solid #e8e9eb',
+                            bgcolor: '#fafbfc',
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{ color: '#6b7280', fontWeight: 500 }}
+                          >
+                            Hiển thị {getFilteredMilestones().length === 0 ? 0 : (page - 1) * rowsPerPage + 1} -{' '}
+                            {Math.min(page * rowsPerPage, getFilteredMilestones().length)} trong tổng số{' '}
+                            {getFilteredMilestones().length} cột mốc
+                          </Typography>
+
+                          <Stack direction="row" spacing={2} alignItems="center">
+                            <FormControl size="small" sx={{ minWidth: 120 }}>
+                              <MUISelect
+                                value={rowsPerPage}
+                                onChange={(e) => {
+                                  setRowsPerPage(Number(e.target.value));
+                                  setPage(1);
+                                }}
+                                sx={{
+                                  fontSize: '13px',
+                                  '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#e2e8f0',
+                                  },
+                                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#b4a7f5',
+                                  },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#8b5cf6',
+                                  },
+                                }}
+                              >
+                                <MenuItem value={5}>5 / trang</MenuItem>
+                                <MenuItem value={10}>10 / trang</MenuItem>
+                                <MenuItem value={25}>25 / trang</MenuItem>
+                                <MenuItem value={50}>50 / trang</MenuItem>
+                                <MenuItem value={100}>100 / trang</MenuItem>
+                              </MUISelect>
+                            </FormControl>
+
+                            <Pagination
+                              count={Math.max(1, Math.ceil(getFilteredMilestones().length / rowsPerPage))}
+                              page={page}
+                              onChange={(_, value) => setPage(value)}
+                              color="primary"
+                              shape="rounded"
+                              sx={{
+                                '& .MuiPaginationItem-root': {
+                                  fontSize: '13px',
+                                  fontWeight: 600,
+                                  color: '#49516f',
+                                  '&.Mui-selected': {
+                                    background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                                    color: 'white',
+                                    '&:hover': {
+                                      background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                                    },
+                                  },
+                                  '&:hover': {
+                                    bgcolor: '#f3f0ff',
+                                  },
+                                },
+                              }}
+                            />
+                          </Stack>
+                        </Box>
+                      )}
                     </Paper>
                   )}
                   {milestoneModal.open && milestoneModal.milestoneId && (

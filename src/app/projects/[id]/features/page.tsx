@@ -1622,7 +1622,7 @@ export default function ProjectFeaturesPage() {
                     setFeatureModal({ open: true, featureId: selectedFeatureDetail._id });
                   }}
                 >
-                  Xem chi tiết
+                  Chi tiết
               </Button>
               )}
             </DialogActions>

@@ -330,8 +330,8 @@ export default function MessagesPage() {
 
     const handleNewDirectMessage = (data: { message: Message }) => {
       const msg = data.message;
-      const senderId = typeof msg.sender_id === 'object' ? msg.sender_id._id : (msg as any).sender_id;
-      const receiverId = typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
+      const senderId = msg.sender_id && typeof msg.sender_id === 'object' ? msg.sender_id._id : (msg as any).sender_id;
+      const receiverId = msg.receiver_id && typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
 
       // Cập nhật danh sách conversations khi có tin nhắn mới
       if (activeTab === 1) {
@@ -365,7 +365,7 @@ export default function MessagesPage() {
     const handleMessageSent = (data: { message: Message }) => {
       // Người gửi nhận lại xác nhận; nếu đang mở đúng chat thì append nếu chưa có
       const msg = data.message;
-      const receiverId = typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
+      const receiverId = msg.receiver_id && typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
       if (activeTab === 1 && directChatUserId && receiverId?.toString() === directChatUserId?.toString()) {
         setMessages(prev => {
           const exists = prev.some(m => m._id === msg._id);
@@ -403,7 +403,7 @@ export default function MessagesPage() {
             // Kiểm tra xem đã được đánh dấu đọc chưa
             const alreadyRead = msg.read_by?.some(
               (read: any) => {
-                const readUserId = typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
+                const readUserId = read.user_id && typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
                 return readUserId?.toString() === data.userId.toString() || read.user_id === data.userId;
               }
             );
@@ -674,7 +674,7 @@ export default function MessagesPage() {
             // Kiểm tra xem đã được đánh dấu đọc chưa
             const alreadyRead = msg.read_by?.some(
               (read: any) => {
-                const readUserId = typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
+                const readUserId = read.user_id && typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
                 return readUserId?.toString() === data.userId.toString() || read.user_id === data.userId;
               }
             );
@@ -1748,10 +1748,10 @@ export default function MessagesPage() {
               {team.team_member.map((member, index) => {
                 const user = member.user_id;
                 const isLeader = member.team_leader === 1;
-                const userName = typeof user === 'object' ? (user.full_name || user.email || 'Người dùng') : 'Người dùng';
-                const userEmail = typeof user === 'object' ? user.email : '';
-                const userAvatar = typeof user === 'object' ? user.avatar : '';
-                const userId = typeof user === 'object' ? user._id : user;
+                const userName = user && typeof user === 'object' ? (user.full_name || user.email || 'Người dùng') : 'Người dùng';
+                const userEmail = user && typeof user === 'object' ? user.email : '';
+                const userAvatar = user && typeof user === 'object' ? user.avatar : '';
+                const userId = user && typeof user === 'object' ? user._id : user;
                 
                 return (
                   <div key={userId || index}>
@@ -1816,7 +1816,7 @@ export default function MessagesPage() {
                           </Typography>
                         }
                       />
-                      {typeof user === 'object' && user._id !== currentUserId && (
+                      {user && typeof user === 'object' && user._id !== currentUserId && (
                         <IconButton
                           size="small"
                           onClick={() => {

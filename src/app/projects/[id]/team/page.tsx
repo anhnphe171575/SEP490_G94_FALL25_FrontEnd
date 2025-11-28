@@ -84,6 +84,20 @@ export default function TeamManagementPage() {
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [leaveSuccess, setLeaveSuccess] = useState<string | null>(null);
 
+  const normalizeId = (value: any): string => {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "object") {
+      if (value._id) {
+        return typeof value._id === "string" ? value._id : value._id?.toString?.() ?? "";
+      }
+      if (typeof value.toString === "function") {
+        return value.toString();
+      }
+    }
+    return "";
+  };
+
   useEffect(() => {
     if (!projectId) return;
     
@@ -151,6 +165,16 @@ export default function TeamManagementPage() {
     setLeaveError(null);
     setLeaveSuccess(null);
   };
+
+  const currentUserIdStr = normalizeId(currentUserId);
+
+  const isCurrentUserLeader =
+    team?.team_member?.some((member) => {
+      if (!member) return false;
+      const memberIdStr = normalizeId(member.user_id);
+      if (!memberIdStr || !currentUserIdStr) return false;
+      return memberIdStr === currentUserIdStr && member.team_leader === 1;
+    }) ?? false;
 
   if (loading) {
     return (
@@ -311,9 +335,7 @@ export default function TeamManagementPage() {
               </ul>
             </div>
 
-            {team && team.team_member && team.team_member.some(member => 
-              member.user_id._id === currentUserId && member.team_leader === 1
-            ) && (
+            {isCurrentUserLeader && (
               <Alert severity="warning">
                 <Typography variant="body2" className="font-medium mb-1">
                   Cảnh báo: Bạn đang là trưởng nhóm!

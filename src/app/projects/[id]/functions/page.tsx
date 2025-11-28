@@ -36,6 +36,7 @@ import {
   Tooltip,
   Alert,
   Link,
+  Pagination,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -126,6 +127,10 @@ export default function ProjectFunctionsPage() {
   const [editingCell, setEditingCell] = useState<{funcId: string, field: string} | null>(null);
   const [editValue, setEditValue] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Pagination state (same behavior as Features page)
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   
   // Note: effort validation removed as fields don't exist in models
@@ -344,15 +349,42 @@ export default function ProjectFunctionsPage() {
 
   const filteredFunctions = useMemo(() => {
     return functions.filter((func) => {
-      const matchSearch = func.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         func.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      const funcStatusId = typeof func.status === "object" ? func.status?._id : func.status;
-      const matchStatus = filterStatus === "all" || funcStatusId === filterStatus;
-      const matchFeature = filterFeature === "all" || 
-                          (typeof func.feature_id === "object" ? func.feature_id?._id : func.feature_id) === filterFeature;
+      const title = (func.title || "").toLowerCase();
+      const description = (func.description || "").toLowerCase();
+      const normalizedSearch = (searchTerm || "").toLowerCase().trim();
+
+      const matchSearch =
+        !normalizedSearch ||
+        title.includes(normalizedSearch) ||
+        description.includes(normalizedSearch);
+
+      const funcStatusId =
+        typeof func.status === "object" ? func.status?._id : func.status;
+      const matchStatus =
+        filterStatus === "all" || funcStatusId === filterStatus;
+
+      const funcFeatureId =
+        typeof func.feature_id === "object"
+          ? func.feature_id?._id
+          : func.feature_id;
+      const matchFeature =
+        filterFeature === "all" || funcFeatureId === filterFeature;
+
       return matchSearch && matchStatus && matchFeature;
     });
   }, [functions, searchTerm, filterStatus, filterFeature]);
+
+  // Paginated list like Features page
+  const paginatedFunctions = useMemo(() => {
+    const startIndex = (page - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredFunctions.slice(startIndex, endIndex);
+  }, [filteredFunctions, page, rowsPerPage]);
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterStatus, filterFeature]);
 
   // Resolve display names when API returns only IDs
   const resolveFeatureTitle = (func: FunctionType) => {
@@ -904,7 +936,7 @@ export default function ProjectFunctionsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredFunctions.map((func, index) => {
+                  {paginatedFunctions.map((func, index) => {
                     // Note: Progress calculation removed - effort fields don't exist
                     const featureName = resolveFeatureTitle(func);
                     const priorityName = resolvePriorityName(func);
@@ -1171,7 +1203,86 @@ export default function ProjectFunctionsPage() {
               </Table>
             </Box>
           </Paper>
-
+          
+          {/* Pagination Controls - similar to Features list */}
+          {filteredFunctions.length > 0 && (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                px: 3,
+                py: 2,
+                borderTop: "1px solid #e8e9eb",
+                bgcolor: "#fafbfc",
+                mt: 1,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#6b7280", fontWeight: 500 }}
+                >
+                  Hiển thị {filteredFunctions.length === 0 ? 0 : (page - 1) * rowsPerPage + 1} -{" "}
+                  {Math.min(page * rowsPerPage, filteredFunctions.length)} trong tổng số{" "}
+                  {filteredFunctions.length} chức năng
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <Select
+                    value={rowsPerPage}
+                    onChange={(e) => {
+                      setRowsPerPage(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    sx={{
+                      fontSize: "13px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#e2e8f0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#b4a7f5",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#8b5cf6",
+                      },
+                    }}
+                  >
+                    <MenuItem value={5}>5 / trang</MenuItem>
+                    <MenuItem value={10}>10 / trang</MenuItem>
+                    <MenuItem value={25}>25 / trang</MenuItem>
+                    <MenuItem value={50}>50 / trang</MenuItem>
+                    <MenuItem value={100}>100 / trang</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+              <Pagination
+                count={Math.max(1, Math.ceil(filteredFunctions.length / rowsPerPage))}
+                page={page}
+                onChange={(_, value) => setPage(value)}
+                color="primary"
+                shape="rounded"
+                sx={{
+                  "& .MuiPaginationItem-root": {
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#49516f",
+                    "&.Mui-selected": {
+                      background:
+                        "linear-gradient(135deg, #7b68ee, #9b59b6)",
+                      color: "white",
+                      "&:hover": {
+                        background:
+                          "linear-gradient(135deg, #6b5dd6, #8b49a6)",
+                      },
+                    },
+                    "&:hover": {
+                      bgcolor: "#f3f0ff",
+                    },
+                  },
+                }}
+              />
+            </Box>
+          )}
 
           {/* Function Dialog - Modern Style */}
           <Dialog 
