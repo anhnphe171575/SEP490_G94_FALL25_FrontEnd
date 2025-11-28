@@ -103,22 +103,22 @@ export function GanttFilter({ milestones, onFilterChange }: GanttFilterProps) {
   return (
     <Card className="border-b border-border bg-card p-6">
       <div className="mb-6 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">Filters</h3>
+        <h3 className="text-lg font-semibold text-foreground">Bộ lọc</h3>
         {(selectedMilestones.size > 0 || selectedFeatures.size > 0 || selectedFunctions.size > 0) && (
           <button
             type="button"
             onClick={handleClearAll}
             className="rounded-md border border-border px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
-            Clear All
+            Xóa tất cả
           </button>
         )}
       </div>
 
       <div className="flex flex-col gap-6 md:flex-row md:gap-8">
         <FilterColumn
-          label="Milestones"
-          placeholder="Select Milestones..."
+          label="Mốc thời gian"
+          placeholder="Chọn mốc thời gian..."
           open={openMilestone}
           onToggle={() => setOpenMilestone((v) => !v)}
           disabled={false}
@@ -135,8 +135,8 @@ export function GanttFilter({ milestones, onFilterChange }: GanttFilterProps) {
         </FilterColumn>
 
         <FilterColumn
-          label="Features"
-          placeholder="Select Features..."
+          label="Tính năng"
+          placeholder="Chọn tính năng..."
           open={openFeature}
           onToggle={() => setOpenFeature((v) => !v)}
           disabled={selectedMilestones.size === 0}
@@ -153,8 +153,8 @@ export function GanttFilter({ milestones, onFilterChange }: GanttFilterProps) {
         </FilterColumn>
 
         <FilterColumn
-          label="Functions"
-          placeholder="Select Functions..."
+          label="Chức năng"
+          placeholder="Chọn chức năng..."
           open={openFunction}
           onToggle={() => setOpenFunction((v) => !v)}
           disabled={selectedFeatures.size === 0}
@@ -203,7 +203,7 @@ function FilterColumn({
           disabled={disabled}
           onClick={onToggle}
         >
-          <span>{selectedCount === 0 ? placeholder : `${selectedCount} selected`}</span>
+          <span>{selectedCount === 0 ? placeholder : `${selectedCount} đã chọn`}</span>
           <ChevronIcon />
         </button>
         {open && !disabled && (

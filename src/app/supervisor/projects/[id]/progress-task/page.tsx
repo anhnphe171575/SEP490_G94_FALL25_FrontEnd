@@ -139,7 +139,7 @@ export default function ProgressTaskPage() {
     teamMembers.forEach((member: any) => {
       if (member._id) {
         memberMap.set(member._id, {
-          name: member.full_name || member.email || 'Unknown',
+          name: member.full_name || member.email || 'Không xác định',
           completed: 0,
           notCompleted: 0
         });
@@ -173,7 +173,7 @@ export default function ProgressTaskPage() {
         
         if (!memberMap.has(userId)) {
           memberMap.set(userId, {
-            name: task.assignee_id.full_name || task.assignee_id.email || 'Unknown',
+            name: task.assignee_id.full_name || task.assignee_id.email || 'Không xác định',
             completed: 0,
             notCompleted: 0
           });
@@ -191,10 +191,10 @@ export default function ProgressTaskPage() {
     return Array.from(memberMap.values())
       .map(m => ({
         name: m.name,
-        'Task Completed': m.completed,
-        'Task Not Completed': m.notCompleted
+        'Công việc Hoàn thành': m.completed,
+        'Công việc Chưa hoàn thành': m.notCompleted
       }))
-      .sort((a, b) => (b['Task Completed'] + b['Task Not Completed']) - (a['Task Completed'] + a['Task Not Completed']));
+      .sort((a, b) => (b['Công việc Hoàn thành'] + b['Công việc Chưa hoàn thành']) - (a['Công việc Hoàn thành'] + a['Công việc Chưa hoàn thành']));
   }, [tasks, teamMembers, dateFrom, dateTo]);
 
   // === AT RISK TASKS ===
@@ -303,7 +303,7 @@ export default function ProgressTaskPage() {
         <div className="mx-auto w-full max-w-7xl">
         
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900">Progress Task</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Tiến độ Công việc</h1>
           <p className="mt-2 text-sm text-slate-500">
             Theo dõi tiến độ dự án dựa trên thời gian
           </p>
@@ -326,19 +326,19 @@ export default function ProgressTaskPage() {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="body1" sx={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Speed sx={{ fontSize: 18, color: COLORS.primary }} />
-                  Project Progress
+                  Tiến độ Dự án
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: '#0284c7' }} />
                     <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
-                      Expected: {timeBasedProgress.project_metrics.avgTargetPercent.toFixed(1)}%
+                      Dự kiến: {timeBasedProgress.project_metrics.avgTargetPercent.toFixed(1)}%
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '#16a34a' : '#dc2626' }} />
                     <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
-                      Actual: {timeBasedProgress.project_metrics.avgActualPercent.toFixed(1)}%
+                      Thực tế: {timeBasedProgress.project_metrics.avgActualPercent.toFixed(1)}%
                     </Typography>
                   </Box>
                 </Box>
@@ -396,7 +396,7 @@ export default function ProgressTaskPage() {
                 fontWeight: 600,
                 textAlign: 'center'
               }}>
-                {timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '✓ On Schedule' : '⚠ Behind Schedule'} 
+                {timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '✓ Đúng tiến độ' : '⚠ Chậm tiến độ'} 
                 ({timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '+' : ''}{(timeBasedProgress.project_metrics.avgActualPercent - timeBasedProgress.project_metrics.avgTargetPercent).toFixed(1)}%)
               </Typography>
             </Paper>
@@ -427,11 +427,11 @@ export default function ProgressTaskPage() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Group sx={{ color: COLORS.primary, fontSize: 20 }} />
                 <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '16px' }}>
-                  Team Member Task Statistics
+                  Thống kê Công việc Thành viên
                 </Typography>
                 {(dateFrom || dateTo) && (
                   <Chip 
-                    label={`Filtered: ${dateFrom || 'Start'} → ${dateTo || 'Now'}`}
+                    label={`Đã lọc: ${dateFrom || 'Bắt đầu'} → ${dateTo || 'Hiện tại'}`}
                     size="small"
                     onDelete={() => {
                       setDateFrom('');
@@ -450,7 +450,7 @@ export default function ProgressTaskPage() {
                 <TextField
                   type="date"
                   size="small"
-                  label="From"
+                  label="Từ"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
                   InputLabelProps={{ shrink: true }}
@@ -465,7 +465,7 @@ export default function ProgressTaskPage() {
                 <TextField
                   type="date"
                   size="small"
-                  label="To"
+                  label="Đến"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
                   InputLabelProps={{ shrink: true }}
@@ -515,13 +515,13 @@ export default function ProgressTaskPage() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="Task Completed" fill={COLORS.success} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Task Not Completed" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Công việc Hoàn thành" fill={COLORS.success} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Công việc Chưa hoàn thành" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-                <Typography color="text.secondary">No team member data available</Typography>
+                <Typography color="text.secondary">Không có dữ liệu thành viên</Typography>
               </Box>
             )}
           </Paper>
@@ -547,17 +547,17 @@ export default function ProgressTaskPage() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                     <Warning sx={{ color: COLORS.warning, fontSize: 20 }} />
                     <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '14px' }}>
-                      At Risk ({atRiskTasks.length})
+                      Rủi ro ({atRiskTasks.length})
                     </Typography>
                   </Box>
                   <Stack spacing={1}>
                     {atRiskTasks.map((task: any, idx: number) => {
                       // Determine impact level and color
                       const impactLevel = 
-                        task.impactScore >= 70 ? { label: '🔴 CRITICAL', color: '#dc2626', bgcolor: 'rgba(220, 38, 38, 0.1)' } :
-                        task.impactScore >= 50 ? { label: '🟠 HIGH', color: '#ea580c', bgcolor: 'rgba(234, 88, 12, 0.1)' } :
-                        task.impactScore >= 30 ? { label: '🟡 MEDIUM', color: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)' } :
-                        { label: '🟢 LOW', color: '#16a34a', bgcolor: 'rgba(22, 163, 74, 0.1)' };
+                        task.impactScore >= 70 ? { label: '🔴 Nghiêm trọng', color: '#dc2626', bgcolor: 'rgba(220, 38, 38, 0.1)' } :
+                        task.impactScore >= 50 ? { label: '🟠 Cao', color: '#ea580c', bgcolor: 'rgba(234, 88, 12, 0.1)' } :
+                        task.impactScore >= 30 ? { label: '🟡 Trung bình', color: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)' } :
+                        { label: '🟢 Thấp', color: '#16a34a', bgcolor: 'rgba(22, 163, 74, 0.1)' };
                       
                       const isOverdue = task.hoursUntilDeadline < 0;
                       
@@ -618,7 +618,7 @@ export default function ProgressTaskPage() {
                                 }}
                               />
                               <Chip 
-                                label={`Impact: ${task.impactScore}/100`}
+                                label={`Tác động: ${task.impactScore}/100`}
                                 size="small"
                                 sx={{ 
                                   bgcolor: 'rgba(0,0,0,0.05)',
@@ -647,10 +647,10 @@ export default function ProgressTaskPage() {
                                   color: isOverdue ? '#dc2626' : 'text.secondary'
                                 }}>
                                   {isOverdue 
-                                    ? `Overdue ${Math.abs(Math.round(task.hoursUntilDeadline / 24))}d`
+                                    ? `Quá hạn ${Math.abs(Math.round(task.hoursUntilDeadline / 24))} ngày`
                                     : task.hoursUntilDeadline < 24
-                                      ? `${Math.round(task.hoursUntilDeadline)}h left`
-                                      : `${Math.round(task.hoursUntilDeadline / 24)}d left`
+                                      ? `Còn ${Math.round(task.hoursUntilDeadline)} giờ`
+                                      : `Còn ${Math.round(task.hoursUntilDeadline / 24)} ngày`
                                   }
                                 </Typography>
                               </Box>
@@ -672,7 +672,7 @@ export default function ProgressTaskPage() {
                               {/* Blocking Tasks */}
                               {task.dependents && task.dependents.length > 0 && (
                                 <Chip 
-                                  label={`🔒 Blocks ${task.dependents.length} task${task.dependents.length > 1 ? 's' : ''}`}
+                                  label={`🔒 Chặn ${task.dependents.length} công việc`}
                                   size="small"
                                   sx={{ 
                                     fontSize: '10px',
@@ -708,7 +708,7 @@ export default function ProgressTaskPage() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                     <Block sx={{ color: COLORS.danger, fontSize: 20 }} />
                     <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '14px' }}>
-                      🚫 Blocked ({blockedTasks.length})
+                      🚫 Bị chặn ({blockedTasks.length})
                     </Typography>
                   </Box>
                   <Stack spacing={1}>
@@ -760,10 +760,10 @@ export default function ProgressTaskPage() {
                 }}>
                   <CheckCircle sx={{ fontSize: 48, color: COLORS.success, mb: 1 }} />
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    All Good! 🎉
+                    Tất cả ổn! 🎉
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    No blocked or at-risk tasks
+                    Không có công việc bị chặn hoặc rủi ro
                   </Typography>
                 </Paper>
               )}
@@ -788,12 +788,12 @@ export default function ProgressTaskPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
               <ErrorOutline sx={{ color: COLORS.danger, fontSize: 20 }} />
               <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '14px' }}>
-                ⏰ Expired Tasks ({expiredTasks.length})
+                ⏰ Công việc Hết hạn ({expiredTasks.length})
               </Typography>
             </Box>
             <Stack spacing={1}>
               {expiredTasks.map((task: any, idx: number) => {
-                const taskStatus = typeof task.status === 'object' ? task.status?.name : task.status || 'Unknown';
+                const taskStatus = typeof task.status === 'object' ? task.status?.name : task.status || 'Không xác định';
                 const taskPriority = typeof task.priority === 'object' ? task.priority?.name : task.priority || '';
                 const overdueDays = task.overdueDays || 0;
                 
@@ -836,7 +836,7 @@ export default function ProgressTaskPage() {
                       px: 1.5,
                       boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                     }}>
-                      {overdueDays}d overdue
+                      {overdueDays} ngày quá hạn
                     </Box>
                     
                     <Stack spacing={1}>
@@ -856,8 +856,8 @@ export default function ProgressTaskPage() {
                             color: '#dc2626'
                           }}>
                             {task.deadline 
-                              ? `Deadline: ${new Date(task.deadline).toLocaleDateString('vi-VN')}`
-                              : 'No deadline'
+                              ? `Hạn chót: ${new Date(task.deadline).toLocaleDateString('vi-VN')}`
+                              : 'Không có hạn chót'
                             }
                           </Typography>
                         </Box>
@@ -894,7 +894,7 @@ export default function ProgressTaskPage() {
                           <Chip 
                             label={typeof task.assignee_id === 'object' 
                               ? task.assignee_id?.full_name || task.assignee_id?.email 
-                              : 'Assigned'}
+                              : 'Đã phân công'}
                             size="small"
                             sx={{ 
                               fontSize: '10px',
@@ -923,11 +923,11 @@ export default function ProgressTaskPage() {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
                   <CheckCircle sx={{ color: COLORS.success, fontSize: 20 }} />
                   <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '14px' }}>
-                    ⏰ Expired Tasks (0)
+                    ⏰ Công việc Hết hạn (0)
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
-                  No expired tasks found
+                  Không tìm thấy công việc hết hạn
                 </Typography>
               </Paper>
             )}

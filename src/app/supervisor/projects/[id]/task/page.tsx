@@ -82,7 +82,7 @@ export default function SupervisorTaskGanttPage() {
         
         // Fetch project name
         const projectResponse = await axiosInstance.get(`/api/projects/${projectId}`)
-        setProjectName(projectResponse.data.topic || projectResponse.data.code || "Project")
+        setProjectName(projectResponse.data.topic || projectResponse.data.code || "Dự án")
       } catch (err: any) {
         console.error("Error fetching hierarchy:", err)
         setError(err.response?.data?.message || "Không thể tải dữ liệu")
@@ -209,21 +209,21 @@ export default function SupervisorTaskGanttPage() {
           .join(", ")
 
         return {
-          "Task Name": task.title || "",
-          "Start Date": task.start_date || "",
-          "End Date": task.deadline || "",
-          "Status": task.status_name || task.status || "",
-          "Progress (%)": task.progress || 0,
-          "Assignee": task.assignee_id?.full_name || task.assignee_id?.email || "Unassigned",
-          "Dependencies": dependencyNames || "None",
-          "Dependents": dependentNames || "None",
+          "Tên Công việc": task.title || "",
+          "Ngày Bắt đầu": task.start_date || "",
+          "Ngày Kết thúc": task.deadline || "",
+          "Trạng thái": task.status_name || task.status || "",
+          "Tiến độ (%)": task.progress || 0,
+          "Người được giao": task.assignee_id?.full_name || task.assignee_id?.email || "Chưa phân công",
+          "Phụ thuộc": dependencyNames || "Không có",
+          "Phụ thuộc vào": dependentNames || "Không có",
         }
       })
 
       // Create workbook and worksheet
       const ws = XLSX.utils.json_to_sheet(excelData)
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, "Gantt Tasks")
+      XLSX.utils.book_append_sheet(wb, ws, "Công việc Gantt")
 
       // Set column widths
       const colWidths = [
@@ -240,7 +240,7 @@ export default function SupervisorTaskGanttPage() {
 
       // Generate filename with project name and date
       const dateStr = new Date().toISOString().split("T")[0]
-      const sanitizedProjectName = (projectName || "Project").replace(/[^a-zA-Z0-9]/g, "_")
+      const sanitizedProjectName = (projectName || "Dự án").replace(/[^a-zA-Z0-9]/g, "_")
       const filename = `Gantt_Chart_${sanitizedProjectName}_${dateStr}.xlsx`
 
       // Export file
@@ -263,7 +263,7 @@ export default function SupervisorTaskGanttPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Supervisor Dashboard</p>
-              <h1 className="text-3xl font-bold text-slate-900">Project Gantt Chart</h1>
+              <h1 className="text-3xl font-bold text-slate-900">Biểu đồ Gantt Dự án</h1>
               <p className="mt-2 text-sm text-slate-500">
                 Quan sát các công việc theo mốc thời gian. Lọc nhanh theo milestone, feature và function để kiểm soát tiến độ nhóm.
               </p>
@@ -315,7 +315,7 @@ export default function SupervisorTaskGanttPage() {
 
                 {tasksLoading ? (
                   <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-400">
-                    Đang tải tasks...
+                    Đang tải công việc...
                   </div>
                 ) : chartTasks.length > 0 ? (
                   <DHtmlxGanttChart 

@@ -144,7 +144,7 @@ export default function SupervisorKanbanBoardPage() {
     });
     
     // Ensure all statuses are present
-    const statuses = ['To Do', 'Doing', 'Done'];
+    const statuses = ['Chưa làm', 'Đang làm', 'Hoàn thành'];
     statuses.forEach(status => {
       if (!groups[status]) {
         groups[status] = [];
@@ -156,9 +156,10 @@ export default function SupervisorKanbanBoardPage() {
 
   const getStatusColor = (name: string) => {
     const normalized = resolveStatusName(name);
-    if (normalized === 'Done') return '#00c875'; // Green
-    if (normalized === 'Doing') return '#579bfc'; // Blue
-    if (normalized === 'To Do') return '#f59e0b'; // Orange
+    const normalizedLower = normalized.toLowerCase();
+    if (normalizedLower.includes('done') || normalizedLower.includes('hoàn thành') || normalizedLower.includes('completed')) return '#00c875'; // Green
+    if (normalizedLower.includes('doing') || normalizedLower.includes('đang làm') || normalizedLower.includes('progress')) return '#579bfc'; // Blue
+    if (normalizedLower.includes('todo') || normalizedLower.includes('chưa làm') || normalizedLower.includes('to do')) return '#f59e0b'; // Orange
     return '#9ca3af';
   };
 
@@ -246,7 +247,7 @@ export default function SupervisorKanbanBoardPage() {
         <Box sx={{ mb: 3 }}>
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
             <Typography variant="h5" fontWeight={700} color="text.primary">
-              Kanban Board
+              Bảng Kanban
             </Typography>
             
             {/* Search */}
@@ -356,8 +357,9 @@ export default function SupervisorKanbanBoardPage() {
                         ? assigneeName.split(' ').map((part: string) => part[0]).join('').slice(0, 2).toUpperCase() 
                         : '';
                       const priorityName = typeof task.priority === 'object' ? (task.priority as any)?.name : task.priority;
+                      const statusName = resolveStatusName(task.status).toLowerCase();
                       const isOverdue = task.deadline 
-                        ? new Date(task.deadline).getTime() < Date.now() && resolveStatusName(task.status) !== 'Done'
+                        ? new Date(task.deadline).getTime() < Date.now() && !statusName.includes('done') && !statusName.includes('hoàn thành') && !statusName.includes('completed')
                         : false;
 
                       return (

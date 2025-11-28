@@ -490,33 +490,13 @@ export default function ContributorDashboardPage() {
           
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Supervisor Dashboard</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Bảng điều khiển Giám sát</p>
               <h1 className="text-3xl font-bold text-slate-900">Bảng theo dõi đóng góp</h1>
               <p className="mt-2 text-sm text-slate-500">
                 Giám sát hiệu suất của từng thành viên, phân bổ khối lượng công việc và chất lượng hoàn thành trong dự án.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div>
-                <label className="sr-only" htmlFor="project-select">
-                  Chọn dự án
-                </label>
-                <select
-                  id="project-select"
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                  value={projectId ?? ""}
-                  onChange={handleProjectChange}
-                  disabled={isFetchingProjects}
-                >
-                  <option value="">{isFetchingProjects ? "Đang tải dự án..." : "Chọn dự án"}</option>
-                  {projects.map((project) => (
-                    <option key={project.value} value={project.value}>
-                      {project.label} {project.code ? `(${project.code})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            
           </div>
 
           {error && (
@@ -702,7 +682,7 @@ export default function ContributorDashboardPage() {
                     ) : (
                       <div className="space-y-3">
                         {unassignedTasks.map((task) => {
-                          const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Unknown";
+                          const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Không xác định";
                           const taskPriority = typeof task.priority === "object" ? task.priority?.name : task.priority || "";
                           const isOverdue = task.deadline 
                             ? new Date(task.deadline).getTime() < Date.now() && !taskStatus.toLowerCase().includes('done') && !taskStatus.toLowerCase().includes('completed')
