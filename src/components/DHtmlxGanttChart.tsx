@@ -87,7 +87,7 @@ export default function DHtmlxGanttChart({
     gantt.config.columns = [
       {
         name: "text",
-        label: "TASK NAME",
+        label: "TÊN CÔNG VIỆC",
         tree: true,
         width: 320,
         template: function (task: any) {
@@ -98,7 +98,7 @@ export default function DHtmlxGanttChart({
             return `
               <div class="gantt-grid-cell gantt-grid-cell--project">
                 <span class="gantt-grid-cell__icon"></span>
-                <span class="gantt-grid-cell__title gantt-grid-cell__title--project">Task Group</span>
+                <span class="gantt-grid-cell__title gantt-grid-cell__title--project">Nhóm Công việc</span>
               </div>
             `;
           }
@@ -113,7 +113,7 @@ export default function DHtmlxGanttChart({
       },
       {
         name: "duration",
-        label: "DURATION",
+        label: "THỜI GIAN",
         align: "center",
         width: 110,
         template: function (task: any) {
@@ -121,7 +121,7 @@ export default function DHtmlxGanttChart({
           return `
             <div class="gantt-grid-tag">
               <span class="gantt-grid-tag__value">${duration}</span>
-              <span class="gantt-grid-tag__unit">days</span>
+              <span class="gantt-grid-tag__unit">ngày</span>
             </div>
           `;
         }
@@ -236,6 +236,11 @@ export default function DHtmlxGanttChart({
 
     // Custom task styling
     gantt.templates.task_class = function(start, end, task) {
+      // Check if this is an orphaned group (Nhóm Công việc)
+      if (task.isOrphanedGroup === true) {
+        return "gantt-task-orphaned-group"; // Special class for orphaned groups
+      }
+      
       // Check if this is a function
       if (task.isFunction === true) {
         return "gantt-task-function"; // Special class for functions
@@ -268,19 +273,19 @@ export default function DHtmlxGanttChart({
     
     // Tooltip
     gantt.templates.tooltip_text = function(start, end, task) {
-      const status = task.status_name || 'No status';
-      const assignee = task.assignee || 'Unassigned';
+      const status = task.status_name || 'Không có trạng thái';
+      const assignee = task.assignee || 'Chưa phân công';
       const progress = Math.round((task.progress || 0) * 100);
       
       return `<div style="padding: 8px; min-width: 200px;">
         <div style="font-weight: 700; font-size: 14px; margin-bottom: 8px; color: #1f2937;">${task.text}</div>
         <div style="font-size: 12px; color: #6b7280; line-height: 1.8;">
-          <div><strong>Status:</strong> <span style="color: ${getStatusColor(status)};">●</span> ${status}</div>
-          <div><strong>Assignee:</strong> ${assignee}</div>
-          <div><strong>Duration:</strong> ${task.duration || 0} days</div>
-          <div><strong>Progress:</strong> ${progress}%</div>
-          <div><strong>Start:</strong> ${gantt.date.date_to_str("%d %M %Y")(start)}</div>
-          <div><strong>End:</strong> ${gantt.date.date_to_str("%d %M %Y")(end)}</div>
+          <div><strong>Trạng thái:</strong> <span style="color: ${getStatusColor(status)};">●</span> ${status}</div>
+          <div><strong>Người được giao:</strong> ${assignee}</div>
+          <div><strong>Thời gian:</strong> ${task.duration || 0} ngày</div>
+          <div><strong>Tiến độ:</strong> ${progress}%</div>
+          <div><strong>Bắt đầu:</strong> ${gantt.date.date_to_str("%d %M %Y")(start)}</div>
+          <div><strong>Kết thúc:</strong> ${gantt.date.date_to_str("%d %M %Y")(end)}</div>
         </div>
       </div>`;
     };
@@ -557,6 +562,16 @@ export default function DHtmlxGanttChart({
 
     // Event handlers
     gantt.attachEvent("onTaskClick", function(id) {
+      // Prevent click on orphaned groups (Nhóm Công việc)
+      try {
+        const task = gantt.getTask(id);
+        if (task && task.isOrphanedGroup === true) {
+          return false; // Prevent click event
+        }
+      } catch (err) {
+        // If task not found, allow click (fallback)
+      }
+      
       onTaskClick?.(String(id));
       return true;
     });
@@ -621,21 +636,58 @@ export default function DHtmlxGanttChart({
           linkId = linkWrapper.getAttribute('data-link-id');
           depType = linkWrapper.getAttribute('data-dependency-type');
           
-          // If not found, try to find by checking all links
+          // If not found, try to find by checking link's position and task connections
           if (!linkId || !depType) {
             const allLinks = gantt.getLinks();
+            const mouseY = e.clientY - containerRect.top;
             
+            // Find the link that corresponds to this DOM element
+            // We'll check which link's bounding box contains the mouse position
             for (let i = 0; i < allLinks.length; i++) {
               const link = allLinks[i];
               try {
                 const linkData = gantt.getLink(String(link.id));
-                if (linkData && (linkData as any).dependency_type) {
-                  // Check if this link's source/target tasks are near the mouse position
-                  const sourceTask = gantt.getTask(String(linkData.source));
-                  const targetTask = gantt.getTask(String(linkData.target));
+                if (!linkData) continue;
+                
+                // Get source and target tasks
+                const sourceTask = gantt.getTask(String(linkData.source));
+                const targetTask = gantt.getTask(String(linkData.target));
+                
+                if (!sourceTask || !targetTask) continue;
+                
+                // Get task row positions to identify which link this is
+                const sourceRow = gantt.getTaskNode(sourceTask.id);
+                const targetRow = gantt.getTaskNode(targetTask.id);
+                
+                if (sourceRow && targetRow) {
+                  const sourceRect = sourceRow.getBoundingClientRect();
+                  const targetRect = targetRow.getBoundingClientRect();
                   
-                  if (sourceTask && targetTask) {
-                    // Simple heuristic: if we're over a link element, use this link
+                  // Check if mouse is between source and target rows (where the link would be)
+                  const minY = Math.min(sourceRect.top, targetRect.top) - containerRect.top;
+                  const maxY = Math.max(sourceRect.bottom, targetRect.bottom) - containerRect.top;
+                  
+                  // Also check if we're actually over a link element that connects these tasks
+                  // Find all link elements and check if any connect source to target
+                  const linkElements = ganttContainer.current.querySelectorAll('.gantt_task_link');
+                  let foundMatchingLink = false;
+                  
+                  linkElements.forEach((linkEl: Element) => {
+                    const linkElRect = linkEl.getBoundingClientRect();
+                    const linkElTop = linkElRect.top - containerRect.top;
+                    const linkElBottom = linkElRect.bottom - containerRect.top;
+                    
+                    // Check if mouse is within this link element's bounds
+                    if (mouseY >= linkElTop && mouseY <= linkElBottom) {
+                      // Check if this link element is between source and target rows
+                      if ((linkElTop >= minY && linkElTop <= maxY) || 
+                          (linkElBottom >= minY && linkElBottom <= maxY)) {
+                        foundMatchingLink = true;
+                      }
+                    }
+                  });
+                  
+                  if (foundMatchingLink && (linkData as any).dependency_type) {
                     linkId = String(link.id);
                     depType = (linkData as any).dependency_type;
                     break;
@@ -645,14 +697,44 @@ export default function DHtmlxGanttChart({
                 continue;
               }
             }
+            
+            // Fallback: if still not found, try to get from linkData directly
+            if (!linkId || !depType) {
+              // Try to find link by checking which link element we're actually over
+              const linkElements = ganttContainer.current.querySelectorAll('.gantt_task_link');
+              linkElements.forEach((linkEl: Element) => {
+                const linkElRect = linkEl.getBoundingClientRect();
+                const linkElTop = linkElRect.top - containerRect.top;
+                const linkElBottom = linkElRect.bottom - containerRect.top;
+                
+                // Check if mouse is within this link element
+                if (mouseY >= linkElTop && mouseY <= linkElBottom) {
+                  const elLinkId = (linkEl as HTMLElement).getAttribute('data-link-id');
+                  const elDepType = (linkEl as HTMLElement).getAttribute('data-dependency-type');
+                  
+                  if (elLinkId && elDepType) {
+                    linkId = elLinkId;
+                    depType = elDepType;
+                  }
+                }
+              });
+            }
           }
         }
 
-        if (linkId && depType) {
-          // Get link data to access task names
+        if (linkId) {
+          // Get link data to access task names - ALWAYS get dependency_type from linkData
           let linkData: any = null;
           try {
             linkData = gantt.getLink(linkId);
+            // CRITICAL: Always get dependency_type from linkData, not from cached values
+            if (linkData && (linkData as any).dependency_type) {
+              depType = (linkData as any).dependency_type;
+            } else if (linkData) {
+              // If linkData exists but no dependency_type, try to find it from original data
+              // This shouldn't happen, but handle it gracefully
+              depType = depType || 'FS';
+            }
           } catch (err) {
             // Try to find link by iterating
             const allLinks = gantt.getLinks();
@@ -661,6 +743,11 @@ export default function DHtmlxGanttChart({
               if (String(link.id) === linkId) {
                 try {
                   linkData = gantt.getLink(String(link.id));
+                  if (linkData && (linkData as any).dependency_type) {
+                    depType = (linkData as any).dependency_type;
+                  } else if (linkData) {
+                    depType = depType || 'FS';
+                  }
                   break;
                 } catch (e) {
                   continue;
@@ -669,11 +756,14 @@ export default function DHtmlxGanttChart({
             }
           }
           
+          // Ensure depType is not null before using it
+          if (!depType) return;
+          
           const depTypeName = getDependencyTypeName(depType);
           
           // Get task names from link data
-          let predecessorName = 'Unknown';
-          let successorName = 'Unknown';
+          let predecessorName = 'Không xác định';
+          let successorName = 'Không xác định';
           
           if (linkData) {
             if (linkData.predecessor_name) {
@@ -682,7 +772,7 @@ export default function DHtmlxGanttChart({
               // Fallback: get from task data
               try {
                 const sourceTask = gantt.getTask(String(linkData.source));
-                if (sourceTask) predecessorName = sourceTask.text || 'Unknown';
+                if (sourceTask) predecessorName = sourceTask.text || 'Không xác định';
               } catch (err) {}
             }
             
@@ -692,7 +782,7 @@ export default function DHtmlxGanttChart({
               // Fallback: get from task data
               try {
                 const targetTask = gantt.getTask(String(linkData.target));
-                if (targetTask) successorName = targetTask.text || 'Unknown';
+                if (targetTask) successorName = targetTask.text || 'Không xác định';
               } catch (err) {}
             }
           }
@@ -738,25 +828,50 @@ export default function DHtmlxGanttChart({
         const allLinks = gantt.getLinks();
         const allLinkElements = ganttContainer.current.querySelectorAll('.gantt_task_link');
         
-        // Map link elements to link data
+        // Map link elements to link data by checking which tasks they connect
         allLinks.forEach((link: any) => {
           try {
             const linkData = gantt.getLink(String(link.id));
-            if (linkData && (linkData as any).dependency_type) {
-              // Find link element by checking source/target task positions
-              // We'll add data attribute to help identify links
-              const sourceTask = gantt.getTask(String(linkData.source));
-              const targetTask = gantt.getTask(String(linkData.target));
+            if (!linkData || !(linkData as any).dependency_type) return;
+            
+            const sourceTask = gantt.getTask(String(linkData.source));
+            const targetTask = gantt.getTask(String(linkData.target));
+            
+            if (!sourceTask || !targetTask) return;
+            
+            // Get task row positions to identify which link element corresponds to this link
+            const sourceRow = gantt.getTaskNode(sourceTask.id);
+            const targetRow = gantt.getTaskNode(targetTask.id);
+            
+            if (!sourceRow || !targetRow) return;
+            
+            const sourceRect = sourceRow.getBoundingClientRect();
+            const targetRect = targetRow.getBoundingClientRect();
+            const containerRect = ganttContainer.current!.getBoundingClientRect();
+            
+            // Calculate the vertical range where this link should be
+            const minY = Math.min(sourceRect.top, targetRect.top) - containerRect.top;
+            const maxY = Math.max(sourceRect.bottom, targetRect.bottom) - containerRect.top;
+            
+            // Find link elements that are in this vertical range
+            allLinkElements.forEach((linkEl: Element) => {
+              const linkElRect = linkEl.getBoundingClientRect();
+              const linkElTop = linkElRect.top - containerRect.top;
+              const linkElBottom = linkElRect.bottom - containerRect.top;
+              const linkElCenter = (linkElTop + linkElBottom) / 2;
               
-              if (sourceTask && targetTask) {
-                // Find link element that connects these tasks
-                allLinkElements.forEach((linkEl: Element) => {
-                  // Add data attribute to help identify this link
+              // Check if this link element is in the vertical range between source and target
+              // Allow some tolerance for links that might be slightly outside
+              if (linkElCenter >= minY - 20 && linkElCenter <= maxY + 20) {
+                // Check if this element doesn't already have a link-id (to avoid overwriting)
+                const existingLinkId = (linkEl as HTMLElement).getAttribute('data-link-id');
+                if (!existingLinkId) {
+                  // Add data attribute to help identify this specific link
                   (linkEl as HTMLElement).setAttribute('data-link-id', String(link.id));
                   (linkEl as HTMLElement).setAttribute('data-dependency-type', (linkData as any).dependency_type || 'FS');
-                });
+                }
               }
-            }
+            });
           } catch (err) {
             // Skip invalid links
           }
@@ -764,9 +879,24 @@ export default function DHtmlxGanttChart({
       };
       
       // Add data attributes after gantt renders
-      setTimeout(() => {
+      const setupLinkAttributes = () => {
         addLinkDataAttributes();
-      }, 300);
+      };
+      
+      // Run immediately and after delays to catch any delayed rendering
+      setTimeout(setupLinkAttributes, 100);
+      setTimeout(setupLinkAttributes, 300);
+      setTimeout(setupLinkAttributes, 500);
+      setTimeout(setupLinkAttributes, 1000);
+      
+      // Also set up an interval to periodically update link attributes
+      // This ensures attributes stay up to date if links are re-rendered
+      const linkAttributeInterval = setInterval(() => {
+        setupLinkAttributes();
+      }, 2000);
+      
+      // Store interval ID for cleanup
+      (ganttContainer.current as any)._linkAttributeInterval = linkAttributeInterval;
       
       if (ganttContainer.current) {
         ganttContainer.current.addEventListener('mousemove', handleLinkMouseMove);
@@ -783,6 +913,11 @@ export default function DHtmlxGanttChart({
       // Clear link correction interval
       if (ganttContainer.current && (ganttContainer.current as any)._linkCorrectionInterval) {
         clearInterval((ganttContainer.current as any)._linkCorrectionInterval);
+      }
+      
+      // Clear link attribute interval
+      if (ganttContainer.current && (ganttContainer.current as any)._linkAttributeInterval) {
+        clearInterval((ganttContainer.current as any)._linkAttributeInterval);
       }
       
       // Remove link tooltip event listeners
@@ -842,7 +977,7 @@ export default function DHtmlxGanttChart({
         borderRadius: '12px 12px 0 0'
       }}>
         <ButtonGroup variant="outlined" size="small">
-          <Tooltip title="Zoom In">
+          <Tooltip title="Phóng to">
             <IconButton 
               onClick={handleZoomIn} 
               disabled={zoomLevel === 'day'}
@@ -851,7 +986,7 @@ export default function DHtmlxGanttChart({
               <ZoomIn fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Zoom Out">
+          <Tooltip title="Thu nhỏ">
             <IconButton 
               onClick={handleZoomOut} 
               disabled={zoomLevel === 'year'}
@@ -865,7 +1000,7 @@ export default function DHtmlxGanttChart({
         <Divider orientation="vertical" flexItem />
 
         <ButtonGroup variant="outlined" size="small">
-          <Tooltip title="Day View">
+          <Tooltip title="Xem ngày">
             <IconButton 
               onClick={() => setZoomLevel('day')}
               color={zoomLevel === 'day' ? 'primary' : 'default'}
@@ -873,7 +1008,7 @@ export default function DHtmlxGanttChart({
               <CalendarToday fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Week View">
+          <Tooltip title="Xem tuần">
             <IconButton 
               onClick={() => setZoomLevel('week')}
               color={zoomLevel === 'week' ? 'primary' : 'default'}
@@ -881,7 +1016,7 @@ export default function DHtmlxGanttChart({
               <CalendarViewWeek fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Month View">
+          <Tooltip title="Xem tháng">
             <IconButton 
               onClick={() => setZoomLevel('month')}
               color={zoomLevel === 'month' ? 'primary' : 'default'}
@@ -889,7 +1024,7 @@ export default function DHtmlxGanttChart({
               <CalendarViewMonth fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Year View">
+          <Tooltip title="Xem năm">
             <IconButton 
               onClick={() => setZoomLevel('year')}
               color={zoomLevel === 'year' ? 'primary' : 'default'}
@@ -901,7 +1036,7 @@ export default function DHtmlxGanttChart({
 
         <Divider orientation="vertical" flexItem />
 
-        <Tooltip title="Fit to Screen">
+        <Tooltip title="Vừa màn hình">
           <IconButton onClick={handleFitScreen} size="small">
             <FitScreen fontSize="small" />
           </IconButton>
@@ -918,7 +1053,7 @@ export default function DHtmlxGanttChart({
             color: '#6b7280',
             textTransform: 'uppercase'
           }}>
-            {zoomLevel} View
+            {zoomLevel === 'day' ? 'Xem ngày' : zoomLevel === 'week' ? 'Xem tuần' : zoomLevel === 'month' ? 'Xem tháng' : 'Xem năm'}
           </Box>
         </Box>
       </Box>
@@ -1297,6 +1432,27 @@ export default function DHtmlxGanttChart({
           box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
         }
 
+        /* Orphaned Group Tasks (Nhóm Công việc) - Disable click and pointer events */
+        .gantt-task-orphaned-group .gantt_task_progress {
+          background: linear-gradient(135deg, #579bfc 0%, #4179d6 100%);
+          box-shadow: 0 2px 6px rgba(87, 155, 252, 0.3);
+        }
+
+        .gantt-task-orphaned-group .gantt_task_content {
+          background: linear-gradient(135deg, #579bfc 0%, #4179d6 100%);
+        }
+
+        .gantt-task-orphaned-group .gantt_task_line {
+          pointer-events: none !important;
+          cursor: default !important;
+        }
+
+        .gantt-task-orphaned-group .gantt_task_line:hover {
+          opacity: 1 !important;
+          transform: none !important;
+          cursor: default !important;
+        }
+
         /* Dependencies - Enhanced styling */
         .gantt_link_arrow {
           border-color: #6b7280;
@@ -1625,12 +1781,13 @@ function transformToGanttData(
     
       ganttTasks.push({
         id: String(orphanedGroupId), // Ensure ID is string
-        text: 'Task Group',
+        text: 'Nhóm Công việc',
         type: "task", // Change to task so it shows a bar
         open: true,
         start_date: orphanedStartDate,
         duration: orphanedDuration,
-        readonly: true
+        readonly: true,
+        isOrphanedGroup: true // Mark as orphaned group for identification
       });
 
     orphanedTasks.forEach(task => {
@@ -1783,8 +1940,8 @@ function transformToGanttData(
       // Get task names for tooltip
       const predecessorTask = ganttTasks.find(t => String(t.id) === String(predecessorId));
       const successorTask = ganttTasks.find(t => String(t.id) === String(successorId));
-      const predecessorName = predecessorTask?.text || 'Unknown';
-      const successorName = successorTask?.text || 'Unknown';
+      const predecessorName = predecessorTask?.text || 'Không xác định';
+      const successorName = successorTask?.text || 'Không xác định';
       
      
       
@@ -1865,8 +2022,8 @@ function transformToGanttData(
       // Get task names for tooltip
       const predecessorTask = ganttTasks.find(t => String(t.id) === String(predecessorId));
       const successorTask = ganttTasks.find(t => String(t.id) === String(successorId));
-      const predecessorName = predecessorTask?.text || 'Unknown';
-      const successorName = successorTask?.text || 'Unknown';
+      const predecessorName = predecessorTask?.text || 'Không xác định';
+      const successorName = successorTask?.text || 'Không xác định';
       
       // Use same convention as dependencies: source=predecessor, target=successor
       // Arrow points FROM source TO target (from 'a' to 'c')
