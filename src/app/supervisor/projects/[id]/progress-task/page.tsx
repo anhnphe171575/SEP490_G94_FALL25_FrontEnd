@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
 import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 import QuickNav from "@/components/QuickNav";
@@ -47,8 +47,10 @@ const COLORS = {
 
 export default function ProgressTaskPage() {
   const router = useRouter();
+  const params = useParams();
   const searchParams = useSearchParams();
-  const projectId = searchParams.get("project_id");
+  // Lấy projectId từ route parameter [id] hoặc từ query string (fallback)
+  const projectId = (params?.id as string) || searchParams.get("project_id") || "";
 
   const [loading, setLoading] = useState(true);
   const [timeBasedProgress, setTimeBasedProgress] = useState<any>(null);

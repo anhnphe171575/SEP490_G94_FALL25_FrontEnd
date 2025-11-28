@@ -786,37 +786,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                                   >
                                     {feature.title}
                                   </Typography>
-                                  {feature.percentage !== undefined && (
-                                    <Box sx={{ mt: 1 }}>
-                                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                                        <Typography variant="caption" color="text.secondary">
-                                          Tiến độ: {feature.percentage}%
-                                        </Typography>
-                                        {feature.task_count !== undefined && (
-                                          <Typography variant="caption" color="text.secondary">
-                                            • {feature.completed_tasks || 0}/{feature.task_count} công việc
-                                          </Typography>
-                                        )}
-                                        {feature.function_count !== undefined && (
-                                          <Typography variant="caption" color="text.secondary">
-                                            • {feature.completed_functions || 0}/{feature.function_count} chức năng
-                                          </Typography>
-                                        )}
-                                      </Stack>
-                                      <LinearProgress 
-                                        variant="determinate" 
-                                        value={feature.percentage} 
-                                        sx={{ 
-                                          height: 6, 
-                                          borderRadius: 3,
-                                          bgcolor: '#e5e7eb',
-                                          '& .MuiLinearProgress-bar': {
-                                            bgcolor: feature.percentage === 100 ? '#10b981' : '#3b82f6'
-                                          }
-                                        }}
-                                      />
-                                    </Box>
-                                  )}
                                 </Box>
                               </Stack>
                             </Paper>

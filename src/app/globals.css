@@ -27,7 +27,8 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+/* Dark mode disabled - always use light theme */
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
@@ -39,7 +40,7 @@
     --border: #3a2414;
     --ring: color-mix(in oklab, var(--primary) 50%, black);
   }
-}
+} */
 
 body {
   background: radial-gradient(1200px 600px at 80% -100px, var(--accent), transparent 70%),

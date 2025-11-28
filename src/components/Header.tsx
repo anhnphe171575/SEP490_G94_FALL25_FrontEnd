@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import axiosInstance from "../../ultis/axios";
 import Link from "next/link";
+import { getSocket } from "./ResponsiveSidebar";
 
 export default function Header() {
   const router = useRouter();
@@ -14,6 +15,12 @@ export default function Header() {
   const [mounted, setMounted] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState<{ team_unread: number; direct_unread: number; total_unread: number }>({
+    team_unread: 0,
+    direct_unread: 0,
+    total_unread: 0,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -58,10 +65,126 @@ export default function Header() {
         const res = await axiosInstance.get('/api/users/me');
         const userData = res.data || null;
         setMe(userData);
+
+        if ((userData?._id || userData?.id) && typeof window !== "undefined") {
+          const userId = (userData._id || userData.id)?.toString();
+          const token = sessionStorage.getItem("token") || localStorage.getItem("token");
+          if (userId && token) {
+            const sock = getSocket();
+            if (sock.connected) {
+              sock.emit("join", userId);
+            } else {
+              sock.once("connect", () => {
+                sock.emit("join", userId);
+              });
+            }
+          }
+        }
       } catch {
         // ignore
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const fetchUnreadNotifications = async () => {
+      try {
+        const token =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem("token") || localStorage.getItem("token")
+            : null;
+        if (!token) return;
+
+        const res = await axiosInstance.get("/api/notifications/unread-count");
+        if (typeof res.data?.unread_count === "number") {
+          setUnreadNotifications(res.data.unread_count);
+        }
+      } catch {
+        // ignore silently
+      }
+    };
+
+    fetchUnreadNotifications();
+
+    const token =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("token") || localStorage.getItem("token")
+        : null;
+    if (!token) return;
+
+    const sock = getSocket();
+    const handleNotification = () => {
+      setUnreadNotifications((prev) => prev + 1);
+    };
+    const handleNotificationRead = (data: any) => {
+      if (typeof data?.unread_count === "number") {
+        setUnreadNotifications(data.unread_count);
+      } else {
+        setUnreadNotifications((prev) => Math.max(0, prev - 1));
+      }
+    };
+
+    sock.on("notification", handleNotification);
+    sock.on("notification-read", handleNotificationRead);
+
+    return () => {
+      sock.off("notification", handleNotification);
+      sock.off("notification-read", handleNotificationRead);
+    };
+  }, [me?._id, me?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnreadMessages = async () => {
+      try {
+        const token =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem("token") || localStorage.getItem("token")
+            : null;
+        if (!token || !isMounted) return;
+
+        const res = await axiosInstance.get("/api/messages/unread-count", {
+          validateStatus: (status) => status < 500,
+        });
+        if (res.status === 200 && res.data) {
+          setUnreadMessages({
+            team_unread: res.data.team_unread || 0,
+            direct_unread: res.data.direct_unread || 0,
+            total_unread: res.data.total_unread || 0,
+          });
+        }
+      } catch {
+        if (!isMounted) return;
+        setUnreadMessages((prev) =>
+          prev.total_unread === undefined
+            ? { team_unread: 0, direct_unread: 0, total_unread: 0 }
+            : prev
+        );
+      }
+    };
+
+    fetchUnreadMessages();
+    const interval = setInterval(fetchUnreadMessages, 30000);
+
+    const sock = getSocket();
+    const refresh = () => fetchUnreadMessages();
+
+    sock.on("new-team-message", refresh);
+    sock.on("new-direct-message", refresh);
+    sock.on("message-read", refresh);
+    sock.on("joined-team", refresh);
+    sock.on("connect", refresh);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      sock.off("new-team-message", refresh);
+      sock.off("new-direct-message", refresh);
+      sock.off("message-read", refresh);
+      sock.off("joined-team", refresh);
+      sock.off("connect", refresh);
+    };
   }, []);
 
   const onLogout = () => {
@@ -87,12 +210,14 @@ export default function Header() {
     setShowDropdown(false);
   };
 
+  const isSupervisor = me?.role === 4;
+
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between px-4 md:px-6 h-16">
         {/* Logo/Brand */}
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-3">
+          <Link href={isSupervisor ? "/supervisor/projects" : "/dashboard"} className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-pink-500 rounded-lg flex items-center justify-center">
               <svg
                 className="w-5 h-5 text-white"
@@ -114,9 +239,50 @@ export default function Header() {
           </Link>
         </div>
 
-        {/* User Profile Dropdown */}
-        {me && (
-          <div className="relative z-50">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push("/notifications")}
+            className="relative flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 text-gray-500 hover:text-orange-600 hover:border-orange-200 transition-colors duration-200"
+            aria-label="Thông báo"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              />
+            </svg>
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => router.push("/messages")}
+            className="relative flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors duration-200"
+            aria-label="Tin nhắn"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+            {unreadMessages.total_unread > 0 && (
+              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold text-white bg-indigo-500 rounded-full">
+                {unreadMessages.total_unread > 99 ? "99+" : unreadMessages.total_unread}
+              </span>
+            )}
+          </button>
+
+          {/* User Profile Dropdown */}
+          {me && (
+            <div className="relative z-50">
             <button
               ref={buttonRef}
               onClick={() => setShowDropdown(!showDropdown)}
@@ -223,7 +389,8 @@ export default function Header() {
               document.body
             )}
           </div>
-        )}
+          )}
+        </div>
       </div>
     </header>
   );

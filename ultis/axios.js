@@ -27,10 +27,48 @@ axiosInstance.interceptors.request.use(
     // Don't set Content-Type for FormData, let axios handle it automatically
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
+      
+      // Kiểm tra và đảm bảo projectId/project_id được truyền trong FormData
+      const hasProjectId = config.data.has('projectId') || config.data.has('project_id');
+      
+      // Nếu URL chứa projectId và FormData chưa có, thêm vào
+      if (!hasProjectId && config.url) {
+        const projectIdMatch = config.url.match(/\/projects\/([^\/]+)/);
+        if (projectIdMatch && projectIdMatch[1]) {
+          const projectId = projectIdMatch[1];
+          // Thử lấy project_id trước, nếu không có thì thêm
+          if (!config.data.has('project_id')) {
+            config.data.append('project_id', projectId);
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Auto-added project_id to FormData from URL:', projectId);
+            }
+          }
+        }
+      }
+      
+      // Debug: Log FormData contents in development
+      if (process.env.NODE_ENV === 'development') {
+        const formDataEntries = [];
+        for (const [key, value] of config.data.entries()) {
+          formDataEntries.push({ key, value: value instanceof File ? value.name : value });
+        }
+        console.log('FormData request:', {
+          url: config.url,
+          method: config.method?.toUpperCase(),
+          entries: formDataEntries,
+          hasProjectId: config.data.has('projectId') || config.data.has('project_id')
+        });
+      }
     }
     
     if (process.env.NODE_ENV === 'development') {
-    
+      // Log request details for debugging
+      console.log('API Request:', {
+        url: config.url,
+        method: config.method?.toUpperCase(),
+        hasAuth: !!token,
+        dataType: config.data instanceof FormData ? 'FormData' : typeof config.data
+      });
     }
     
     return config;
@@ -43,21 +81,48 @@ axiosInstance.interceptors.request.use(
 // Response interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
+    // Đảm bảo projectId được trả về trong response nếu request có projectId
+    if (response.data && response.config?.url) {
+      const projectIdMatch = response.config.url.match(/\/projects\/([^\/]+)/);
+      if (projectIdMatch && projectIdMatch[1]) {
+        const projectId = projectIdMatch[1];
+        // Nếu response.data là object và chưa có projectId, thêm vào
+        if (typeof response.data === 'object' && !Array.isArray(response.data)) {
+          if (!response.data.projectId && !response.data.project_id) {
+            response.data.projectId = projectId;
+          }
+        }
+      }
+    }
+    
     if (process.env.NODE_ENV === 'development') {
-      
+      console.log('API Response:', {
+        url: response.config?.url,
+        method: response.config?.method?.toUpperCase(),
+        status: response.status,
+        statusText: response.statusText,
+        hasProjectId: response.data?.projectId || response.data?.project_id
+      });
     }
     return response;
   },
   (error) => {
-    if (process.env.NODE_ENV === 'development') {
-    }
-    
     // Xử lý lỗi chung
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
-        // Chỉ redirect nếu không phải trang messages
-        if (!window.location.pathname.includes('/messages')) {
+        const pathname = window.location.pathname || '';
+        const requestUrl = error.config?.url || '';
+
+        const isMessagesPage = pathname.includes('/messages');
+        const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
+        const isAuthApi =
+          requestUrl.includes('/api/auth/login') ||
+          requestUrl.includes('/api/auth/register') ||
+          requestUrl.includes('/api/auth/google');
+
+        const shouldRedirect = !isMessagesPage && !isAuthPage && !isAuthApi;
+        if (shouldRedirect) {
           window.location.href = '/login';
         }
       }
@@ -81,6 +146,30 @@ axiosInstance.interceptors.response.use(
         if (!shouldSkipRedirect) {
           window.location.href = '/not-found';
         }
+      }
+    }
+    
+    if (error.response?.status === 400) {
+      // Xử lý lỗi 400 - Bad Request
+      const errorData = error.response.data;
+      const errorMessage = errorData?.message || errorData?.error || 'Bad Request';
+      const errorUrl = error.config?.url || 'Unknown URL';
+      
+      // Log chi tiết cho các lỗi liên quan đến projectId
+      if (errorMessage.includes('projectId') || errorMessage.includes('project_id') || errorMessage.includes('Thiếu tham số')) {
+        console.error('Bad Request (400) - Missing projectId:', {
+          url: errorUrl,
+          message: errorMessage,
+          data: errorData,
+          method: error.config?.method?.toUpperCase(),
+          requestData: error.config?.data
+        });
+      } else {
+        console.error('Bad Request (400):', {
+          url: errorUrl,
+          message: errorMessage,
+          data: errorData
+        });
       }
     }
     
@@ -113,26 +202,7 @@ export const api = {
   patch: (url, data, config) => axiosInstance.patch(url, data, config),
   delete: (url, config) => axiosInstance.delete(url, config),
   
-  // Review API methods
-  reviews: {
-    // Create a new review
-    create: (reviewData) => axiosInstance.post('/reviews', reviewData),
-    
-    // Get all reviews
-    getAll: () => axiosInstance.get('/reviews'),
-    
-    // Get reviews for a specific product
-    getByProduct: (productId) => axiosInstance.get(`/reviews/product/${productId}`),
-    
-    // Get unreviewed products for a user
-    getUnreviewed: (productId) => axiosInstance.get(`/reviews/unreviewed/${productId}`),
-    
-    // Update a review
-    update: (reviewId, reviewData) => axiosInstance.put(`/reviews/${reviewId}`, reviewData),
-    
-    // Delete a review
-    delete: (reviewId) => axiosInstance.delete(`/reviews/${reviewId}`),
-  },
+ 
 };
 
 // Utility functions cho các trường hợp đặc biệt

@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const redirectUrl = searchParams.get('redirect');
 
@@ -77,9 +78,36 @@ export default function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const clearError = () => {
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = null;
+    }
+    setError(null);
+  };
+
+  const showError = (message: string, durationMs = 10000) => {
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+    }
+    setError(message);
+    errorTimeoutRef.current = setTimeout(() => {
+      setError(null);
+      errorTimeoutRef.current = null;
+    }, durationMs);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleGoogleResponse = async (response: { credential: string }) => {
     try {
-      setError(null);
+      clearError();
       setLoading(true);
       const idToken = response?.credential;
       if (!idToken) throw new Error("Không nhận được phản hồi từ Google");
@@ -107,7 +135,7 @@ export default function LoginPage() {
       }
     } catch (e: unknown) {
       const error = e as { response?: { data?: { message?: string } }; message?: string };
-      setError(error?.response?.data?.message || error?.message || "Đăng nhập Google thất bại");
+      showError(error?.response?.data?.message || error?.message || "Đăng nhập Google thất bại");
     } finally {
       setLoading(false);
     }
@@ -118,7 +146,7 @@ export default function LoginPage() {
       message ||
       "Tài khoản chưa xác thực. Mã OTP mới đã được gửi đến email của bạn.";
 
-    setError(finalMessage);
+    showError(finalMessage);
 
     try {
       await axiosInstance.post("/api/auth/resend-registration-otp", {
@@ -140,7 +168,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       setLoading(true);
-      setError(null);
+      clearError();
 
       const res = await axiosInstance.post("/api/auth/login", { email, password });
       const token = res.data?.token;
@@ -177,7 +205,7 @@ export default function LoginPage() {
       ) {
         await handleUnverifiedAccount(targetEmail, message);
       } else {
-        setError(message);
+        showError(message);
       }
     } finally {
       setLoading(false);
@@ -248,11 +276,15 @@ export default function LoginPage() {
               </a>
             </div>
             {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
+              <div
+                id="error-message"
+                className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm"
+              >
                 {error}
               </div>
             )}
             <button
+              id="loginButton"
               type="submit"
               disabled={loading}
               className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-semibold py-2 rounded-lg shadow-md transition-all duration-200 disabled:opacity-50"

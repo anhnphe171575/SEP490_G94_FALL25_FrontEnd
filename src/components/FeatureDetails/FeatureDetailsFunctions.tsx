@@ -68,9 +68,11 @@ export default function FeatureDetailsFunctions({
     if (!featureId || !projectId) return;
     try {
       const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
-      setFunctions(response.data || []);
+      
+      setFunctions(Array.isArray(response.data?.functions) ? response.data.functions : []);
     } catch (error) {
       console.error('Error loading functions:', error);
+      setFunctions([]); 
     }
   };
 

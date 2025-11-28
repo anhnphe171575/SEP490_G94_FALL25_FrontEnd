@@ -40,6 +40,7 @@ import {
   Tabs,
   Tab,
   Link,
+  Pagination,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
@@ -151,6 +152,10 @@ export default function ProjectFeaturesPage() {
   
   // View tab state
   const [viewTab, setViewTab] = useState<'table' | 'gantt'>('table');
+  
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   
   // Note: Complexity field removed from Feature model
 
@@ -296,6 +301,18 @@ export default function ProjectFeaturesPage() {
       return matchSearch && matchStatus && matchPriority;
     });
   }, [features, searchTerm, filterStatus, filterPriority]);
+
+  // Paginated features
+  const paginatedFeatures = useMemo(() => {
+    const startIndex = (page - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredFeatures.slice(startIndex, endIndex);
+  }, [filteredFeatures, page, rowsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterStatus, filterPriority]);
 
   const handleOpenForm = () => {
     setForm({ 
@@ -924,7 +941,7 @@ export default function ProjectFeaturesPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(filteredFeatures || []).map((f, idx) => {
+                    {(paginatedFeatures || []).map((f, idx) => {
                       const pct = featureProgress.get(f._id as string) ?? 0;
                       const owners = [
                         { id: '1', name: 'A' },
@@ -1183,6 +1200,70 @@ export default function ProjectFeaturesPage() {
                   </TableBody>
                 </Table>
                 </Box>
+                
+                {/* Pagination Controls */}
+                {filteredFeatures.length > 0 && (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    px: 3,
+                    py: 2,
+                    borderTop: '1px solid #e8e9eb',
+                    bgcolor: '#fafbfc'
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                        Hiển thị {((page - 1) * rowsPerPage) + 1} - {Math.min(page * rowsPerPage, filteredFeatures.length)} trong tổng số {filteredFeatures.length} tính năng
+                      </Typography>
+                      <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <Select
+                          value={rowsPerPage}
+                          onChange={(e) => {
+                            setRowsPerPage(Number(e.target.value));
+                            setPage(1);
+                          }}
+                          sx={{
+                            fontSize: '13px',
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' },
+                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#b4a7f5' },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#8b5cf6' },
+                          }}
+                        >
+                          <MenuItem value={5}>5 / trang</MenuItem>
+                          <MenuItem value={10}>10 / trang</MenuItem>
+                          <MenuItem value={25}>25 / trang</MenuItem>
+                          <MenuItem value={50}>50 / trang</MenuItem>
+                          <MenuItem value={100}>100 / trang</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Box>
+                    <Pagination
+                      count={Math.ceil(filteredFeatures.length / rowsPerPage)}
+                      page={page}
+                      onChange={(event, value) => setPage(value)}
+                      color="primary"
+                      shape="rounded"
+                      sx={{
+                        '& .MuiPaginationItem-root': {
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#49516f',
+                          '&.Mui-selected': {
+                            background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                            color: 'white',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                            }
+                          },
+                          '&:hover': {
+                            bgcolor: '#f3f0ff',
+                          }
+                        }
+                      }}
+                    />
+                  </Box>
+                )}
               </Paper>
               )}
 

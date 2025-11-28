@@ -435,7 +435,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div id="dashboard" className="min-h-screen bg-white">
         <main className="px-4 py-4 md:px-6 md:py-6 w-full !ml-0">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -450,7 +450,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white">
+      <div id="dashboard" className="min-h-screen bg-white">
         <main className="px-4 py-4 md:px-6 md:py-6 w-full !ml-0">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -477,7 +477,7 @@ export default function DashboardPage() {
   if (!projects) return null;
 
   return (
-    <div className="min-h-screen bg-white w-full overflow-x-hidden">
+    <div id="dashboard" className="min-h-screen bg-white w-full overflow-x-hidden">
       <main className="px-4 py-4 md:px-6 md:py-6 w-full !ml-0">
         {/* Header Section */}
         <div className="mb-8">
