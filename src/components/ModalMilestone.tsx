@@ -142,45 +142,37 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const loadMilestoneFeatures = async () => {
     try {
       setLoadingFeatures(true);
-      // Get features from progress endpoint which includes feature details
-      const progressRes = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/progress`);
-      const progressData = progressRes.data;
+      // Get all features of the project
+      const allFeaturesRes = await axiosInstance.get(`/api/projects/${projectId}/features`);
+      const allFeatures = allFeaturesRes.data || [];
       
-      if (progressData?.progress?.by_feature && Array.isArray(progressData.progress.by_feature)) {
-        // Extract feature information from progress data
-        const featuresList = progressData.progress.by_feature.map((item: any) => ({
-          _id: item.feature_id,
-          title: item.feature_title,
-          task_count: item.task_count,
-          function_count: item.function_count,
-          completed_tasks: item.completed_tasks,
-          completed_functions: item.completed_functions,
-          percentage: item.percentage
-        }));
-        setFeatures(featuresList);
-      } else {
-        // Fallback: try to get features directly
+      // Get feature-milestone links for this milestone
+      // We need to check which features are linked to this milestone via FeaturesMilestone table
+      // Since there's no direct endpoint, we'll get features and check their milestone links
+      const linkedFeatures: any[] = [];
+      
+      for (const feature of allFeatures) {
         try {
-          const allFeaturesRes = await axiosInstance.get(`/api/projects/${projectId}/features`);
-          const allFeatures = allFeaturesRes.data || [];
+          // Get milestones linked to this feature
+          const milestonesRes = await axiosInstance.get(`/api/features/${feature._id}/milestones`);
+          const linkedMilestoneIds = milestonesRes.data || [];
           
-          // Get feature IDs linked to this milestone from FeaturesMilestone
-          // We'll need to filter features that have this milestone in their milestone_ids
-          const linkedFeatures = allFeatures.filter((f: any) => {
-            const milestoneIds = f.milestone_ids || [];
-            return milestoneIds.includes(milestoneId);
-          });
-          setFeatures(linkedFeatures.map((f: any) => ({
-            _id: f._id,
-            title: f.title,
-            status: f.status,
-            priority: f.priority
-          })));
+          // Check if this milestone is in the list
+          if (linkedMilestoneIds.includes(milestoneId)) {
+            linkedFeatures.push(feature);
+          }
         } catch (err) {
-          console.error('Error loading features fallback:', err);
-          setFeatures([]);
+          // Skip features that can't be checked
+          console.warn(`Could not check milestones for feature ${feature._id}:`, err);
         }
       }
+      
+      setFeatures(linkedFeatures.map((f: any) => ({
+        _id: f._id,
+        title: f.title,
+        status: f.status,
+        priority: f.priority
+      })));
     } catch (error: any) {
       console.error('Error loading milestone features:', error);
       toast.error('Không thể tải danh sách features', {

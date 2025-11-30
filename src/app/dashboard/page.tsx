@@ -53,10 +53,9 @@ const getSemesterYear = (semester: string): number => {
 };
 
 // Project Card Component
-const ProjectCard = ({ project, onEdit, onDelete, router }: {
+const ProjectCard = ({ project, onEdit, router }: {
   project: Project;
   onEdit: (project: Project) => void;
-  onDelete: (project: Project) => void;
   router: { push: (path: string) => void };
 }) => (
   <div
@@ -105,13 +104,6 @@ const ProjectCard = ({ project, onEdit, onDelete, router }: {
     )}
 
     <div className="pt-4 border-t border-gray-200">
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        {project.updateAt ? new Date(project.updateAt).toLocaleDateString('vi-VN') : 'Vừa cập nhật'}
-      </div>
-
       {/* Action buttons row */}
       <div className="flex items-center gap-2 mb-3">
         <button
@@ -125,18 +117,6 @@ const ProjectCard = ({ project, onEdit, onDelete, router }: {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
           Sửa
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(project);
-          }}
-          className="text-red-500 hover:text-red-600 font-medium text-sm transition-colors duration-200 flex items-center gap-1"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          Xóa
         </button>
         <button
           onClick={(e) => {
@@ -157,7 +137,7 @@ const ProjectCard = ({ project, onEdit, onDelete, router }: {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          router.push(`/projects/${project._id}`);
+          router.push(`/projects/${project._id}/milestones`);
         }}
         className="w-full text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-orange-200 hover:bg-orange-50 rounded-lg"
       >
@@ -693,7 +673,7 @@ export default function DashboardPage() {
                         return matchesSearch;
                       })
                       .map((project) => (
-                        <ProjectCard key={project._id} project={project} onEdit={handleEditProject} onDelete={setDeletingProject} router={router} />
+                        <ProjectCard key={project._id} project={project} onEdit={handleEditProject} router={router} />
                       ))}
                   </div>
                 </div>
@@ -702,7 +682,7 @@ export default function DashboardPage() {
               // Hiển thị tất cả projects khi filter
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProjects.map((project) => (
-                  <ProjectCard key={project._id} project={project} onEdit={handleEditProject} onDelete={setDeletingProject} router={router} />
+                  <ProjectCard key={project._id} project={project} onEdit={handleEditProject} router={router} />
                 ))}
               </div>
             )}

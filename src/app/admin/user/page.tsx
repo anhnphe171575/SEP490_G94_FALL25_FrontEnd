@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import axiosInstance from "../../../../ultis/axios";
 import LeftSidebarHeader from "../dashboard-admin/herder";
-import { ChevronDown, AlertCircle, Edit, Trash2, UploadCloud, Download, FileDown } from 'lucide-react';
+import { ChevronDown, AlertCircle, Edit, Trash2, UploadCloud, Download, FileDown, User as UserIcon } from 'lucide-react';
 import EditUserModal from './edit';
 import { User, EditUserForm } from './edit';
+import UserDetailModal from './detail';
 
 interface ApiResponse {
   success: boolean;
@@ -54,6 +55,7 @@ export default function UserManagement() {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
@@ -294,6 +296,13 @@ export default function UserManagement() {
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
         <button 
+          className="inline-flex items-center px-3 py-1 rounded transition bg-green-100 text-green-700 hover:bg-green-200"
+          onClick={() => setViewingUserId(user._id)}
+        >
+          <UserIcon className="w-4 h-4 mr-1" />
+          Chi tiết
+        </button>
+        <button 
           className={`inline-flex items-center px-3 py-1 rounded transition ${
             user.role === ROLE_VALUES.ADMIN_DEVELOPER 
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -523,6 +532,14 @@ export default function UserManagement() {
           onSubmit={handleEditSubmit}
           loading={editLoading}
         />
+
+        {/* User Detail Modal */}
+        {viewingUserId && (
+          <UserDetailModal
+            userId={viewingUserId}
+            onClose={() => setViewingUserId(null)}
+          />
+        )}
 
         <input
           type="file"

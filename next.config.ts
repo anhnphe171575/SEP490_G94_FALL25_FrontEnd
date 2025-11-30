@@ -24,6 +24,8 @@ const nextConfig = {
   experimental: {
     turbo: false,
   },
+  // Enable standalone output for Docker
+  output: 'standalone',
   devIndicators: false
   ,
   async headers() {

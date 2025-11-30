@@ -276,13 +276,20 @@ export default function ProjectFunctionsPage() {
   };
 
   const handleDeleteFunction = async (id: string) => {
-    if (!window.confirm("Bạn có chắc muốn xóa function này?")) return;
+    const func = functions.find(f => f._id === id);
+    if (!func) return;
+
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa chức năng "${func.title}"?\n\nHành động này sẽ xóa tất cả tasks liên quan. Hành động này không thể hoàn tác!`
+    );
+    if (!confirmed) return;
+
     try {
       await axiosInstance.delete(`/api/functions/${id}`);
       await loadAllData();
-      toast.success("Đã xóa function thành công");
+      toast.success("Đã xóa chức năng thành công");
     } catch (e: any) {
-      const errorMessage = e?.response?.data?.message || "Không thể xóa function";
+      const errorMessage = e?.response?.data?.message || "Không thể xóa chức năng";
       setError(errorMessage);
       toast.error(errorMessage);
     }
@@ -971,21 +978,6 @@ export default function ProjectFunctionsPage() {
                           >
                             {func.title}
                           </Link>
-                          {func.description && (
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary" 
-                              sx={{ 
-                                display: 'block', 
-                                maxWidth: 300, 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis', 
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {func.description}
-                            </Typography>
-                          )}
                         </TableCell>
                         <TableCell>
                           {featureName !== "-" ? (
