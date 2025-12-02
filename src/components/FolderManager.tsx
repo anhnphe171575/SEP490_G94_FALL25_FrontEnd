@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -117,6 +117,31 @@ export default function FolderManager({
   const [permUserId, setPermUserId] = useState('');
   const [permRole, setPermRole] = useState<'viewer' | 'editor' | 'admin'>('viewer');
   const [removeUserId, setRemoveUserId] = useState('');
+
+  // Current user (for permission: only creator can delete)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const { data } = await axiosInstance.get('/api/folders/user/current');
+        setCurrentUserId(data?.user?._id || null);
+      } catch (e) {
+        console.error('Error fetching current user in FolderManager:', e);
+        setCurrentUserId(null);
+      }
+    };
+
+    if (open) {
+      fetchCurrentUser();
+    }
+  }, [open]);
+
+  const canDeleteFolder = (folder: Folder): boolean => {
+    const creatorId = folder.createdBy?._id || folder.created_by?._id;
+    if (!creatorId || !currentUserId) return false;
+    return creatorId === currentUserId;
+  };
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
@@ -579,12 +604,14 @@ export default function FolderManager({
                       >
                         <EditIcon />
                       </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteFolder(folder._id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                  {canDeleteFolder(folder) && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteFolder(folder._id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
                     </Stack>
                   </ListItemSecondaryAction>
                 </ListItem>
@@ -599,7 +626,15 @@ export default function FolderManager({
             >
               <MenuItem onClick={() => { if (contextFolder) { startEditFolder(contextFolder); } closeContextMenu(); }}>Đổi tên</MenuItem>
               <MenuItem onClick={openMoveDialog}>Di chuyển...</MenuItem>
-              <MenuItem onClick={() => { if (contextFolder) { handleDeleteFolder(contextFolder._id); } closeContextMenu(); }}>
+              <MenuItem
+                disabled={!contextFolder || (contextFolder && !canDeleteFolder(contextFolder))}
+                onClick={() => {
+                  if (contextFolder && canDeleteFolder(contextFolder)) {
+                    handleDeleteFolder(contextFolder._id);
+                  }
+                  closeContextMenu();
+                }}
+              >
                 Xóa
               </MenuItem>
               <MenuItem onClick={() => { if (contextFolder) { setNewFolderParent(contextFolder._id); setActiveTab('create'); } closeContextMenu(); }}>

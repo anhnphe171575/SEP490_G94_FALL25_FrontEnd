@@ -61,7 +61,15 @@ type Project = {
 type Team = {
   _id: string;
   name: string;
-  project_id: string;
+  project_id: string | {
+    _id: string;
+    supervisor_id?: string | {
+      _id: string;
+      full_name: string;
+      email: string;
+      avatar?: string;
+    };
+  };
   team_member: Array<{
     user_id: {
       _id: string;
@@ -148,6 +156,14 @@ export default function MessagesPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [supervisor, setSupervisor] = useState<{
+    _id: string;
+    full_name: string;
+    email: string;
+    avatar?: string;
+  } | null>(null);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const [isSupervisor, setIsSupervisor] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [sending, setSending] = useState(false);
@@ -198,7 +214,6 @@ export default function MessagesPage() {
 
   useEffect(() => {
     fetchUserInfo();
-    fetchProjects();
     
     // Setup socket listener cho current-user-info ngay từ đầu
     const socket = getSocket();
@@ -223,6 +238,14 @@ export default function MessagesPage() {
       }
     };
   }, []);
+
+  // Fetch projects sau khi đã có user info và role
+  useEffect(() => {
+    if (userRole !== null) {
+      fetchProjects();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userRole, isSupervisor]);
 
   useEffect(() => {
     // Chỉ fetch khi đang ở tab team chat
@@ -330,8 +353,8 @@ export default function MessagesPage() {
 
     const handleNewDirectMessage = (data: { message: Message }) => {
       const msg = data.message;
-      const senderId = msg.sender_id && typeof msg.sender_id === 'object' ? msg.sender_id._id : (msg as any).sender_id;
-      const receiverId = msg.receiver_id && typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
+      const senderId = typeof msg.sender_id === 'object' ? msg.sender_id._id : (msg as any).sender_id;
+      const receiverId = typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
 
       // Cập nhật danh sách conversations khi có tin nhắn mới
       if (activeTab === 1) {
@@ -365,7 +388,7 @@ export default function MessagesPage() {
     const handleMessageSent = (data: { message: Message }) => {
       // Người gửi nhận lại xác nhận; nếu đang mở đúng chat thì append nếu chưa có
       const msg = data.message;
-      const receiverId = msg.receiver_id && typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
+      const receiverId = typeof msg.receiver_id === 'object' ? msg.receiver_id._id : (msg as any).receiver_id;
       if (activeTab === 1 && directChatUserId && receiverId?.toString() === directChatUserId?.toString()) {
         setMessages(prev => {
           const exists = prev.some(m => m._id === msg._id);
@@ -403,7 +426,7 @@ export default function MessagesPage() {
             // Kiểm tra xem đã được đánh dấu đọc chưa
             const alreadyRead = msg.read_by?.some(
               (read: any) => {
-                const readUserId = read.user_id && typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
+                const readUserId = typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
                 return readUserId?.toString() === data.userId.toString() || read.user_id === data.userId;
               }
             );
@@ -472,6 +495,12 @@ export default function MessagesPage() {
       if (res.data?._id || res.data?.id) {
         setCurrentUserId(res.data._id || res.data.id);
       }
+      // Lấy role để xác định có phải supervisor không
+      if (res.data?.role !== undefined) {
+        setUserRole(res.data.role);
+        // Role 4 = LECTURER (supervisor)
+        setIsSupervisor(res.data.role === 4);
+      }
     } catch (err) {
       console.error("Error fetching user info:", err);
     }
@@ -479,10 +508,20 @@ export default function MessagesPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await axiosInstance.get('/api/projects');
-      const data = res.data;
-      const projectsList = Array.isArray(data) ? data : (data?.projects || []);
-      setProjects(projectsList);
+      let res;
+      // Nếu là supervisor, gọi API riêng
+      if (isSupervisor) {
+        res = await axiosInstance.get('/api/projects/supervisor');
+        const data = res.data;
+        const projectsList = Array.isArray(data?.data) ? data.data : (data?.data || []);
+        setProjects(projectsList);
+      } else {
+        // Nếu không phải supervisor, gọi API thông thường
+        res = await axiosInstance.get('/api/projects');
+        const data = res.data;
+        const projectsList = Array.isArray(data) ? data : (data?.projects || []);
+        setProjects(projectsList);
+      }
     } catch (err: any) {
       console.error("Error fetching projects:", err);
       setError(err?.response?.data?.message || "Không thể tải danh sách dự án");
@@ -509,6 +548,18 @@ export default function MessagesPage() {
         setTeam(teamData);
         setSelectedTeamId(teamData._id);
 
+        // Lấy thông tin supervisor từ teamData.supervisor (backend đã trả về riêng)
+        if (teamData.supervisor && typeof teamData.supervisor === 'object' && teamData.supervisor._id) {
+          setSupervisor({
+            _id: teamData.supervisor._id,
+            full_name: teamData.supervisor.full_name || 'Giảng viên',
+            email: teamData.supervisor.email || '',
+            avatar: teamData.supervisor.avatar || ''
+          });
+        } else {
+          setSupervisor(null);
+        }
+
         // Join team room qua socket
         const socket = getSocket();
         socketRef.current = socket;
@@ -527,6 +578,7 @@ export default function MessagesPage() {
         }
         setTeam(null);
         setSelectedTeamId(null);
+        setSupervisor(null);
       }
     } catch (err: any) {
       console.error("Error fetching team:", err);
@@ -542,6 +594,7 @@ export default function MessagesPage() {
       }
       setTeam(null);
       setSelectedTeamId(null);
+      setSupervisor(null);
       // Không redirect, chỉ hiển thị lỗi
     } finally {
       setLoadingMessages(false);
@@ -674,7 +727,7 @@ export default function MessagesPage() {
             // Kiểm tra xem đã được đánh dấu đọc chưa
             const alreadyRead = msg.read_by?.some(
               (read: any) => {
-                const readUserId = read.user_id && typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
+                const readUserId = typeof read.user_id === 'object' ? read.user_id._id : read.user_id;
                 return readUserId?.toString() === data.userId.toString() || read.user_id === data.userId;
               }
             );
@@ -1022,6 +1075,7 @@ export default function MessagesPage() {
       setDirectChatUserId(null);
       setDirectChatUser(null);
       setMessages([]);
+      setSupervisor(null);
       fetchConversations();
     }
   };
@@ -1299,6 +1353,7 @@ export default function MessagesPage() {
                             setSelectedProjectId(null);
                             setSelectedTeamId(null);
                             setTeam(null);
+                            setSupervisor(null);
                           }
                         }}
                         className="md:hidden p-2 rounded-xl hover:bg-white/20 transition-all duration-200 active:scale-95"
@@ -1356,7 +1411,7 @@ export default function MessagesPage() {
                                   {project?.topic || project?.code || 'Dự án'}
                                 </h3>
                                 <p className="text-sm text-white/90 font-medium">
-                                  {team ? `${team.team_member.length} thành viên` : 'Đang tải...'}
+                                  {team ? `${team.team_member.length + (supervisor ? 1 : 0)} thành viên` : 'Đang tải...'}
                                 </p>
                               </div>
                               {team && (
@@ -1544,7 +1599,7 @@ export default function MessagesPage() {
                                             
                                             return (
                                               <div
-                                                key={userId || index}
+                                                key={`reader-${userId || `index-${index}`}-${index}`}
                                                 className="relative"
                                                 title={userName || userEmail || 'Người dùng'}
                                               >
@@ -1731,7 +1786,7 @@ export default function MessagesPage() {
           <span>Thành viên nhóm</span>
           {team && (
             <Chip
-              label={`${team.team_member.length} thành viên`}
+              label={`${team.team_member.length + (supervisor ? 1 : 0)} thành viên`}
               size="small"
               sx={{
                 ml: 'auto',
@@ -1743,18 +1798,117 @@ export default function MessagesPage() {
           )}
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
-          {team && team.team_member.length > 0 ? (
+          {(team && team.team_member.length > 0) || supervisor ? (
             <List sx={{ py: 1 }}>
-              {team.team_member.map((member, index) => {
+              {/* Hiển thị supervisor đầu tiên nếu có */}
+              {supervisor && (
+                <div key={`supervisor-${supervisor._id}`}>
+                  <ListItem
+                    sx={{
+                      py: 2,
+                      px: 3,
+                      '&:hover': {
+                        backgroundColor: '#f5f3ff',
+                      },
+                    }}
+                  >
+                    <ListItemAvatar>
+                      {supervisor.avatar ? (
+                        <Avatar
+                          src={supervisor.avatar}
+                          alt={supervisor.full_name}
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          }}
+                        />
+                      ) : (
+                        <Avatar
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            bgcolor: getAvatarColor(supervisor.full_name),
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {supervisor.full_name[0]?.toUpperCase() || 'G'}
+                        </Avatar>
+                      )}
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle1" fontWeight={600}>
+                            {supervisor.full_name}
+                          </Typography>
+                          <Chip
+                            label="Giảng viên hướng dẫn"
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              backgroundColor: '#dbeafe',
+                              color: '#1e40af',
+                            }}
+                          />
+                        </Box>
+                      }
+                      secondary={
+                        <Typography variant="body2" color="text.secondary">
+                          {supervisor.email}
+                        </Typography>
+                      }
+                    />
+                    {supervisor._id !== currentUserId && (
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          handleDirectMessageFromMember(supervisor._id, {
+                            _id: supervisor._id,
+                            full_name: supervisor.full_name,
+                            email: supervisor.email,
+                            avatar: supervisor.avatar
+                          });
+                        }}
+                        sx={{
+                          color: '#6366f1',
+                          '&:hover': {
+                            backgroundColor: '#eef2ff',
+                          },
+                        }}
+                      >
+                        <MessageIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </ListItem>
+                  {(team && team.team_member.length > 0) && <Divider />}
+                </div>
+              )}
+              {/* Hiển thị team members */}
+              {team && team.team_member
+                .filter((member) => {
+                  // Lọc bỏ các member không có user_id
+                  if (!member || !member.user_id) return false;
+                  // Lọc bỏ team member nếu họ cũng là supervisor (đã hiển thị ở trên)
+                  if (!supervisor) return true;
+                  const userId = typeof member.user_id === 'object' && member.user_id !== null
+                    ? member.user_id._id 
+                    : member.user_id;
+                  return userId && userId !== supervisor._id;
+                })
+                .map((member, index) => {
                 const user = member.user_id;
                 const isLeader = member.team_leader === 1;
-                const userName = user && typeof user === 'object' ? (user.full_name || user.email || 'Người dùng') : 'Người dùng';
-                const userEmail = user && typeof user === 'object' ? user.email : '';
-                const userAvatar = user && typeof user === 'object' ? user.avatar : '';
-                const userId = user && typeof user === 'object' ? user._id : user;
+                const userName = typeof user === 'object' && user !== null ? (user.full_name || user.email || 'Người dùng') : 'Người dùng';
+                const userEmail = typeof user === 'object' && user !== null ? user.email : '';
+                const userAvatar = typeof user === 'object' && user !== null ? user.avatar : '';
+                const userId = typeof user === 'object' && user !== null ? user._id : user;
                 
                 return (
-                  <div key={userId || index}>
+                  <div key={`team-member-${userId || 'unknown'}-${index}`}>
                     <ListItem
                       sx={{
                         py: 2,
@@ -1816,7 +1970,7 @@ export default function MessagesPage() {
                           </Typography>
                         }
                       />
-                      {user && typeof user === 'object' && user._id !== currentUserId && (
+                      {typeof user === 'object' && user._id !== currentUserId && (
                         <IconButton
                           size="small"
                           onClick={() => {
@@ -1847,7 +2001,7 @@ export default function MessagesPage() {
             <Box sx={{ p: 4, textAlign: 'center' }}>
               <PeopleIcon sx={{ fontSize: 64, color: '#d1d5db', mb: 2 }} />
               <Typography variant="body1" color="text.secondary">
-                Chưa có thành viên nào
+                {supervisor ? 'Chưa có thành viên team nào' : 'Chưa có thành viên nào'}
               </Typography>
             </Box>
           )}

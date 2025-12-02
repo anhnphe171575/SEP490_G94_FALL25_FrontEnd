@@ -22,6 +22,10 @@ type Folder = {
     _id: string;
     full_name: string;
   };
+  created_by?: {
+    _id: string;
+    full_name: string;
+  };
   documentCount: number;
   subfolderCount: number;
 };
@@ -134,6 +138,35 @@ export default function DocumentsPage() {
   // Current folder navigation
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Folder[]>([]);
+
+  // Current user (for delete permission)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const { data } = await axiosInstance.get('/api/folders/user/current');
+        setCurrentUserId(data?.user?._id || null);
+      } catch (e) {
+        console.error('Error fetching current user in DocumentsPage:', e);
+        setCurrentUserId(null);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  const canDeleteFolder = (folder: Folder): boolean => {
+    const creatorId = folder.createdBy?._id || folder.created_by?._id;
+    if (!creatorId || !currentUserId) return false;
+    return creatorId === currentUserId;
+  };
+
+  const canDeleteDocument = (doc: DocumentItem): boolean => {
+    const creatorId = doc.created_by?._id;
+    if (!creatorId || !currentUserId) return false;
+    return creatorId === currentUserId;
+  };
 
 
   const findPath = useCallback((nodes: FolderTree[], targetId: string, path: Folder[] = []): Folder[] | null => {
@@ -252,8 +285,9 @@ export default function DocumentsPage() {
     try {
       await axiosInstance.delete(`/api/documents/${doc._id}`);
       loadDocuments();
-    } catch {
-      setDocsError('Không thể xóa tài liệu');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Không thể xóa tài liệu';
+      setDocsError(message);
     }
   };
 
@@ -405,8 +439,9 @@ export default function DocumentsPage() {
       } else {
         loadFolders();
       }
-    } catch {
-      setError('Không thể xóa thư mục');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Không thể xóa thư mục';
+      setError(message);
     }
   };
 
@@ -726,9 +761,11 @@ export default function DocumentsPage() {
                             <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openMoveFor(folder._id); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
                               <MoveIcon fontSize="small" />
                             </IconButton>
-                            <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); deleteFolderById(folder._id); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
+                            {canDeleteFolder(folder) && (
+                              <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); deleteFolderById(folder._id); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            )}
                           </Stack>
                         </Box>
                       </Paper>
@@ -802,9 +839,11 @@ export default function DocumentsPage() {
                             <IconButton size="small" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); openHistory(doc._id, 'document', doc.title); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }} title="Xem lịch sử">
                               <InfoIcon fontSize="small" />
                             </IconButton>
-                            <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
+                            {canDeleteDocument(doc) && (
+                              <IconButton size="small" color="error" disableRipple disableFocusRipple onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc); }} sx={{ '&:hover': { backgroundColor: 'transparent' } }}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            )}
                           </Stack>
                         </Stack>
                       </Paper>
