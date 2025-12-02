@@ -442,7 +442,7 @@ export default function ProjectDetailsPage() {
                   </div>
                 )}
 
-                {project.approver_id && (
+                {/* {project.approver_id && (
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                       <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -454,7 +454,7 @@ export default function ProjectDetailsPage() {
                       <p className="text-sm text-gray-600">Người phê duyệt</p>
                     </div>
                   </div>
-                )}
+                )} */}
               </div>
             </div>
 
