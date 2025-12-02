@@ -47,6 +47,7 @@ import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import FunctionsIcon from "@mui/icons-material/Functions";
 import AssignmentIcon from "@mui/icons-material/Assignment";
+import DeleteIcon from "@mui/icons-material/Delete";
 import CreateMilestoneFromFeatures from "@/components/CreateMilestoneFromFeatures";
 import TuneIcon from "@mui/icons-material/Tune";
 import SearchIcon from "@mui/icons-material/Search";
@@ -430,6 +431,25 @@ export default function ProjectFeaturesPage() {
       setSelectedFeatureIds([]);
     } else {
       setSelectedFeatureIds(features.map(f => f._id as string));
+    }
+  };
+
+  const handleDeleteFeature = async (featureId: string) => {
+    const feature = features.find(f => f._id === featureId);
+    if (!feature) return;
+
+    const confirmed = window.confirm(
+      `Bạn có chắc muốn xóa tính năng "${feature.title}"?\n\nHành động này sẽ xóa tất cả functions và tasks liên quan. Hành động này không thể hoàn tác!`
+    );
+    if (!confirmed) return;
+
+    try {
+      await axiosInstance.delete(`/api/features/${featureId}`);
+      setFeatures(prev => prev.filter(f => f._id !== featureId));
+      toast.success("Đã xóa tính năng thành công");
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.message || "Không thể xóa tính năng";
+      toast.error(errorMessage);
     }
   };
 
@@ -1193,6 +1213,20 @@ export default function ProjectFeaturesPage() {
                                   <AssignmentIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            <Tooltip title="Xóa Feature">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (f._id) {
+                                    handleDeleteFeature(f._id);
+                                  }
+                                }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                             </Stack>
                           </TableCell>
                         </TableRow>
@@ -1622,7 +1656,7 @@ export default function ProjectFeaturesPage() {
                     setFeatureModal({ open: true, featureId: selectedFeatureDetail._id });
                   }}
                 >
-                  Xem chi tiết
+                  Chi tiết
               </Button>
               )}
             </DialogActions>

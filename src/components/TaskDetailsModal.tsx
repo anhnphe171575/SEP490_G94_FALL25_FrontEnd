@@ -27,7 +27,6 @@ import FlagIcon from "@mui/icons-material/Flag";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PersonIcon from "@mui/icons-material/Person";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -402,18 +401,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
         {/* Task Title & Quick Actions */}
         <Box sx={{ px: 3, py: 2.5 }}>
           <Stack direction="row" spacing={2} alignItems="flex-start">
-            {/* Checkbox */}
-            <IconButton 
-              size="small" 
-              sx={{ 
-                mt: 0.5,
-                color: task?.status === 'Done' ? '#10b981' : '#d1d5db',
-                '&:hover': { color: '#10b981' }
-              }}
-            >
-              <CheckCircleIcon sx={{ fontSize: 24 }} />
-            </IconButton>
-
             {/* Title - Editable */}
             <Box sx={{ flex: 1 }}>
               {isEditingTitle ? (

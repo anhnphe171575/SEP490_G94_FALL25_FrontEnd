@@ -21,7 +21,6 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import TimelineIcon from "@mui/icons-material/Timeline";
@@ -236,20 +235,6 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
         {/* Title Section */}
         <Box sx={{ px: 3, py: 2.5 }}>
           <Stack direction="row" spacing={2} alignItems="flex-start">
-            <IconButton 
-              size="small" 
-              sx={{ 
-                mt: 0.5,
-                color: (() => {
-                  const statusName = typeof func?.status === 'object' ? func?.status?.name : func?.status;
-                  return (statusName || '').toLowerCase().includes('completed') ? '#10b981' : '#d1d5db';
-                })(),
-                '&:hover': { color: '#10b981' }
-              }}
-            >
-              <CheckCircleIcon sx={{ fontSize: 24 }} />
-            </IconButton>
-
             <Box sx={{ flex: 1 }}>
               {editingTitle ? (
                 <TextField

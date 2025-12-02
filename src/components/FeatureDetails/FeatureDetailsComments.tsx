@@ -47,9 +47,20 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
     try {
       setLoading(true);
       const response = await axiosInstance.get(`/api/features/${featureId}/comments`);
-      setComments(response.data || []);
+      // Ensure we always set an array
+      const data = response.data;
+      if (Array.isArray(data)) {
+        setComments(data);
+      } else if (data && Array.isArray(data.data)) {
+        setComments(data.data);
+      } else if (data && Array.isArray(data.comments)) {
+        setComments(data.comments);
+      } else {
+        setComments([]);
+      }
     } catch (error: any) {
       console.error("Error loading comments:", error);
+      setComments([]); // Ensure comments is always an array even on error
     } finally {
       setLoading(false);
     }
@@ -138,7 +149,7 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
             Bình luận
           </Typography>
           <Typography fontSize="12px" color="text.secondary">
-            {comments.length} {comments.length === 1 ? 'bình luận' : 'bình luận'}
+            {Array.isArray(comments) ? comments.length : 0} {Array.isArray(comments) && comments.length === 1 ? 'bình luận' : 'bình luận'}
           </Typography>
         </Box>
       </Box>
@@ -214,7 +225,7 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
         <Box sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">Đang tải bình luận...</Typography>
         </Box>
-      ) : comments.length === 0 ? (
+      ) : !Array.isArray(comments) || comments.length === 0 ? (
         <Box sx={{ 
           p: 6, 
           textAlign: 'center',
@@ -232,7 +243,7 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
         </Box>
       ) : (
         <Stack spacing={3}>
-          {comments.map((comment) => (
+          {Array.isArray(comments) && comments.map((comment) => (
             <Paper
               key={comment._id}
               elevation={0}

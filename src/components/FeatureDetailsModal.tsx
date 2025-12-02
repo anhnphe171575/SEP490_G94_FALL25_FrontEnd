@@ -24,7 +24,6 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import FlagIcon from "@mui/icons-material/Flag";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import axiosInstance from "@/../ultis/axios";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
@@ -280,21 +279,6 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
         {/* Feature Title & Quick Actions */}
         <Box sx={{ px: 3, py: 2.5 }}>
           <Stack direction="row" spacing={2} alignItems="flex-start">
-            {/* Checkbox */}
-            <IconButton 
-              size="small" 
-              sx={{ 
-                mt: 0.5,
-                color: (() => {
-                  const statusName = typeof feature?.status === 'object' ? feature?.status?.name : feature?.status;
-                  return (statusName || '').toLowerCase().includes('completed') ? '#10b981' : '#d1d5db';
-                })(),
-                '&:hover': { color: '#10b981' }
-              }}
-            >
-              <CheckCircleIcon sx={{ fontSize: 24 }} />
-            </IconButton>
-
             {/* Title */}
             <Box sx={{ flex: 1 }}>
               {editingTitle ? (

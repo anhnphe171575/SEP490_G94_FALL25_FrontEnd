@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import axiosInstance from "../../../../ultis/axios";
 import LeftSidebarHeader from "../dashboard-admin/herder";
-import { ChevronDown, AlertCircle, Edit, Trash2, UploadCloud, Download } from 'lucide-react';
+import { ChevronDown, AlertCircle, Edit, Trash2, UploadCloud, Download, FileDown, User as UserIcon } from 'lucide-react';
 import EditUserModal from './edit';
 import { User, EditUserForm } from './edit';
+import UserDetailModal from './detail';
 
 interface ApiResponse {
   success: boolean;
@@ -54,8 +55,10 @@ export default function UserManagement() {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -157,9 +160,18 @@ export default function UserManagement() {
         },
       });
 
-      setImportReport(response.data.data);
       await fetchUsers();
-      alert(response.data.message || "Import thành công");
+      
+      // Show message with errors if any
+      const message = response.data.message || "Import thành công";
+      if (response.data.data?.errors?.length > 0 || response.data.data?.teamErrors?.length > 0) {
+        alert(message);
+      } else {
+        alert(message);
+      }
+      
+      // Clear import report to hide detailed report section
+      setImportReport(null);
     } catch (importErr: any) {
       const message = importErr.response?.data?.message || "Không thể import file Excel";
       setImportError(message);
@@ -196,6 +208,32 @@ export default function UserManagement() {
       console.error("Export users error:", exportErr);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      setDownloadingTemplate(true);
+      const response = await axiosInstance.get("/api/users/import-lecturers/template", {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "template-import-giang-vien.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (templateErr: any) {
+      alert(templateErr.response?.data?.message || "Không thể tải template");
+      console.error("Download template error:", templateErr);
+    } finally {
+      setDownloadingTemplate(false);
     }
   };
 
@@ -258,6 +296,13 @@ export default function UserManagement() {
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
         <button 
+          className="inline-flex items-center px-3 py-1 rounded transition bg-green-100 text-green-700 hover:bg-green-200"
+          onClick={() => setViewingUserId(user._id)}
+        >
+          <UserIcon className="w-4 h-4 mr-1" />
+          Chi tiết
+        </button>
+        <button 
           className={`inline-flex items-center px-3 py-1 rounded transition ${
             user.role === ROLE_VALUES.ADMIN_DEVELOPER 
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -296,6 +341,18 @@ export default function UserManagement() {
             <h1 className="text-2xl font-bold text-gray-900">Quản lý người dùng</h1>
 
             <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleDownloadTemplate}
+                disabled={downloadingTemplate}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm ${
+                  downloadingTemplate 
+                    ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                    : "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                }`}
+              >
+                <FileDown className="w-4 h-4" />
+                {downloadingTemplate ? "Đang tải..." : "Tải template"}
+              </button>
               <button
                 onClick={handleTriggerImport}
                 disabled={importing}
@@ -475,6 +532,14 @@ export default function UserManagement() {
           onSubmit={handleEditSubmit}
           loading={editLoading}
         />
+
+        {/* User Detail Modal */}
+        {viewingUserId && (
+          <UserDetailModal
+            userId={viewingUserId}
+            onClose={() => setViewingUserId(null)}
+          />
+        )}
 
         <input
           type="file"
