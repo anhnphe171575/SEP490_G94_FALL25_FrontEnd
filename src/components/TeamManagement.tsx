@@ -377,7 +377,14 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
       </Card>
 
       {/* Team Members and Supervisor - Combined Card */}
-      <Card className="shadow-sm">
+      <Card
+        className="shadow-sm"
+        sx={{
+          backgroundColor: '#f9fafb',
+          borderRadius: 2,
+          border: '1px solid #e5e7eb',
+        }}
+      >
         <CardContent>
           {/* Supervisor Section */}
           <div className="flex items-center justify-between mb-4">
@@ -516,7 +523,7 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
             <div className="space-y-4">
               {validMembers.map((member, index) => (
                 <div key={member._id || member.user_id?._id || index}>
-                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
                     <div className="flex items-center gap-4">
                       <Avatar
                         src={member.user_id?.avatar}
