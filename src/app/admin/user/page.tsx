@@ -52,7 +52,7 @@ export default function UserManagement() {
   const [totalPages, setTotalPages] = useState(0);
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null); 
   const [editLoading, setEditLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
