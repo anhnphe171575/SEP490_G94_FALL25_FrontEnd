@@ -319,17 +319,17 @@ export default function MemberDetail({
         {data && (
           <div className="p-6">
             {/* Header Section */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-6 mb-6">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 mb-6 border border-blue-100 shadow-sm">
               <div className="flex items-center gap-6">
                 <Avatar
                   src={data.member.user_id.avatar}
-                  className="w-24 h-24 border-4 border-white shadow-lg"
+                  className="w-20 h-20 border-4 border-white shadow-md"
                 >
                   {getInitials(data.member.user_id.full_name)}
                 </Avatar>
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Typography variant="h4" className="font-bold text-gray-900 dark:text-white">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Typography variant="h5" className="font-semibold text-gray-900">
                       {data.member.user_id.full_name}
                     </Typography>
                     {data.member.team_leader === 1 && (
@@ -337,14 +337,14 @@ export default function MemberDetail({
                         label="Trưởng nhóm"
                         color="primary"
                         icon={<SupervisorAccountIcon />}
-                        className="shadow-sm"
+                        className="shadow-xs"
                       />
                     )}
                   </div>
-                  <Typography variant="h6" className="text-gray-600 dark:text-gray-300 mb-2">
+                  <Typography variant="body1" className="text-gray-600 mb-1">
                     {data.member.user_id.role?.name || "Thành viên"}
                   </Typography>
-                  <Typography variant="body1" className="text-gray-500 dark:text-gray-400">
+                  <Typography variant="body2" className="text-gray-500">
                     {data.member.user_id.major || "Chưa cập nhật chuyên ngành"}
                   </Typography>
                 </div>
@@ -352,54 +352,65 @@ export default function MemberDetail({
             </div>
 
             {/* Contact Information */}
-            <Card className="mb-6 shadow-sm">
+            <Card
+              className="mb-6 shadow-sm"
+              sx={{
+                backgroundColor: '#f9fafb',
+                borderRadius: 2,
+                border: '1px solid #e5e7eb',
+              }}
+            >
               <CardContent className="p-6">
-                <Typography variant="h6" className="mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                  <EmailIcon className="text-blue-500" />
+                <Typography
+                  variant="h6"
+                  className="mb-4 flex items-center gap-2"
+                  sx={{ color: '#111827', fontWeight: 700 }}
+                >
+                  <EmailIcon sx={{ color: '#2563eb' }} />
                   Thông tin liên hệ
                 </Typography>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-300 shadow-xs">
                     <EmailIcon className="w-5 h-5 text-blue-500" />
                     <div>
-                      <Typography variant="body2" className="text-gray-500 dark:text-gray-400">
+                      <Typography variant="body2" className="text-gray-600">
                         Email
                       </Typography>
-                      <Typography variant="body1" className="font-medium">
+                      <Typography variant="body1" className="font-semibold text-gray-900">
                         {data.member.user_id.email}
                       </Typography>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-300 shadow-xs">
                     <PhoneIcon className="w-5 h-5 text-green-500" />
                     <div>
-                      <Typography variant="body2" className="text-gray-500 dark:text-gray-400">
+                      <Typography variant="body2" className="text-gray-600">
                         Điện thoại
                       </Typography>
-                      <Typography variant="body1" className="font-medium">
+                      <Typography variant="body1" className="font-semibold text-gray-900">
                         {data.member.user_id.phone}
                       </Typography>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-300 shadow-xs">
                     <CalendarIcon className="w-5 h-5 text-purple-500" />
                     <div>
-                      <Typography variant="body2" className="text-gray-500 dark:text-gray-400">
+                      <Typography variant="body2" className="text-gray-600">
                         Tuổi
                       </Typography>
-                      <Typography variant="body1" className="font-medium">
+                      <Typography variant="body1" className="font-semibold text-gray-900">
                         {calculateAge(data.member.user_id.dob)} tuổi
                       </Typography>
                     </div>
                   </div>
                   {data.member.user_id.address && data.member.user_id.address.length > 0 && (
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg md:col-span-2 lg:col-span-1">
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-300 shadow-xs md:col-span-2 lg:col-span-1">
                       <LocationIcon className="w-5 h-5 text-orange-500" />
                       <div>
-                        <Typography variant="body2" className="text-gray-500 dark:text-gray-400">
+                        <Typography variant="body2" className="text-gray-600">
                           Địa chỉ
                         </Typography>
-                        <Typography variant="body1" className="font-medium">
+                        <Typography variant="body1" className="font-semibold text-gray-900">
                           {data.member.user_id.address[0].city}, {data.member.user_id.address[0].contry}
                         </Typography>
                       </div>
