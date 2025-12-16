@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useSearchParams, useParams } from "next/navigation"
 import axiosInstance from "../../../../../../ultis/axios"
 
-import ResponsiveSidebar from "@/components/ResponsiveSidebar"
+import SupervisorSidebar from "@/components/SupervisorSidebar"
 import QuickNav from "@/components/QuickNav"
 import { GanttFilter } from "@/components/gantt-filter"
 import type { GanttProject } from "@/components/gantt-chart"
@@ -253,11 +253,11 @@ export default function SupervisorTaskGanttPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <ResponsiveSidebar />
+      <SupervisorSidebar />
       <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
           {/* QuickNav - Always at the top */}
-         
+          <QuickNav selectedProject={projectId || undefined} />
 
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-4">

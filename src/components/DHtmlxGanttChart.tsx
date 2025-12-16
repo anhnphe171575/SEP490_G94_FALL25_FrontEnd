@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { gantt } from "dhtmlx-gantt";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
 import { Box, IconButton, ButtonGroup, Tooltip, Divider } from "@mui/material";
@@ -77,6 +77,70 @@ export default function DHtmlxGanttChart({
   const [zoomLevel, setZoomLevel] = useState<'day' | 'week' | 'month' | 'year'>('week');
   const linkTooltipRef = useRef<HTMLDivElement | null>(null);
 
+  // Apply zoom configuration (shared for init + zoom changes)
+  const applyZoomLevel = useCallback((level: 'day' | 'week' | 'month' | 'year') => {
+    // Build scales then assign (avoid empty array typing issues)
+    const newScales: { unit: string; step: number; format: string | ((date: Date) => string) }[] = [];
+
+    switch (level) {
+      case 'day': {
+        const dayFormat = gantt.date.date_to_str("%d %M") as (date: Date) => string;
+        const hourFormat = gantt.date.date_to_str("%H:%i") as (date: Date) => string;
+        newScales.push(
+          { unit: "day", step: 1, format: dayFormat },
+          { unit: "hour", step: 4, format: hourFormat },
+        );
+        break;
+      }
+      case 'week': {
+        const weekStart = gantt.date.date_to_str("%d %M") as (date: Date) => string;
+        const weekEnd = gantt.date.date_to_str("%d %M") as (date: Date) => string;
+        newScales.push(
+          {
+            unit: "week",
+            step: 1,
+            format: (date: Date) => {
+              const end = gantt.date.add(date, 6, "day");
+              return `${weekStart(date)} - ${weekEnd(end)}`;
+            },
+          },
+          { unit: "day", step: 1, format: gantt.date.date_to_str("%d %D") as (date: Date) => string },
+        );
+        break;
+      }
+      case 'month': {
+        const monthFormat = gantt.date.date_to_str("%F %Y") as (date: Date) => string;
+        newScales.push(
+          { unit: "month", step: 1, format: monthFormat },
+          { unit: "week", step: 1, format: (date: Date) => `W${gantt.date.date_to_str("%W")(date)}` },
+        );
+        break;
+      }
+      case 'year': {
+        const yearFormat = gantt.date.date_to_str("%Y") as (date: Date) => string;
+        newScales.push(
+          { unit: "year", step: 1, format: yearFormat },
+          { unit: "month", step: 1, format: gantt.date.date_to_str("%M") as (date: Date) => string },
+        );
+        break;
+      }
+    }
+
+    // Assign scales
+    if (newScales.length > 0) {
+      gantt.config.scales = newScales as any;
+    }
+
+    // Keep legacy props in sync
+    const topScale = (newScales as any)[0];
+    if (topScale) {
+      gantt.config.scale_unit = topScale.unit;
+      gantt.config.date_scale = typeof topScale.format === "string" ? topScale.format : "%d %M";
+    }
+    gantt.config.subscales = (newScales as any).slice(1);
+    gantt.config.scale_height = 60;
+  }, []);
+
   useEffect(() => {
     if (!ganttContainer.current) return;
 
@@ -127,44 +191,6 @@ export default function DHtmlxGanttChart({
         }
       }
     ];
-
-    // Zoom config - Dynamic based on zoom level
-    const applyZoomLevel = (level: 'day' | 'week' | 'month' | 'year') => {
-      switch (level) {
-        case 'day':
-          gantt.config.scale_unit = "day";
-          gantt.config.date_scale = "%d %M";
-          gantt.config.subscales = [
-            { unit: "hour", step: 4, date: "%H:%i" }
-          ];
-          gantt.config.scale_height = 60;
-          break;
-        case 'week':
-          gantt.config.scale_unit = "week";
-          gantt.config.date_scale = "Week %W";
-          gantt.config.subscales = [
-            { unit: "day", step: 1, date: "%d %D" }
-          ];
-          gantt.config.scale_height = 60;
-          break;
-        case 'month':
-          gantt.config.scale_unit = "month";
-          gantt.config.date_scale = "%F %Y";
-          gantt.config.subscales = [
-            { unit: "week", step: 1, date: "W%W" }
-          ];
-          gantt.config.scale_height = 60;
-          break;
-        case 'year':
-          gantt.config.scale_unit = "year";
-          gantt.config.date_scale = "%Y";
-          gantt.config.subscales = [
-            { unit: "month", step: 1, date: "%M" }
-          ];
-          gantt.config.scale_height = 60;
-          break;
-      }
-    };
 
     applyZoomLevel(zoomLevel);
 
@@ -819,67 +845,84 @@ export default function DHtmlxGanttChart({
 
     // Setup link tooltip after gantt is initialized
     setTimeout(() => {
+      // Check if gantt container exists and gantt is initialized
+      if (!ganttContainer.current) return;
+      
+      try {
+        // Verify gantt is initialized by checking if config exists
+        if (typeof gantt.config === "undefined") return;
+      } catch (e) {
+        return;
+      }
+      
       createLinkTooltip();
       
       // Add data attributes to link elements for easier identification
       const addLinkDataAttributes = () => {
         if (!ganttContainer.current) return;
         
-        const allLinks = gantt.getLinks();
-        const allLinkElements = ganttContainer.current.querySelectorAll('.gantt_task_link');
-        
-        // Map link elements to link data by checking which tasks they connect
-        allLinks.forEach((link: any) => {
-          try {
-            const linkData = gantt.getLink(String(link.id));
-            if (!linkData || !(linkData as any).dependency_type) return;
-            
-            const sourceTask = gantt.getTask(String(linkData.source));
-            const targetTask = gantt.getTask(String(linkData.target));
-            
-            if (!sourceTask || !targetTask) return;
-            
-            // Get task row positions to identify which link element corresponds to this link
-            const sourceRow = gantt.getTaskNode(sourceTask.id);
-            const targetRow = gantt.getTaskNode(targetTask.id);
-            
-            if (!sourceRow || !targetRow) return;
-            
-            const sourceRect = sourceRow.getBoundingClientRect();
-            const targetRect = targetRow.getBoundingClientRect();
-            const containerRect = ganttContainer.current!.getBoundingClientRect();
-            
-            // Calculate the vertical range where this link should be
-            const minY = Math.min(sourceRect.top, targetRect.top) - containerRect.top;
-            const maxY = Math.max(sourceRect.bottom, targetRect.bottom) - containerRect.top;
-            
-            // Find link elements that are in this vertical range
-            allLinkElements.forEach((linkEl: Element) => {
-              const linkElRect = linkEl.getBoundingClientRect();
-              const linkElTop = linkElRect.top - containerRect.top;
-              const linkElBottom = linkElRect.bottom - containerRect.top;
-              const linkElCenter = (linkElTop + linkElBottom) / 2;
+        try {
+          const allLinks = gantt.getLinks();
+          if (!allLinks || allLinks.length === 0) return;
+          
+          const allLinkElements = ganttContainer.current.querySelectorAll('.gantt_task_link');
+          
+          // Map link elements to link data by checking which tasks they connect
+          allLinks.forEach((link: any) => {
+            try {
+              const linkData = gantt.getLink(String(link.id));
+              if (!linkData || !(linkData as any).dependency_type) return;
               
-              // Check if this link element is in the vertical range between source and target
-              // Allow some tolerance for links that might be slightly outside
-              if (linkElCenter >= minY - 20 && linkElCenter <= maxY + 20) {
-                // Check if this element doesn't already have a link-id (to avoid overwriting)
-                const existingLinkId = (linkEl as HTMLElement).getAttribute('data-link-id');
-                if (!existingLinkId) {
-                  // Add data attribute to help identify this specific link
-                  (linkEl as HTMLElement).setAttribute('data-link-id', String(link.id));
-                  (linkEl as HTMLElement).setAttribute('data-dependency-type', (linkData as any).dependency_type || 'FS');
+              const sourceTask = gantt.getTask(String(linkData.source));
+              const targetTask = gantt.getTask(String(linkData.target));
+              
+              if (!sourceTask || !targetTask) return;
+              
+              // Get task row positions to identify which link element corresponds to this link
+              const sourceRow = gantt.getTaskNode(sourceTask.id);
+              const targetRow = gantt.getTaskNode(targetTask.id);
+              
+              if (!sourceRow || !targetRow) return;
+              
+              const sourceRect = sourceRow.getBoundingClientRect();
+              const targetRect = targetRow.getBoundingClientRect();
+              const containerRect = ganttContainer.current!.getBoundingClientRect();
+              
+              // Calculate the vertical range where this link should be
+              const minY = Math.min(sourceRect.top, targetRect.top) - containerRect.top;
+              const maxY = Math.max(sourceRect.bottom, targetRect.bottom) - containerRect.top;
+              
+              // Find link elements that are in this vertical range
+              allLinkElements.forEach((linkEl: Element) => {
+                const linkElRect = linkEl.getBoundingClientRect();
+                const linkElTop = linkElRect.top - containerRect.top;
+                const linkElBottom = linkElRect.bottom - containerRect.top;
+                const linkElCenter = (linkElTop + linkElBottom) / 2;
+                
+                // Check if this link element is in the vertical range between source and target
+                // Allow some tolerance for links that might be slightly outside
+                if (linkElCenter >= minY - 20 && linkElCenter <= maxY + 20) {
+                  // Check if this element doesn't already have a link-id (to avoid overwriting)
+                  const existingLinkId = (linkEl as HTMLElement).getAttribute('data-link-id');
+                  if (!existingLinkId) {
+                    // Add data attribute to help identify this specific link
+                    (linkEl as HTMLElement).setAttribute('data-link-id', String(link.id));
+                    (linkEl as HTMLElement).setAttribute('data-dependency-type', (linkData as any).dependency_type || 'FS');
+                  }
                 }
-              }
-            });
-          } catch (err) {
-            // Skip invalid links
-          }
-        });
+              });
+            } catch (err) {
+              // Skip invalid links
+            }
+          });
+        } catch (err) {
+          // Silently handle errors when gantt is not ready
+        }
       };
       
       // Add data attributes after gantt renders
       const setupLinkAttributes = () => {
+        if (!ganttContainer.current) return;
         addLinkDataAttributes();
       };
       
@@ -892,13 +935,16 @@ export default function DHtmlxGanttChart({
       // Also set up an interval to periodically update link attributes
       // This ensures attributes stay up to date if links are re-rendered
       const linkAttributeInterval = setInterval(() => {
+        if (!ganttContainer.current) {
+          clearInterval(linkAttributeInterval);
+          return;
+        }
         setupLinkAttributes();
       }, 2000);
       
-      // Store interval ID for cleanup
-      (ganttContainer.current as any)._linkAttributeInterval = linkAttributeInterval;
-      
+      // Store interval ID for cleanup - only if container exists
       if (ganttContainer.current) {
+        (ganttContainer.current as any)._linkAttributeInterval = linkAttributeInterval;
         ganttContainer.current.addEventListener('mousemove', handleLinkMouseMove);
         ganttContainer.current.addEventListener('mouseleave', handleLinkMouseLeave);
       }
@@ -939,7 +985,60 @@ export default function DHtmlxGanttChart({
       }
       gantt.clearAll();
     };
-  }, [tasks, functions, dependencies, onTaskClick, zoomLevel]);
+  }, [tasks, functions, dependencies, onTaskClick]);
+
+  // Handle zoom level changes without re-parsing data
+  useEffect(() => {
+    if (!ganttContainer.current) return;
+
+    // Ensure gantt is initialized
+    try {
+      if (typeof gantt.config === "undefined") return;
+    } catch (e) {
+      return;
+    }
+
+    const applyZoomLevel = (level: "day" | "week" | "month" | "year") => {
+      switch (level) {
+        case "day":
+          gantt.config.scale_unit = "day";
+          gantt.config.date_scale = "%d %M";
+          gantt.config.subscales = [{ unit: "hour", step: 4, date: "%H:%i" }];
+          gantt.config.scale_height = 60;
+          break;
+        case "week":
+          gantt.config.scale_unit = "week";
+          gantt.config.date_scale = "Week %W";
+          gantt.config.subscales = [{ unit: "day", step: 1, date: "%d %D" }];
+          gantt.config.scale_height = 60;
+          break;
+        case "month":
+          gantt.config.scale_unit = "month";
+          gantt.config.date_scale = "%F %Y";
+          gantt.config.subscales = [{ unit: "week", step: 1, date: "W%W" }];
+          gantt.config.scale_height = 60;
+          break;
+        case "year":
+          gantt.config.scale_unit = "year";
+          gantt.config.date_scale = "%Y";
+          gantt.config.subscales = [{ unit: "month", step: 1, date: "%M" }];
+          gantt.config.scale_height = 60;
+          break;
+      }
+    };
+
+    applyZoomLevel(zoomLevel);
+
+    // Render after config change
+    setTimeout(() => {
+      try {
+        gantt.setSizes();
+        gantt.render();
+      } catch (e) {
+        // ignore if not ready
+      }
+    }, 50);
+  }, [zoomLevel, applyZoomLevel]);
 
   // Zoom handlers
   const handleZoomIn = () => {

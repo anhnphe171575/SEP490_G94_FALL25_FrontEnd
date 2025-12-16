@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
-import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import axiosInstance from "../../../../../../../ultis/axios";
+import SupervisorSidebar from "@/components/SupervisorSidebar";
 import QuickNav from "@/components/QuickNav";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 
@@ -217,7 +217,7 @@ export default function ContributorDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -233,7 +233,7 @@ export default function ContributorDetailPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -259,7 +259,7 @@ export default function ContributorDetailPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-      <ResponsiveSidebar />
+      <SupervisorSidebar />
       <main className="p-4 md:p-6 md:ml-64">
         <div className="max-w-7xl mx-auto">
           {/* Header */}

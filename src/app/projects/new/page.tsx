@@ -123,8 +123,7 @@ export default function NewProjectPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-8 md:ml-64">
+        <main className="p-4 md:p-8">
           <div className="mx-auto w-full max-w-3xl">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 md:p-10">
               <div className="flex items-center justify-center">
@@ -141,9 +140,9 @@ export default function NewProjectPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <ResponsiveSidebar />
-      <main className="p-4 md:p-8 md:ml-64">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      
+      <main className="w-full max-w-7xl mx-auto px-4 md:px-8 py-4 md:py-8">
         <div className="mx-auto w-full max-w-3xl">
           {/* Header Section */}
           <div className="text-center mb-8">

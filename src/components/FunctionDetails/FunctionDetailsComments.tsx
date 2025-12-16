@@ -32,12 +32,24 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
   const [editText, setEditText] = useState("");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedComment, setSelectedComment] = useState<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (functionId) {
       loadComments();
     }
+    loadCurrentUser();
   }, [functionId]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const response = await axiosInstance.get('/api/users/me');
+      setCurrentUserId(response.data?._id || null);
+    } catch (error) {
+      console.error("Error loading current user:", error);
+      setCurrentUserId(null);
+    }
+  };
 
   const loadComments = async () => {
     if (!functionId) return;
@@ -84,6 +96,8 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
   };
 
   const deleteComment = async (commentId: string) => {
+    const target = comments.find((c) => c._id === commentId);
+    if (!isCommentAuthor(target)) return;
     if (!confirm('Delete this comment?')) return;
     
     try {
@@ -102,11 +116,19 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return commentDate.toLocaleDateString();
+    if (diffMins < 1) return 'vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    return commentDate.toLocaleDateString('vi-VN');
+  };
+
+  const isCommentAuthor = (comment: any) => {
+    if (!comment || !currentUserId) return false;
+    const commentUserId = typeof comment.user_id === 'object' 
+      ? (comment.user_id?._id || (comment.user_id as any)?.id || comment.user_id)
+      : comment.user_id;
+    return commentUserId ? String(commentUserId) === String(currentUserId) : false;
   };
 
   return (
@@ -126,10 +148,10 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
         </Box>
         <Box>
           <Typography variant="h6" fontWeight={700}>
-            Comments
+            Bình luận 
           </Typography>
           <Typography fontSize="12px" color="text.secondary">
-            {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+            {comments.length} {comments.length === 1 ? 'bình luận' : 'bình luận'}
           </Typography>
         </Box>
       </Box>
@@ -265,22 +287,24 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
                       </Typography>
                       {comment.updatedAt && comment.updatedAt !== comment.createdAt && (
                         <Typography fontSize="11px" color="text.secondary" fontStyle="italic">
-                          (edited)
+                          (đã chỉnh sửa)
                         </Typography>
                       )}
                     </Stack>
 
                     {/* Actions Menu */}
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        setAnchorEl(e.currentTarget);
-                        setSelectedComment(comment);
-                      }}
-                      sx={{ color: '#9ca3af' }}
-                    >
-                      <MoreVertIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
+                    {isCommentAuthor(comment) && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          setAnchorEl(e.currentTarget);
+                          setSelectedComment(comment);
+                        }}
+                        sx={{ color: '#9ca3af' }}
+                      >
+                        <MoreVertIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    )}
                   </Stack>
 
                   {/* Comment Content */}
@@ -372,7 +396,7 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
           sx={{ fontSize: '13px', gap: 1.5 }}
         >
           <EditIcon sx={{ fontSize: 16 }} />
-          Edit
+          Chỉnh sửa
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -383,7 +407,7 @@ export default function FunctionDetailsComments({ functionId }: FunctionDetailsC
           sx={{ fontSize: '13px', gap: 1.5, color: '#ef4444' }}
         >
           <DeleteIcon sx={{ fontSize: 16 }} />
-          Delete
+          Xóa
         </MenuItem>
       </Menu>
     </Box>

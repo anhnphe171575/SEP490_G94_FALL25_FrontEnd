@@ -32,11 +32,13 @@ import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 interface FeatureDetailsFunctionsProps {
   featureId: string | null;
   projectId?: string;
+  readonly?: boolean;
 }
 
 export default function FeatureDetailsFunctions({
   featureId,
   projectId,
+  readonly = false,
 }: FeatureDetailsFunctionsProps) {
   const [functions, setFunctions] = useState<any[]>([]);
   const [statusTypes, setStatusTypes] = useState<any[]>([]);
@@ -46,7 +48,6 @@ export default function FeatureDetailsFunctions({
     title: "",
     description: "",
     priority: "",
-    status: "",
   });
   const [loading, setLoading] = useState(false);
   const [functionModal, setFunctionModal] = useState<{ open: boolean; functionId?: string | null }>({ 
@@ -77,16 +78,17 @@ export default function FeatureDetailsFunctions({
   };
 
   const handleCreate = async () => {
-    if (!form.title || !form.status) return;
+    if (!form.title) return;
     
     try {
       setLoading(true);
       await axiosInstance.post(`/api/projects/${projectId}/functions`, {
         ...form,
         feature_id: featureId,
+        // Status không cho phép chỉnh sửa thủ công, chỉ tự động cập nhật từ tasks
       });
       setOpenDialog(false);
-      setForm({ title: "", description: "", priority: "", status: "" });
+      setForm({ title: "", description: "", priority: "" });
       loadFunctions();
     } catch (error: any) {
       console.error("Error creating function:", error);
@@ -131,20 +133,22 @@ export default function FeatureDetailsFunctions({
         <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
           Chức năng ({functions.length})
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setOpenDialog(true)}
-          size="small"
-          sx={{
-            textTransform: 'none',
-            fontWeight: 600,
-            bgcolor: '#7b68ee',
-            '&:hover': { bgcolor: '#6952d6' }
-          }}
-        >
-          Thêm chức năng
-        </Button>
+        {!readonly && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenDialog(true)}
+            size="small"
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              bgcolor: '#7b68ee',
+              '&:hover': { bgcolor: '#6952d6' }
+            }}
+          >
+            Thêm chức năng
+          </Button>
+        )}
       </Box>
 
       {functions.length === 0 ? (
@@ -158,35 +162,39 @@ export default function FeatureDetailsFunctions({
           <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
             Chưa có chức năng nào
           </Typography>
-          <Typography fontSize="12px" color="text.secondary" sx={{ mb: 2 }}>
-            Tạo chức năng đầu tiên để bắt đầu
-          </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={() => setOpenDialog(true)}
-            sx={{
-              textTransform: 'none',
-              borderColor: '#7b68ee',
-              color: '#7b68ee',
-              '&:hover': {
-                borderColor: '#6952d6',
-                bgcolor: '#7b68ee15'
-              }
-            }}
-          >
-            Thêm chức năng
-          </Button>
+          {!readonly && (
+            <>
+              <Typography fontSize="12px" color="text.secondary" sx={{ mb: 2 }}>
+                Tạo chức năng đầu tiên để bắt đầu
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => setOpenDialog(true)}
+                sx={{
+                  textTransform: 'none',
+                  borderColor: '#7b68ee',
+                  color: '#7b68ee',
+                  '&:hover': {
+                    borderColor: '#6952d6',
+                    bgcolor: '#7b68ee15'
+                  }
+                }}
+              >
+                Thêm chức năng
+              </Button>
+            </>
+          )}
         </Box>
       ) : (
-        <Table>
+        <Table sx={{ tableLayout: 'fixed' }}>
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '60px' }}>STT</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Chức năng</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Ưu tiên</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Trạng thái</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280' }}>Thao tác</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '120px' }}>Ưu tiên</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '120px' }}>Trạng thái</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '13px', color: '#6b7280', width: '160px' }}>Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -213,15 +221,22 @@ export default function FeatureDetailsFunctions({
                     {index + 1}
                   </Typography>
                 </TableCell>
-                <TableCell>
-                  <Typography variant="body2" fontWeight={600} fontSize="14px" color="#1f2937">
+                <TableCell sx={{ overflow: 'hidden' }}>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight={600} 
+                    fontSize="14px" 
+                    color="#1f2937"
+                    sx={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'block',
+                      width: '100%'
+                    }}
+                  >
                     {func.title}
                   </Typography>
-                  {func.description && (
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                      {func.description}
-                    </Typography>
-                  )}
                 </TableCell>
                 <TableCell>
                   {func.priority ? (
@@ -266,11 +281,14 @@ export default function FeatureDetailsFunctions({
                     sx={{
                       textTransform: 'none',
                       fontSize: '13px',
+                      fontWeight: 600,
                       color: '#7b68ee',
+                      px: 2.5,
+                      py: 0.75,
                       '&:hover': { bgcolor: '#f3f4f6' }
                     }}
                   >
-                    Xem chi tiết
+                    Chi tiết
                   </Button>
                 </TableCell>
               </TableRow>
@@ -316,20 +334,6 @@ export default function FeatureDetailsFunctions({
                 ))}
               </Select>
             </FormControl>
-            <FormControl fullWidth required>
-              <InputLabel>Trạng thái *</InputLabel>
-              <Select
-                value={form.status}
-                label="Trạng thái *"
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-              >
-                {statusTypes.map((status) => (
-                  <MenuItem key={status._id} value={status._id}>
-                    {status.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -337,10 +341,10 @@ export default function FeatureDetailsFunctions({
           <Button 
             variant="contained" 
             onClick={handleCreate}
-            disabled={!form.title || !form.status || loading}
+            disabled={!form.title || loading}
             sx={{ bgcolor: '#7b68ee', '&:hover': { bgcolor: '#6952d6' } }}
           >
-            Tạo
+            Tạo chức năng
           </Button>
         </DialogActions>
       </Dialog>
@@ -351,6 +355,7 @@ export default function FeatureDetailsFunctions({
           open={functionModal.open}
           functionId={functionModal.functionId}
           projectId={projectId}
+          readonly={readonly}
           onClose={() => setFunctionModal({ open: false, functionId: null })}
           onUpdate={() => {
             loadFunctions();

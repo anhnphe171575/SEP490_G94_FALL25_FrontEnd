@@ -246,19 +246,6 @@ export default function ProjectDetailsPage() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Trạng thái</label>
-                  <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${
-                    project.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    project.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {project.status === 'completed' ? 'Đã hoàn thành' :
-                     project.status === 'in-progress' ? 'Đang thực hiện' :
-                     'Đã lên kế hoạch'}
-                  </span>
-                </div>
-
                 {project.progress !== undefined && (
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Tiến độ</label>

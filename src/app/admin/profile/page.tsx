@@ -8,6 +8,7 @@ import AddressForm from "@/app/myprofile/AddressForm";
 import { User, FolderKanban, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import LeftSidebarHeader from "../dashboard-admin/herder";
+import { toast } from "sonner";
 
 type Address = {
   street: string;
@@ -48,6 +49,7 @@ export default function MyProfilePage() {
     },
   });
   const [submitting, setSubmitting] = useState(false);
+  const [dobError, setDobError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -79,6 +81,21 @@ export default function MyProfilePage() {
     }
   }, []);
 
+  const formatDateForInput = (dateString: string | undefined): string => {
+    if (!dateString) return "";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "";
+      // Format to YYYY-MM-DD for input[type="date"]
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      return "";
+    }
+  };
+
   const fetchProfile = async () => {
     try {
       const res = await axiosInstance.get("/api/users/profile");
@@ -87,7 +104,7 @@ export default function MyProfilePage() {
         setEditForm({
           full_name: res.data.full_name || "",
           phone: res.data.phone || "",
-          dob: res.data.dob || "",
+          dob: formatDateForInput(res.data.dob),
           major: res.data.major || "",
           address:
             res.data.address && res.data.address.length > 0
@@ -105,8 +122,31 @@ export default function MyProfilePage() {
     }
   };
 
+  const validateAge = (dob: string): boolean => {
+    if (!dob) return true; // Allow empty, will be validated by required field
+    
+    const birthDate = new Date(dob);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    // Check if birthday has passed this year
+    const hasBirthdayPassed = monthDiff > 0 || (monthDiff === 0 && today.getDate() >= birthDate.getDate());
+    const actualAge = hasBirthdayPassed ? age : age - 1;
+    
+    return actualAge >= 18;
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate age
+    if (editForm.dob && !validateAge(editForm.dob)) {
+      setDobError("Bạn phải đủ 18 tuổi mới có thể cập nhật thông tin");
+      return;
+    }
+    
+    setDobError(null);
     setSubmitting(true);
     try {
       const updateData = {
@@ -119,9 +159,11 @@ export default function MyProfilePage() {
 
       await axiosInstance.put("/api/users/profile", updateData);
       await fetchProfile();
-      setActiveTab("profile");
+      toast.success("Cập nhật thông tin thành công!");
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Cập nhật thất bại");
+      const errorMessage = e?.response?.data?.message || "Cập nhật thất bại";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -417,14 +459,29 @@ export default function MyProfilePage() {
             <input
               type="date"
               value={editForm.dob}
-              onChange={(e) =>
+              onChange={(e) => {
+                const newDob = e.target.value;
                 setEditForm((prev) => ({
                   ...prev,
-                  dob: e.target.value,
-                }))
-              }
-              className="w-full border border-blue-200 rounded-lg px-3 py-1.5 bg-white/80 shadow focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                  dob: newDob,
+                }));
+                // Validate age in real-time
+                if (newDob && !validateAge(newDob)) {
+                  setDobError("Bạn phải đủ 18 tuổi mới có thể cập nhật thông tin");
+                } else {
+                  setDobError(null);
+                }
+              }}
+              max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+              className={`w-full border rounded-lg px-3 py-1.5 bg-white/80 shadow focus:outline-none focus:ring-2 transition ${
+                dobError 
+                  ? 'border-red-500 focus:ring-red-400 focus:border-transparent' 
+                  : 'border-blue-200 focus:ring-blue-400 focus:border-transparent'
+              }`}
             />
+            {dobError && (
+              <p className="mt-1 text-xs text-red-600">{dobError}</p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">

@@ -29,11 +29,15 @@ export default function ResponsiveSidebar() {
   const [fetchedProjectId, setFetchedProjectId] = useState<string | null>(null);
   
   // Extract projectId from pathname if we're in a project
-  const projectMatch = pathname?.match(/\/projects\/([^\/]+)/);
+  // Support both /projects/[id] and /supervisor/projects/[id] patterns
+  const projectMatch = pathname?.match(/\/projects\/([^\/]+)/) || pathname?.match(/\/supervisor\/projects\/([^\/]+)/);
   const urlProjectId = projectMatch ? projectMatch[1] : null;
   
   // Use projectId from URL if available, otherwise use fetched projectId
   const projectId = urlProjectId || fetchedProjectId;
+  
+  // Always show sidebar structure, even if projectId is not available yet
+  // This ensures sidebar is visible on milestone, feature, function, task, meeting, group pages
   
   useEffect(() => {
     setOpen(false);
@@ -142,10 +146,13 @@ export default function ResponsiveSidebar() {
 
 
   const isSupervisor = me?.role === 4;
-  const supervisorProjectBasePath = isSupervisor && projectId ? `/supervisor/projects/${projectId}` : null;
-  const supervisorProjectQuery = supervisorProjectBasePath ? `?project_id=${projectId}` : "";
+  
+  // Nếu là supervisor, không hiển thị sidebar này (sẽ dùng SupervisorSidebar riêng)
+  if (isSupervisor) {
+    return null;
+  }
 
-  // Project-specific navigation items
+  // Project-specific navigation items (chỉ cho student)
   const baseProjectNavItems = projectId ? [
     {
       href: `/projects/${projectId}/tasks/dashboard`,
@@ -231,76 +238,8 @@ export default function ResponsiveSidebar() {
       )
     }
   ] : [];
-  const supervisorProjectNavItems =
-    isSupervisor && supervisorProjectBasePath
-      ? [
-          {
-            href: `${supervisorProjectBasePath}/contributor${supervisorProjectQuery}`,
-            label: "Đóng góp",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            )
-          },
-          {
-            href: `${supervisorProjectBasePath}/task${supervisorProjectQuery}`,
-            label: "Công việc",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            )
-          },
-          {
-            href: `${supervisorProjectBasePath}/kanban-board${supervisorProjectQuery}`,
-            label: "Kanban Board",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            )
-          },
-          {
-            href: `${supervisorProjectBasePath}/progress-task${supervisorProjectQuery}`,
-            label: "Tiến độ",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            )
-          },
-          {
-            href: `/projects/${projectId}/documents`,
-            label: "Tài liệu",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            )
-          },
-          {
-            href: `/projects/${projectId}/team`,
-            label: "Đội nhóm",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            )
-          },
-          {
-            href: `/calendar`,
-            label: "Lịch họp",
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            )
-          }
-        ]
-      : [];
 
-  const projectNavItems = isSupervisor ? supervisorProjectNavItems : baseProjectNavItems;
+  const projectNavItems = baseProjectNavItems;
 
   return (
     <>
@@ -357,12 +296,10 @@ export default function ResponsiveSidebar() {
                   />
                 </svg>
               </div>
-              <Link href={isSupervisor ? "/supervisor/projects" : "/dashboard"} className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
               <div>
-
                 <h1 className="text-lg font-bold text-gray-900">
                   SEP Workspace
-                  
                 </h1>
                 <p className="text-xs text-gray-500">Project Management</p>
               </div>
@@ -385,7 +322,7 @@ export default function ResponsiveSidebar() {
           <div className="px-4 py-4">
             <div className="space-y-1">
               {/* Project-specific navigation */}
-              {projectNavItems.length > 0 && (
+              {projectNavItems.length > 0 ? (
                 <>
                   <div className="px-2 py-1">
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -430,7 +367,12 @@ export default function ResponsiveSidebar() {
                     );
                   })}
                 </>
-              )}
+              ) : projectId ? (
+                // Show loading state if projectId exists but items are still loading
+                <div className="px-2 py-1">
+                  <p className="text-xs text-gray-400">Đang tải...</p>
+                </div>
+              ) : null}
             </div>
 
           </div>
@@ -458,7 +400,7 @@ export default function ResponsiveSidebar() {
                   />
                 </svg>
               </div>
-              <Link href={isSupervisor ? "/supervisor/projects" : "/dashboard"} className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
               <div>
                 <h1 className="text-lg font-bold text-gray-900">
                   SEP Workspace
@@ -473,7 +415,7 @@ export default function ResponsiveSidebar() {
           <div className="flex-1 flex flex-col px-4 py-4">
             <nav className="flex-1 space-y-2">
               {/* Project-specific navigation */}
-              {projectNavItems.length > 0 && (
+              {projectNavItems.length > 0 ? (
                 <>
                   <div className="px-2 py-1">
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -520,7 +462,12 @@ export default function ResponsiveSidebar() {
                     })}
                   </div>
                 </>
-              )}
+              ) : projectId ? (
+                // Show loading state if projectId exists but items are still loading
+                <div className="px-2 py-1">
+                  <p className="text-xs text-gray-400">Đang tải...</p>
+                </div>
+              ) : null}
             </nav>
 
           </div>

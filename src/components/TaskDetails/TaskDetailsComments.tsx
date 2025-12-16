@@ -36,12 +36,23 @@ export default function TaskDetailsComments({ taskId, readonly = false }: TaskDe
   const [editText, setEditText] = useState("");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedComment, setSelectedComment] = useState<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (taskId) {
       loadComments();
     }
+    loadCurrentUser();
   }, [taskId]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const response = await axiosInstance.get('/api/users/me');
+      setCurrentUserId(response.data?._id || null);
+    } catch (error) {
+      console.error("Error loading current user:", error);
+    }
+  };
 
   const loadComments = async () => {
     if (!taskId) return;
@@ -123,6 +134,29 @@ export default function TaskDetailsComments({ taskId, readonly = false }: TaskDe
     if (diffDays < 7) return `${diffDays} ngày trước`;
     return commentDate.toLocaleDateString('vi-VN');
   };
+
+  const isCommentAuthor = (comment: any) => {
+    if (!currentUserId) return false;
+    const commentUserId = typeof comment.user_id === 'object' 
+      ? (comment.user_id?._id || (comment.user_id as any)?.id || comment.user_id)
+      : comment.user_id;
+    return commentUserId ? String(commentUserId) === String(currentUserId) : false;
+  };
+
+  // Ensure currentUserId populated when comments fetched
+  useEffect(() => {
+    const ensureUser = async () => {
+      if (currentUserId) return;
+      try {
+        const res = await axiosInstance.get('/api/users/me');
+        const id = res?.data?._id;
+        if (id) setCurrentUserId(String(id));
+      } catch {
+        // silent
+      }
+    };
+    ensureUser();
+  }, [currentUserId]);
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto' }}>
@@ -285,8 +319,8 @@ export default function TaskDetailsComments({ taskId, readonly = false }: TaskDe
                       )}
                     </Stack>
 
-                    {/* Actions Menu */}
-                    {!readonly && (
+                    {/* Actions Menu - Only show if current user is the comment author */}
+                    {!readonly && isCommentAuthor(comment) && (
                       <IconButton
                         size="small"
                         onClick={(e) => {

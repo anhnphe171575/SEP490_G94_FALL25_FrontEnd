@@ -32,6 +32,7 @@ import {
   ListItemSecondaryAction,
   Divider,
 } from "@mui/material";
+import { toast } from "sonner";
 import {
   Add as AddIcon,
   CalendarToday as CalendarIcon,
@@ -123,7 +124,6 @@ export default function MeetingCalendar({
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   
   // Dialog states
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -240,11 +240,12 @@ export default function MeetingCalendar({
       
       setMeetings([...meetings, response.data.data]);
       setOpenCreateDialog(false);
-      setSuccess(response.data.message || "Tạo lịch họp thành công!");
-      setTimeout(() => setSuccess(null), 3000);
+      toast.success(response.data.message || "Tạo lịch họp thành công!");
       resetForm();
     } catch (error: any) {
-      setError(error?.response?.data?.message || "Không thể tạo lịch họp");
+      const errorMessage = error?.response?.data?.message || "Không thể tạo lịch họp";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -261,10 +262,11 @@ export default function MeetingCalendar({
       setMeetings(meetings.map(m => 
         m._id === meetingId ? response.data.data : m
       ));
-      setSuccess(`Lịch họp đã được ${status === 'approved' ? 'xác nhận' : 'từ chối'}`);
-      setTimeout(() => setSuccess(null), 3000);
+      toast.success(`Lịch họp đã được ${status === 'approved' ? 'xác nhận' : 'từ chối'}`);
     } catch (error: any) {
-      setError(error?.response?.data?.message || "Không thể cập nhật trạng thái");
+      const errorMessage = error?.response?.data?.message || "Không thể cập nhật trạng thái";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -275,10 +277,11 @@ export default function MeetingCalendar({
     try {
       await axiosInstance.delete(`/api/meetings/${meetingId}`);
       setMeetings(meetings.filter(m => m._id !== meetingId));
-      setSuccess("Lịch họp đã được xóa");
-      setTimeout(() => setSuccess(null), 3000);
+      toast.success("Lịch họp đã được xóa");
     } catch (error: any) {
-      setError(error?.response?.data?.message || "Không thể xóa lịch họp");
+      const errorMessage = error?.response?.data?.message || "Không thể xóa lịch họp";
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -386,12 +389,7 @@ export default function MeetingCalendar({
           </div>
         </div>
 
-        {/* Success/Error Messages */}
-        {success && (
-          <Alert severity="success" onClose={() => setSuccess(null)}>
-            {success}
-          </Alert>
-        )}
+        {/* Error Messages */}
         {error && (
           <Alert severity="error" onClose={() => setError(null)}>
             {error}

@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import { Box, Button, Card, CardContent, Typography, Stack, Alert, Paper, Breadcrumbs, Link, List, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, ButtonBase, Chip } from "@mui/material";
-import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon, Visibility as VisibilityIcon, ArrowBack as ArrowBackIcon } from "@mui/icons-material";
+import { Folder as FolderIcon, Home as HomeIcon, NavigateNext as NavigateNextIcon, CreateNewFolder as CreateFolderIcon, DriveFileRenameOutline as RenameIcon, DriveFileMove as MoveIcon, DeleteOutline as DeleteIcon, SubdirectoryArrowRight as SubFolderIcon, Star as StarIcon, StarBorder as StarBorderIcon, Info as InfoIcon, Visibility as VisibilityIcon, ArrowBack as ArrowBackIcon, Search as SearchIcon } from "@mui/icons-material";
 import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 import DocumentUpload from "@/components/DocumentUpload";
 import { InsertDriveFile as FileIcon, PictureAsPdf as PdfIcon, Image as ImageIcon, TableChart as SheetIcon, Description as DocIcon, Download as DownloadIcon } from "@mui/icons-material";
@@ -141,6 +141,9 @@ export default function DocumentsPage() {
 
   // Current user (for delete permission)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -285,9 +288,11 @@ export default function DocumentsPage() {
     try {
       await axiosInstance.delete(`/api/documents/${doc._id}`);
       loadDocuments();
+      toast.success('Đã xóa tài liệu', { description: doc.title });
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Không thể xóa tài liệu';
       setDocsError(message);
+      toast.error('Không thể xóa tài liệu', { description: message });
     }
   };
 
@@ -546,7 +551,7 @@ export default function DocumentsPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-white text-black">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main className="p-4 md:p-6 md:ml-56">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -569,7 +574,7 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-white text-black">
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '260px 1fr' }, gap: 2 }}>
@@ -645,78 +650,105 @@ export default function DocumentsPage() {
             </Box>
           )}
 
-          <div className="mb-6 md:mb-8 flex items-end justify-between">
-            <div className="space-y-1">
-              <div className="text-[10px] md:text-xs uppercase tracking-wider text-black">Dự án</div>
-              <div className="flex items-center gap-3">
-                {currentFolderId && (
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      if (folderPath.length > 1) {
-                        // Quay về folder cha
-                        const parentFolder = folderPath[folderPath.length - 2];
-                        navigateToFolder(parentFolder._id);
-                      } else {
-                        // Quay về root
-                        navigateToFolder(null);
-                      }
-                    }}
-                    sx={{
-                      bgcolor: 'action.hover',
-                      '&:hover': {
-                        bgcolor: 'action.selected'
-                      }
-                    }}
-                    title="Trở về"
-                  >
-                    <ArrowBackIcon fontSize="small" />
-                  </IconButton>
-                )}
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-black">
-                  {currentFolderId && folderPath.length > 0 
-                    ? folderPath[folderPath.length - 1].name 
-                    : 'Quản lý tài liệu'}
-                </h1>
+          <div className="mb-6 md:mb-8 space-y-4">
+            <div className="flex items-end justify-between">
+              <div className="space-y-1">
+                <div className="text-[10px] md:text-xs uppercase tracking-wider text-black">Dự án</div>
+                <div className="flex items-center gap-3">
+                  {currentFolderId && (
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        if (folderPath.length > 1) {
+                          // Quay về folder cha
+                          const parentFolder = folderPath[folderPath.length - 2];
+                          navigateToFolder(parentFolder._id);
+                        } else {
+                          // Quay về root
+                          navigateToFolder(null);
+                        }
+                      }}
+                      sx={{
+                        bgcolor: 'action.hover',
+                        '&:hover': {
+                          bgcolor: 'action.selected'
+                        }
+                      }}
+                      title="Trở về"
+                    >
+                      <ArrowBackIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                  <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-black">
+                    {currentFolderId && folderPath.length > 0 
+                      ? folderPath[folderPath.length - 1].name 
+                      : 'Quản lý tài liệu'}
+                  </h1>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="medium"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={() => setUploadOpen(true)}
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    px: 2,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                    '&:hover': {
+                      boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+                    }
+                  }}
+                >
+                  Tải lên
+                </Button>
+                <Button
+                  variant="contained"
+                  size="medium"
+                  startIcon={<CreateFolderIcon />}
+                  onClick={() => setCreateRootOpen(true)}
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    px: 2,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                    '&:hover': {
+                      boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+                    }
+                  }}
+                >
+                  Tạo folder gốc
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="contained"
-                color="primary"
-                size="medium"
-                startIcon={<CloudUploadIcon />}
-                onClick={() => setUploadOpen(true)}
-                sx={{
+            
+            {/* Search Bar */}
+            <TextField
+              fullWidth
+              placeholder="Tìm kiếm tài liệu và thư mục..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                ),
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
-                  textTransform: 'none',
-                  px: 2,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                  bgcolor: 'background.paper',
                   '&:hover': {
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+                    bgcolor: 'action.hover'
+                  },
+                  '&.Mui-focused': {
+                    bgcolor: 'background.paper'
                   }
-                }}
-              >
-                Tải lên
-              </Button>
-              <Button
-                variant="contained"
-                size="medium"
-                startIcon={<CreateFolderIcon />}
-                onClick={() => setCreateRootOpen(true)}
-                sx={{
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  px: 2,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
-                  '&:hover': {
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
-                  }
-                }}
-              >
-                Tạo folder gốc
-              </Button>
-            </div>
+                }
+              }}
+            />
           </div>
 
 
@@ -737,7 +769,13 @@ export default function DocumentsPage() {
                   <Typography variant="body2" color="text.secondary">Thư mục trống</Typography>
                 ) : (
                   <>
-                    {folders.map((folder) => (
+                    {folders
+                      .filter(folder => 
+                        !searchQuery || 
+                        folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        (folder.description && folder.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                      )
+                      .map((folder) => (
                       <Paper key={folder._id} variant="outlined" sx={{ px: 2, py: 1.25 }}>
                         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', columnGap: 12 }}>
                           <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
@@ -770,7 +808,13 @@ export default function DocumentsPage() {
                         </Box>
                       </Paper>
                     ))}
-                    {documents.map(doc => (
+                    {documents
+                      .filter(doc => 
+                        !searchQuery || 
+                        doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        doc.version.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map(doc => (
                       <Paper 
                         key={doc._id} 
                         variant="outlined" 

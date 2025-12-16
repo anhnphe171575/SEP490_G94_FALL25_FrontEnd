@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SupervisorSidebar from "@/components/SupervisorSidebar";
 import QuickNav from "@/components/QuickNav";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 import {
@@ -285,7 +285,7 @@ export default function ProgressTaskPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <div className="mx-auto w-full max-w-7xl px-6 py-8 md:ml-64">
           <QuickNav selectedProject={projectId ?? undefined} />
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
@@ -298,7 +298,7 @@ export default function ProgressTaskPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <ResponsiveSidebar />
+      <SupervisorSidebar />
       <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
         <div className="mx-auto w-full max-w-7xl">
         

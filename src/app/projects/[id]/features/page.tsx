@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import FeatureDetailsModal from "@/components/FeatureDetailsModal";
 import StarIcon from "@mui/icons-material/Star";
-import { PRIORITY_OPTIONS } from "@/constants/settings";
+import { PRIORITY_OPTIONS, getPriorityById } from "@/constants/settings";
 import {
   Box,
   Button,
@@ -115,6 +115,8 @@ export default function ProjectFeaturesPage() {
   
   // Team data for capacity calculation
   const [teamData, setTeamData] = useState<{ team_members?: { total?: number } } | null>(null);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const isSupervisor = userRole === 4;
 
   const [openForm, setOpenForm] = useState(false);
   const [form, setForm] = useState<Feature>({ 
@@ -176,6 +178,17 @@ export default function ProjectFeaturesPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    
+    // Load user role
+    (async () => {
+      try {
+        const userRes = await axiosInstance.get('/api/users/me');
+        setUserRole(userRes.data?.role || null);
+      } catch {
+        setUserRole(null);
+      }
+    })();
+    
     (async () => {
       try {
         setLoading(true);
@@ -329,12 +342,12 @@ export default function ProjectFeaturesPage() {
 
   const handleCreateFeature = async () => {
     try {
-      // Gọi backend tạo feature
+      // Gọi backend Tạo tính năng
       const payload = {
         title: form.title,
         description: form.description,
         priority: form.priority,
-        status: form.status,
+        // Status không cho phép chỉnh sửa thủ công, chỉ tự động cập nhật từ functions
         start_date: form.start_date,
         end_date: form.end_date,
         tags: form.tags || [],
@@ -367,9 +380,9 @@ export default function ProjectFeaturesPage() {
         end_date: "",
         tags: []
       });
-      toast.success("Đã tạo feature thành công");
+      toast.success("Đã Tạo tính năng thành công");
     } catch (e: any) {
-      const errorMessage = e?.response?.data?.message || "Không thể tạo feature";
+      const errorMessage = e?.response?.data?.message || "Không thể Tạo tính năng";
       setError(errorMessage);
       toast.error(errorMessage);
     }
@@ -457,7 +470,7 @@ export default function ProjectFeaturesPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main>
         <div className="w-full">
           {/* ClickUp-style Top Bar (standardized) */}
@@ -522,7 +535,7 @@ export default function ProjectFeaturesPage() {
                 {/* Quick Navigation */}
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}`)}
+                  onClick={() => router.push(`/projects/${projectId}/milestones`)}
                   sx={{
                     textTransform: 'none',
                     fontSize: '13px',
@@ -574,54 +587,58 @@ export default function ProjectFeaturesPage() {
                 
                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                 
-                {selectedFeatureIds.length > 0 && (
-                  <Button 
-                    variant="contained" 
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setOpenMilestoneFromFeaturesDialog(true);
-                    }}
-                    sx={{ 
-                      bgcolor: '#10b981',
-                      color: 'white',
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      px: 2.5,
-                      py: 1,
-                      borderRadius: 1.5,
-                      boxShadow: 'none',
-                      '&:hover': { 
-                        bgcolor: '#059669',
-                      },
-                    }}
-                  >
-                    Tạo Milestone
-                  </Button>
+                {!isSupervisor && (
+                  <>
+                    {selectedFeatureIds.length > 0 && (
+                      <Button 
+                        variant="contained" 
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setOpenMilestoneFromFeaturesDialog(true);
+                        }}
+                        sx={{ 
+                          bgcolor: '#10b981',
+                          color: 'white',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          px: 2.5,
+                          py: 1,
+                          borderRadius: 1.5,
+                          boxShadow: 'none',
+                          '&:hover': { 
+                            bgcolor: '#059669',
+                          },
+                        }}
+                      >
+                        Tạo Milestone
+                      </Button>
+                    )}
+                    <Button 
+                      variant="contained" 
+                      onClick={handleOpenForm}
+                      startIcon={<AddIcon />} 
+                      sx={{ 
+                        bgcolor: '#7b68ee',
+                        color: 'white',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        px: 2.5,
+                        py: 1,
+                        borderRadius: 1.5,
+                        boxShadow: 'none',
+                        '&:hover': { 
+                          bgcolor: '#6952d6',
+                        },
+                      }}
+                    >
+                      Tạo tính năng
+                    </Button>
+                  </>
                 )}
-                <Button 
-                  variant="contained" 
-                  onClick={handleOpenForm}
-                  startIcon={<AddIcon />} 
-                  sx={{ 
-                    bgcolor: '#7b68ee',
-                    color: 'white',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    px: 2.5,
-                    py: 1,
-                    borderRadius: 1.5,
-                    boxShadow: 'none',
-                    '&:hover': { 
-                      bgcolor: '#6952d6',
-                    },
-                  }}
-                >
-                  Tạo Feature
-                </Button>
               </Stack>
             </Box>
           </Box>
@@ -957,7 +974,7 @@ export default function ProjectFeaturesPage() {
                       <TableCell>Bắt đầu - Hết hạn</TableCell>
                       <TableCell>Trạng thái</TableCell>
                       <TableCell>Ưu tiên</TableCell>
-                      <TableCell>Thao tác</TableCell>
+                      {!isSupervisor && <TableCell>Thao tác</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -994,7 +1011,7 @@ export default function ProjectFeaturesPage() {
                       );
                       return (
                         <TableRow key={f._id || idx} hover>
-                          <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => startEditCell(f, 'title')}>
+                          <TableCell sx={{ fontWeight: 600 }} onDoubleClick={() => !isSupervisor && startEditCell(f, 'title')}>
                             {editingId === f._id && editingField === 'title' ? (
                               <TextField
                                 size="small"
@@ -1035,7 +1052,7 @@ export default function ProjectFeaturesPage() {
                           
                          
                           
-                          <TableCell onDoubleClick={() => startEditCell(f, 'milestone_ids')}>
+                          <TableCell onDoubleClick={() => !isSupervisor && startEditCell(f, 'milestone_ids')}>
                             {editingId === f._id && editingField === 'milestone_ids' ? (
                               <Select
                                 size="small"
@@ -1112,51 +1129,24 @@ export default function ProjectFeaturesPage() {
                             </Stack>
                           </TableCell>
                           
-                          <TableCell onClick={() => startEditCell(f, 'status')} sx={{ cursor: 'pointer' }}>
-                            {editingId === f._id && editingField === 'status' ? (
-                              <Select
-                                size="small"
-                                value={typeof f.status === 'string' ? f.status : (typeof f.status === 'object' ? f.status?._id : '')}
-                                onChange={async (e) => {
-                                  const newStatusId = e.target.value;
-                                  try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { status: newStatusId });
-                                    setFeatures(prev => prev.map(x => 
-                                      x._id === f._id ? { ...x, status: newStatusId } : x
-                                    ));
-                                    cancelEditRow();
-                                    toast.success("Đã cập nhật trạng thái thành công");
-                                  } catch (err: any) {
-                                    console.error('Error updating status:', err);
-                                    toast.error(err?.response?.data?.message || "Không thể cập nhật trạng thái");
-                                  }
-                                }}
-                                onBlur={cancelEditRow}
-                                autoFocus
-                                fullWidth
-                              >
-                                {statuses.map((s) => (
-                                  <MenuItem key={s._id} value={s._id}>
-                                    {s.name}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            ) : (
-                              statusChip
-                            )}
+                          <TableCell>
+                            {statusChip}
+                          
                           </TableCell>
                           
-                          <TableCell onClick={() => startEditCell(f, 'priority')} sx={{ cursor: 'pointer' }}>
+                          <TableCell onClick={() => !isSupervisor && startEditCell(f, 'priority')} sx={{ cursor: isSupervisor ? 'default' : 'pointer' }}>
                             {editingId === f._id && editingField === 'priority' ? (
                               <Select
                                 size="small"
                                 value={typeof f.priority === 'string' ? f.priority : (typeof f.priority === 'object' ? f.priority?._id : '')}
                                 onChange={async (e) => {
                                   const newPriorityId = e.target.value;
+                                  const priorityOption = getPriorityById(String(newPriorityId));
+                                  const payloadPriority = priorityOption?._id || String(newPriorityId);
                                   try {
-                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority: newPriorityId });
+                                    await axiosInstance.patch(`/api/features/${f._id}`, { priority: payloadPriority });
                                     setFeatures(prev => prev.map(x =>       
-                                      x._id === f._id ? { ...x, priority: newPriorityId } : x
+                                      x._id === f._id ? { ...x, priority: payloadPriority } : x
                                     ));
                                     cancelEditRow();
                                     toast.success("Đã cập nhật ưu tiên thành công");
@@ -1189,46 +1179,48 @@ export default function ProjectFeaturesPage() {
                             )}
                           </TableCell>
                           
-                          <TableCell>
-                            <Stack direction="row" spacing={0.5}>
-                              <Tooltip title="Xem Functions của Feature này">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                  onClick={() => {
-                                    router.push(`/projects/${projectId}/functions?featureId=${f._id}`);
-                                  }}
-                                >
-                                  <FunctionsIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Xem Tasks của Feature này">
+                          {!isSupervisor && (
+                            <TableCell>
+                              <Stack direction="row" spacing={0.5}>
+                                <Tooltip title="Xem Functions của Feature này">
                                 <IconButton
                                   size="small"
-                                  color="success"
-                                  onClick={() => {
-                                    router.push(`/projects/${projectId}/tasks?featureId=${f._id}`);
+                                  color="primary"
+                                    onClick={() => {
+                                      router.push(`/projects/${projectId}/functions?featureId=${f._id}`);
+                                    }}
+                                  >
+                                    <FunctionsIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Xem Tasks của Feature này">
+                                  <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={() => {
+                                      router.push(`/projects/${projectId}/tasks?featureId=${f._id}`);
+                                    }}
+                                  >
+                                    <AssignmentIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Xóa Feature">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (f._id) {
+                                      handleDeleteFeature(f._id);
+                                    }
                                   }}
                                 >
-                                  <AssignmentIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Xóa Feature">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (f._id) {
-                                    handleDeleteFeature(f._id);
-                                  }
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            </Stack>
-                          </TableCell>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              </Stack>
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}
@@ -1305,7 +1297,7 @@ export default function ProjectFeaturesPage() {
               {viewTab === 'table' && features.length === 0 && (
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                    Chưa có feature nào. Bấm "Tạo Feature" để thêm.
+                    Chưa có feature nào. Bấm "Tạo tính năng" để thêm.
                   </Typography>
                 </Paper>
               )}
@@ -1314,9 +1306,9 @@ export default function ProjectFeaturesPage() {
 
           <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="md">
             <DialogTitle sx={{ fontWeight: 'bold' }}>
-              Tạo Feature Mới - Lên Kế Hoạch
+              Tạo tính năng Mới - Lên Kế Hoạch
               <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary', fontWeight: 'normal', mt: 0.5 }}>
-                Tạo feature và gắn vào milestone để lên kế hoạch dự án
+                Tạo tính năng và gắn vào milestone để lên kế hoạch dự án
               </Box>
             </DialogTitle>
             <DialogContent>
@@ -1344,29 +1336,6 @@ export default function ProjectFeaturesPage() {
                 <Divider />
                 
                 <Stack direction="row" spacing={2}>
-                  <FormControl fullWidth>
-                    <InputLabel id="status-label">Trạng thái</InputLabel>
-                    <Select
-                      labelId="status-label"
-                      label="Trạng thái"
-                      value={form.status || ''}
-                      onChange={(e) => setForm(prev => ({ ...prev, status: e.target.value }))}
-                    >
-                      {statuses.length === 0 ? (
-                        <MenuItem disabled>Đang tải...</MenuItem>
-                      ) : (
-                        statuses.map((s) => (
-                          <MenuItem key={s._id} value={s._id}>
-                            {s.name}
-                          </MenuItem>
-                        ))
-                      )}
-                    </Select>
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {statuses.length} tùy chọn
-                    </Typography>
-                  </FormControl>
-                  
                   <FormControl fullWidth>
                     <InputLabel id="priority-label">Ưu tiên</InputLabel>
                     <Select
@@ -1458,7 +1427,7 @@ export default function ProjectFeaturesPage() {
                 onClick={handleCreateFeature}
                 disabled={!form.title}
               >
-                Tạo Feature
+                Tạo tính năng
               </Button>
             </DialogActions>
           </Dialog>
@@ -1668,6 +1637,7 @@ export default function ProjectFeaturesPage() {
               open={featureModal.open}
               featureId={featureModal.featureId}
               projectId={projectId}
+              readonly={isSupervisor}
               onClose={() => setFeatureModal({ open: false, featureId: null })}
               onUpdate={async () => {
                 // Reload features
@@ -1686,11 +1656,11 @@ export default function ProjectFeaturesPage() {
                       })
                     );
                     setFeatures(enriched);
-                    toast.success("Đã tạo cột mốc từ features thành công");
+                    // Toast đã được hiển thị trong FeatureDetailsModal.handleFeatureUpdate
                   }
                 } catch (error: any) {
                   console.error('Error reloading features:', error);
-                  toast.error(error?.response?.data?.message || "Không thể tải lại danh sách features");
+                  // Chỉ hiển thị error toast nếu có lỗi nghiêm trọng
                 }
               }}
             />

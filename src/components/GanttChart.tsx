@@ -117,10 +117,11 @@ export default function GanttChart({
       gantt.templates.task_class = (start: Date, end: Date, task: any) => {
         const rawStatus = typeof task.status === "object" ? task.status?.name : task.status;
         const status = normalizeStatusValue(rawStatus as string | undefined);
-        if (status === "To Do") return "gantt-task-planned";
-        if (status === "Doing") return "gantt-task-inprogress";
-        if (status === "Done") return "gantt-task-completed";
-        return "gantt-task-default";
+        // Màu theo status của milestone
+        if (status === "To Do") return "gantt-task-planned";      // Xanh dương
+        if (status === "Doing") return "gantt-task-inprogress";   // Vàng/Cam
+        if (status === "Done") return "gantt-task-completed";     // Xanh lá
+        return "gantt-task-default";                               // Xám
       };
 
       // Custom task text template to show progress
@@ -214,12 +215,21 @@ export default function GanttChart({
         .gantt_task_line { border-radius: 8px; border: 1px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,.06); background: color-mix(in oklab, var(--foreground) 24%, transparent); }
         .gantt_task_content { padding: 2px 10px; font-weight: 600; text-shadow: none; }
 
-        /* Status colors */
-        .gantt-task-planned .gantt_task_content { background: #3b82f6 !important; color: #ffffff; } /* blue-500 */
-        .gantt-task-inprogress .gantt_task_content { background: var(--primary-600) !important; color: #ffffff; }
-        .gantt-task-completed .gantt_task_content { background: #22c55e !important; color: #ffffff; } /* green-500 */
-        .gantt-task-overdue .gantt_task_content { background: #ef4444 !important; color: #ffffff; } /* red-500 */
-        .gantt-task-default .gantt_task_content { background: #6b7280 !important; color: #ffffff; } /* slate-500 */
+        /* Status colors - Màu theo status của milestone */
+        .gantt-task-planned .gantt_task_line { background: #3b82f6 !important; border-color: #2563eb !important; } /* To Do - Xanh dương */
+        .gantt-task-planned .gantt_task_content { background: #3b82f6 !important; color: #ffffff !important; }
+        
+        .gantt-task-inprogress .gantt_task_line { background: #f59e0b !important; border-color: #d97706 !important; } /* Doing - Vàng/Cam */
+        .gantt-task-inprogress .gantt_task_content { background: #f59e0b !important; color: #ffffff !important; }
+        
+        .gantt-task-completed .gantt_task_line { background: #22c55e !important; border-color: #16a34a !important; } /* Done - Xanh lá */
+        .gantt-task-completed .gantt_task_content { background: #22c55e !important; color: #ffffff !important; }
+        
+        .gantt-task-overdue .gantt_task_line { background: #ef4444 !important; border-color: #dc2626 !important; } /* Overdue - Đỏ */
+        .gantt-task-overdue .gantt_task_content { background: #ef4444 !important; color: #ffffff !important; }
+        
+        .gantt-task-default .gantt_task_line { background: #6b7280 !important; border-color: #4b5563 !important; } /* Default - Xám */
+        .gantt-task-default .gantt_task_content { background: #6b7280 !important; color: #ffffff !important; }
 
         /* Selection/focus */
         .gantt_selected .gantt_task_line { outline: 2px solid var(--ring); outline-offset: 0; box-shadow: none; }

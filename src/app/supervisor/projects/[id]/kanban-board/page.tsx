@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SupervisorSidebar from "@/components/SupervisorSidebar";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 import QuickNav from "@/components/QuickNav";
 import { normalizeStatusValue } from "@/constants/settings";
@@ -143,14 +143,7 @@ export default function SupervisorKanbanBoardPage() {
       groups[key].push(t);
     });
     
-    // Ensure all statuses are present
-    const statuses = ['Chưa làm', 'Đang làm', 'Hoàn thành'];
-    statuses.forEach(status => {
-      if (!groups[status]) {
-        groups[status] = [];
-      }
-    });
-    
+    // Chỉ hiển thị các cột có task thực sự
     return groups;
   }, [filteredTasks]);
 
@@ -180,7 +173,7 @@ export default function SupervisorKanbanBoardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
           <div className="mx-auto w-full max-w-7xl">
             <Box sx={{ 
@@ -211,7 +204,7 @@ export default function SupervisorKanbanBoardPage() {
   if (!projectId) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
           <div className="mx-auto w-full max-w-7xl">
             <Box sx={{ 
@@ -240,9 +233,14 @@ export default function SupervisorKanbanBoardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <ResponsiveSidebar />
+      <SupervisorSidebar />
       <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
         <div className="mx-auto w-full max-w-7xl">
+        {/* QuickNav - Always at the top */}
+        <div className="mb-6">
+          <QuickNav selectedProject={projectId || undefined} />
+        </div>
+        
         {/* Header */}
         <Box sx={{ mb: 3 }}>
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>

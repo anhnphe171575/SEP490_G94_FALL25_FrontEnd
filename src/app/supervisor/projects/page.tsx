@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../../../ultis/axios";
-import ResponsiveSidebar from "../../../components/ResponsiveSidebar";
+import SupervisorSidebar from "../../../components/SupervisorSidebar";
 import QuickNav from "@/components/QuickNav";
 
 type Project = {
@@ -53,7 +53,7 @@ const ProjectCard = ({ project, router }: {
 }) => (
   <div
     className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transform hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
-    onClick={() => router.push(`/supervisor/projects/${project._id}/task`)}
+    onClick={() => router.push(`/supervisor/projects/${project._id}/contributor`)}
   >
     <div className="flex items-start justify-between mb-4">
       <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
@@ -113,7 +113,7 @@ const ProjectCard = ({ project, router }: {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          router.push(`/supervisor/projects/${project._id}/task`);
+          router.push(`/supervisor/projects/${project._id}/contributor`);
         }}
         className="w-full text-purple-500 hover:text-purple-600 font-medium text-sm transition-colors duration-200 text-center py-2 border border-purple-200 hover:bg-purple-50 rounded-lg"
       >
@@ -221,7 +221,7 @@ export default function DashboardSupervisorPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -237,7 +237,7 @@ export default function DashboardSupervisorPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
+        <SupervisorSidebar />
         <main className="p-4 md:p-6 md:ml-64">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">

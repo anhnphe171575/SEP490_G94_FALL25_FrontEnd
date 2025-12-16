@@ -186,23 +186,6 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
     }
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await axiosInstance.delete(`/api/team/${projectId}/members/${userId}`);
-      onTeamUpdate(response.data.data.team);
-      setAnchorEl(null);
-      setSelectedMember(null);
-      setSuccess("Đã xóa thành viên khỏi nhóm!");
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Không thể xóa thành viên");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleUpdateTeam = async () => {
     setLoading(true);
@@ -743,14 +726,6 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
               <SupervisorAccountIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Phong trưởng nhóm</ListItemText>
-          </MenuItem>
-        )}
-        {isCurrentUserTeamLeader && selectedMember?.team_leader === 0 && (
-          <MenuItem onClick={() => selectedMember && handleRemoveMember(selectedMember.user_id._id)}>
-            <ListItemIcon>
-              <DeleteIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Xóa khỏi nhóm</ListItemText>
           </MenuItem>
         )}
       </Menu>

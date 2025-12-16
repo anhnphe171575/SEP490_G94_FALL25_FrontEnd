@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import TeamManagement from "@/components/TeamManagement";
 import ProjectBreadcrumb from "@/components/ProjectBreadcrumb";
 import { 
@@ -179,7 +179,7 @@ export default function TeamManagementPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8f9fb]">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main>
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={28} />
@@ -192,7 +192,7 @@ export default function TeamManagementPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-[#f8f9fb]">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main>
           <Box sx={{ px: 3, py: 3 }}>
             <Alert severity="error">
@@ -206,7 +206,7 @@ export default function TeamManagementPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main>
         <div className="w-full">
           {/* ClickUp-style Top Bar (standardized) */}

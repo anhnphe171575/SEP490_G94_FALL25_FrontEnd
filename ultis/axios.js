@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 
 const axiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -137,11 +137,13 @@ axiosInstance.interceptors.response.use(
         const isMessagesApi = requestUrl.includes('/api/messages/');
         const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
         const isAuthApi = requestUrl.includes('/api/auth/');
+        const isProjectApi = requestUrl.includes('/api/projects/');
 
         const shouldSkipRedirect =
           (isMessagesPage && (isTeamApi || isMessagesApi)) ||
           isAuthPage ||
-          isAuthApi;
+          isAuthApi ||
+          isProjectApi; // Với project (edit/delete) đã có UI alert, tránh redirect not-found
 
         if (!shouldSkipRedirect) {
           window.location.href = '/not-found';

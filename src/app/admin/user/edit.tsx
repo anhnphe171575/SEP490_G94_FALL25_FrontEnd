@@ -1,4 +1,5 @@
 import { X, User as UserIcon, Mail, Phone, Shield } from 'lucide-react';
+import Lock from 'lucide-react/dist/esm/icons/lock';
 
 export interface User {
   _id: string;
@@ -15,6 +16,7 @@ export interface EditUserForm {
   email: string;
   role: number;
   phone: string;
+  password?: string;
 }
 
 interface EditUserModalProps {
@@ -36,7 +38,8 @@ export default function EditUserModal({ user, onClose, onSubmit, loading }: Edit
         full_name: formData.get('full_name') as string,
         email: formData.get('email') as string,
         role: Number(formData.get('role')),
-        phone: formData.get('phone') as string
+        phone: formData.get('phone') as string,
+        password: (formData.get('password') as string) || undefined,
       });
     } catch (error) {
       console.error('Form submission error:', error);
@@ -175,6 +178,26 @@ export default function EditUserModal({ user, onClose, onSubmit, loading }: Edit
                   placeholder="Nhập số điện thoại"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Password Field (optional) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Mật khẩu mới (tuỳ chọn)
+              </label>
+              <span className="text-xs text-gray-400">Để trống nếu không đổi</span>
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
+              <input
+                name="password"
+                type="password"
+                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-gray-300"
+                placeholder="Nhập mật khẩu mới (tuỳ chọn)"
+                minLength={6}
+              />
             </div>
           </div>
 

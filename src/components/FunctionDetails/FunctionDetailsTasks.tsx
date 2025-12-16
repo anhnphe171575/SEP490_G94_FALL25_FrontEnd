@@ -29,15 +29,18 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import axiosInstance from "../../../ultis/axios";
 import TaskDetailsModal from "../TaskDetailsModal";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
+import { toast } from "sonner";
 
 interface FunctionDetailsTasksProps {
   functionId: string | null;
   projectId?: string;
+  readonly?: boolean;
 }
 
 export default function FunctionDetailsTasks({
   functionId,
   projectId,
+  readonly = false,
 }: FunctionDetailsTasksProps) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,6 +58,7 @@ export default function FunctionDetailsTasks({
     assignee_id: '',
     start_date: '',
     deadline: '',
+    estimate: '',
   });
 
   useEffect(() => {
@@ -154,15 +158,23 @@ export default function FunctionDetailsTasks({
 
   const handleCreateTask = async () => {
     if (!newTask.title || !newTask.status) {
-      alert('Please fill in required fields (Title and Status)');
+      toast.error('Vui lòng điền các trường bắt buộc (Tên và Trạng thái)');
       return;
     }
 
     try {
-      await axiosInstance.post(`/api/projects/${projectId}/tasks`, {
+      const taskData = {
         ...newTask,
         function_id: functionId,
-      });
+      };
+      // Convert estimate to number if provided
+      if (taskData.estimate !== '' && taskData.estimate !== null) {
+        taskData.estimate = parseFloat(taskData.estimate) || 0;
+      } else {
+        taskData.estimate = 0;
+      }
+      
+      await axiosInstance.post(`/api/projects/${projectId}/tasks`, taskData);
       
       setCreateDialogOpen(false);
       setNewTask({ 
@@ -173,11 +185,13 @@ export default function FunctionDetailsTasks({
         assignee_id: '',
         start_date: '',
         deadline: '',
+        estimate: '',
       });
       loadTasks();
+      toast.success('Đã tạo công việc thành công!');
     } catch (error: any) {
       console.error('Error creating task:', error);
-      alert(error?.response?.data?.message || 'Failed to create task');
+      toast.error(error?.response?.data?.message || 'Không thể tạo công việc');
     }
   };
 
@@ -193,22 +207,24 @@ export default function FunctionDetailsTasks({
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
-          Tasks ({tasks.length})
+          Công việc ({tasks.length})
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-          size="small"
-          sx={{
-            textTransform: 'none',
-            fontWeight: 600,
-            bgcolor: '#7b68ee',
-            '&:hover': { bgcolor: '#6952d6' }
-          }}
-        >
-          Thêm công việc
-        </Button>
+        {!readonly && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+            size="small"
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              bgcolor: '#7b68ee',
+              '&:hover': { bgcolor: '#6952d6' }
+            }}
+          >
+            Thêm công việc
+          </Button>
+        )}
       </Box>
 
       {tasks.length === 0 ? (
@@ -220,27 +236,29 @@ export default function FunctionDetailsTasks({
           border: '1px dashed #e8e9eb'
         }}>
           <Typography fontSize="14px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-            No tasks yet
+            Chưa có công việc nào
           </Typography>
           <Typography fontSize="12px" color="text.secondary" sx={{ mb: 2 }}>
-            Create your first task to get started
+            Tạo công việc đầu tiên để bắt đầu
           </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
-            sx={{
-              textTransform: 'none',
-              borderColor: '#7b68ee',
-              color: '#7b68ee',
-              '&:hover': {
-                borderColor: '#6952d6',
-                bgcolor: '#7b68ee15'
-              }
-            }}
-          >
-            Thêm công việc
-          </Button>
+          {!readonly && (
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateDialogOpen(true)}
+              sx={{
+                textTransform: 'none',
+                borderColor: '#7b68ee',
+                color: '#7b68ee',
+                '&:hover': {
+                  borderColor: '#6952d6',
+                  bgcolor: '#7b68ee15'
+                }
+              }}
+            >
+              Thêm công việc
+            </Button>
+          )}
         </Box>
       ) : (
         <Table>
@@ -334,20 +352,20 @@ export default function FunctionDetailsTasks({
         </Table>
       )}
 
-      {/* Create Task Dialog */}
+      {/* Tạo công việc Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Task</DialogTitle>
+        <DialogTitle>Tạo công việc mới</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
-              label="Task Title *"
+              label="Tên công việc *"
               value={newTask.title}
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
               fullWidth
               required
             />
             <TextField
-              label="Description"
+              label="Mô tả"
               value={newTask.description}
               onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
               fullWidth
@@ -355,14 +373,14 @@ export default function FunctionDetailsTasks({
               rows={3}
             />
             <FormControl fullWidth>
-              <InputLabel>Priority</InputLabel>
+              <InputLabel>Ưu tiên</InputLabel>
               <Select
                 value={newTask.priority}
-                label="Priority"
+                label="Ưu tiên"
                 onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
               >
                 <MenuItem value="">
-                  <em>None</em>
+                  <em>Không có</em>
                 </MenuItem>
                 {priorityTypes.map((priority) => (
                   <MenuItem key={priority._id} value={priority._id}>
@@ -372,10 +390,10 @@ export default function FunctionDetailsTasks({
               </Select>
             </FormControl>
             <FormControl fullWidth required>
-              <InputLabel>Status *</InputLabel>
+              <InputLabel>Trạng thái *</InputLabel>
               <Select
                 value={newTask.status}
-                label="Status *"
+                label="Trạng thái *"
                 onChange={(e) => setNewTask({ ...newTask, status: e.target.value })}
               >
                 {statusTypes.map((status) => (
@@ -386,18 +404,18 @@ export default function FunctionDetailsTasks({
               </Select>
             </FormControl>
             <FormControl fullWidth>
-              <InputLabel>Assignee</InputLabel>
+              <InputLabel>Người được giao</InputLabel>
               <Select
                 value={newTask.assignee_id}
-                label="Assignee"
+                label="Người được giao"
                 onChange={(e) => setNewTask({ ...newTask, assignee_id: e.target.value })}
               >
                 <MenuItem value="">
-                  <em>Unassigned</em>
+                  <em>Chưa giao</em>
                 </MenuItem>
                 {teamMembers.map((member, idx) => {
                   const userId = member.user_id?._id || member._id;
-                  const userName = member.user_id?.full_name || member.full_name || member.name || member.email || 'Unknown';
+                  const userName = member.user_id?.full_name || member.full_name || member.name || member.email || 'Không xác định';
                   return (
                     <MenuItem key={userId || idx} value={userId}>
                       {userName}
@@ -407,7 +425,7 @@ export default function FunctionDetailsTasks({
               </Select>
             </FormControl>
             <TextField
-              label="Start Date"
+              label="Ngày bắt đầu"
               type="date"
               value={newTask.start_date}
               onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })}
@@ -415,24 +433,33 @@ export default function FunctionDetailsTasks({
               InputLabelProps={{ shrink: true }}
             />
             <TextField
-              label="Deadline"
+              label="Hạn chót"
               type="date"
               value={newTask.deadline}
               onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
+            <TextField
+              label="Số giờ ước tính"
+              type="number"
+              value={newTask.estimate}
+              onChange={(e) => setNewTask({ ...newTask, estimate: e.target.value })}
+              fullWidth
+              inputProps={{ min: 0, step: 0.5 }}
+              helperText="Nhập số giờ ước tính để hoàn thành công việc"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCreateDialogOpen(false)}>Hủy</Button>
           <Button 
             variant="contained" 
             onClick={handleCreateTask}
             disabled={!newTask.title || !newTask.status}
             sx={{ bgcolor: '#7b68ee', '&:hover': { bgcolor: '#6952d6' } }}
           >
-            Create Task
+            Tạo công việc
           </Button>
         </DialogActions>
       </Dialog>
@@ -443,6 +470,7 @@ export default function FunctionDetailsTasks({
           open={taskModalOpen}
           taskId={selectedTaskId}
           projectId={projectId}
+          readonly={readonly}
           onClose={handleCloseTaskModal}
           onUpdate={handleTaskUpdate}
         />

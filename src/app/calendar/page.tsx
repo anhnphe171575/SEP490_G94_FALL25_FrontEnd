@@ -40,10 +40,11 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import axiosInstance from "../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import CreateMeetingModal from "@/components/CreateMeetingModal";
 import EditMeetingModal from "@/components/EditMeetingModal";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface Meeting {
   _id: string;
@@ -333,7 +334,7 @@ export default function CalendarPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8f9fb]">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main>
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={28} />
@@ -346,7 +347,7 @@ export default function CalendarPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-[#f8f9fb]">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main>
           <Box sx={{ px: 3, py: 3 }}>
             <Alert severity="error">{error}</Alert>
@@ -365,12 +366,15 @@ export default function CalendarPage() {
       });
       
       if (response.data.success) {
+        toast.success(`Lịch họp đã được ${status === 'approved' ? 'xác nhận' : 'từ chối'}`);
         // Reload data to reflect changes
         window.location.reload();
       }
     } catch (error: any) {
       console.error('Error updating meeting status:', error);
-      setError(error?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
+      const errorMessage = error?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái';
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -394,12 +398,15 @@ export default function CalendarPage() {
       const response = await axiosInstance.delete(`/api/meetings/${meetingId}`);
       
       if (response.data.success) {
+        toast.success("Lịch họp đã được xóa");
         // Reload data to reflect changes
         window.location.reload();
       }
     } catch (error: any) {
       console.error('Error deleting meeting:', error);
-      setError(error?.response?.data?.message || 'Có lỗi xảy ra khi xóa lịch họp');
+      const errorMessage = error?.response?.data?.message || 'Có lỗi xảy ra khi xóa lịch họp';
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -518,7 +525,7 @@ export default function CalendarPage() {
         .gc-event:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(2,6,23,0.15); }
         .gc-all-day-chip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       `}</style>
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main>
         <div className="w-full">
           {/* ClickUp-style Top Bar (standardized) */}

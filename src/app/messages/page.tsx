@@ -1118,7 +1118,10 @@ export default function MessagesPage() {
                 Tin nhắn
               </div>
               <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-purple-600 via-pink-600 to-orange-500 bg-clip-text text-transparent drop-shadow-sm">
-                {activeTab === 0 ? 'Tin nhắn nhóm' : 'Tin nhắn cá nhân'}
+                {isSupervisor 
+                  ? (activeTab === 0 ? 'Tin nhắn nhóm - Giảng viên' : 'Tin nhắn cá nhân - Giảng viên')
+                  : (activeTab === 0 ? 'Tin nhắn nhóm' : 'Tin nhắn cá nhân')
+                }
               </h1>
               <div className="mt-2 w-24 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full"></div>
               

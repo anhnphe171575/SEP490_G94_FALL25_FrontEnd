@@ -295,10 +295,10 @@ export default function TaskDashboardPage() {
     return Array.from(memberMap.values())
       .map(m => ({
         name: m.name,
-        'Task Completed': m.completed,
-        'Task Not Completed': m.notCompleted
+        'Đã hoàn thành': m.completed,
+        'Chưa hoàn thành': m.notCompleted
       }))
-      .sort((a, b) => (b['Task Completed'] + b['Task Not Completed']) - (a['Task Completed'] + a['Task Not Completed']));
+      .sort((a, b) => (b['Đã hoàn thành'] + b['Chưa hoàn thành']) - (a['Đã hoàn thành'] + a['Chưa hoàn thành']));
   }, [tasks, teamMembers, dateFrom, dateTo]);
 
   // === AT RISK TASKS ===
@@ -429,10 +429,10 @@ export default function TaskDashboardPage() {
                 </Box>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
-                     Dashboard
+                     Bảng điều khiển
                 </Typography>
                   <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                    Project overview and key metrics
+                    Tổng quan dự án và các chỉ số chính
                 </Typography>
                 </Box>
               </Box>
@@ -522,7 +522,7 @@ export default function TaskDashboardPage() {
                     {keyMetrics.total}
                   </Typography>
                   <Typography variant="body2" sx={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
-                    Total Tasks
+                    Tổng số công việc
                   </Typography>
                 </CardContent>
               </Card>
@@ -575,7 +575,7 @@ export default function TaskDashboardPage() {
                     {keyMetrics.completed}
                 </Typography>
                   <Typography variant="body2" sx={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
-                    Completed
+                    Đã hoàn thành
                     </Typography>
               </CardContent>
             </Card>
@@ -628,7 +628,7 @@ export default function TaskDashboardPage() {
                     {keyMetrics.inProgress}
                     </Typography>
                   <Typography variant="body2" sx={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
-                    In Progress
+                    Đang thực hiện
                     </Typography>
               </CardContent>
             </Card>
@@ -695,7 +695,7 @@ export default function TaskDashboardPage() {
                     {keyMetrics.overdue}
                             </Typography>
                   <Typography variant="body2" sx={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>
-                    Overdue Tasks
+                    Công việc quá hạn
                           </Typography>
               </CardContent>
             </Card>
@@ -714,19 +714,19 @@ export default function TaskDashboardPage() {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="body1" sx={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Speed sx={{ fontSize: 18, color: COLORS.primary }} />
-                    Project Progress
+                    Tiến độ dự án
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: '#0284c7' }} />
                       <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
-                        Expected: {timeBasedProgress.project_metrics.avgTargetPercent.toFixed(1)}%
+                        Dự kiến: {timeBasedProgress.project_metrics.avgTargetPercent.toFixed(1)}%
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '#16a34a' : '#dc2626' }} />
                       <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
-                        Actual: {timeBasedProgress.project_metrics.avgActualPercent.toFixed(1)}%
+                        Thực tế: {timeBasedProgress.project_metrics.avgActualPercent.toFixed(1)}%
                               </Typography>
                     </Box>
                   </Box>
@@ -784,7 +784,7 @@ export default function TaskDashboardPage() {
                   fontWeight: 600,
                   textAlign: 'center'
                 }}>
-                  {timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '✓ On Schedule' : '⚠ Behind Schedule'} 
+                  {timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '✓ Đúng tiến độ' : '⚠ Chậm tiến độ'} 
                   ({timeBasedProgress.project_metrics.avgActualPercent >= timeBasedProgress.project_metrics.avgTargetPercent ? '+' : ''}{(timeBasedProgress.project_metrics.avgActualPercent - timeBasedProgress.project_metrics.avgTargetPercent).toFixed(1)}%)
                 </Typography>
               </Paper>
@@ -813,7 +813,7 @@ export default function TaskDashboardPage() {
                 transition: 'all 0.3s ease'
               }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: '16px' }}>
-                  📊 Task Status Distribution
+                  📊 Phân bổ trạng thái công việc
                   </Typography>
                 {statusData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={280}>
@@ -839,7 +839,7 @@ export default function TaskDashboardPage() {
                 </ResponsiveContainer>
                 ) : (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280 }}>
-                    <Typography color="text.secondary">No data available</Typography>
+                    <Typography color="text.secondary">Không có dữ liệu</Typography>
           </Box>
                   )}
               </Paper>
@@ -860,7 +860,7 @@ export default function TaskDashboardPage() {
                 transition: 'all 0.3s ease'
               }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: '16px' }}>
-                  🎯 Priority Breakdown
+                  🎯 Phân bổ mức độ ưu tiên
                   </Typography>
                 {priorityData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={280}>
@@ -901,7 +901,7 @@ export default function TaskDashboardPage() {
                       </ResponsiveContainer>
                 ) : (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280 }}>
-                    <Typography color="text.secondary">No data available</Typography>
+                    <Typography color="text.secondary">Không có dữ liệu</Typography>
                     </Box>
                   )}
               </Paper>
@@ -925,11 +925,11 @@ export default function TaskDashboardPage() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Group sx={{ color: COLORS.primary, fontSize: 20 }} />
                 <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '16px' }}>
-                  Team Member Task Statistics
+                  Thống kê công việc theo thành viên
                   </Typography>
                 {(dateFrom || dateTo) && (
                   <Chip 
-                    label={`Filtered: ${dateFrom || 'Start'} → ${dateTo || 'Now'}`}
+                    label={`Đã lọc: ${dateFrom || 'Bắt đầu'} → ${dateTo || 'Hiện tại'}`}
                     size="small"
                     onDelete={() => {
                       setDateFrom('');
@@ -948,7 +948,7 @@ export default function TaskDashboardPage() {
                 <TextField
                   type="date"
                   size="small"
-                  label="From"
+                  label="Từ ngày"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
                   InputLabelProps={{ shrink: true }}
@@ -963,7 +963,7 @@ export default function TaskDashboardPage() {
                 <TextField
                   type="date"
                   size="small"
-                  label="To"
+                  label="Đến ngày"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
                   InputLabelProps={{ shrink: true }}
@@ -1013,13 +1013,13 @@ export default function TaskDashboardPage() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="Task Completed" fill={COLORS.success} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Task Not Completed" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Đã hoàn thành" fill={COLORS.success} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Chưa hoàn thành" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-                <Typography color="text.secondary">No team member data available</Typography>
+                <Typography color="text.secondary">Không có dữ liệu thành viên</Typography>
             </Box>
             )}
           </Paper>
@@ -1043,7 +1043,7 @@ export default function TaskDashboardPage() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                       <Warning sx={{ color: COLORS.warning, fontSize: 20 }} />
                       <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '14px' }}>
-                         At Risk ({atRiskTasks.length})
+                         Có rủi ro ({atRiskTasks.length})
                       </Typography>
                     </Box>
                     <Stack spacing={1}>
@@ -1114,7 +1114,7 @@ export default function TaskDashboardPage() {
                                   }}
                                 />
                                 <Chip 
-                                  label={`Impact: ${task.impactScore}/100`}
+                                  label={`Tác động: ${task.impactScore}/100`}
                                   size="small"
                                   sx={{ 
                                     bgcolor: 'rgba(0,0,0,0.05)',
@@ -1143,10 +1143,10 @@ export default function TaskDashboardPage() {
                                     color: isOverdue ? '#dc2626' : 'text.secondary'
                                   }}>
                                     {isOverdue 
-                                      ? `Overdue ${Math.abs(Math.round(task.hoursUntilDeadline / 24))}d`
+                                      ? `Quá hạn ${Math.abs(Math.round(task.hoursUntilDeadline / 24))} ngày`
                                       : task.hoursUntilDeadline < 24
-                                        ? `${Math.round(task.hoursUntilDeadline)}h left`
-                                        : `${Math.round(task.hoursUntilDeadline / 24)}d left`
+                                        ? `Còn ${Math.round(task.hoursUntilDeadline)} giờ`
+                                        : `Còn ${Math.round(task.hoursUntilDeadline / 24)} ngày`
                                     }
                             </Typography>
           </Box>
@@ -1168,7 +1168,7 @@ export default function TaskDashboardPage() {
                                 {/* Blocking Tasks */}
                                 {task.dependents && task.dependents.length > 0 && (
               <Chip 
-                                    label={`🔒 Blocks ${task.dependents.length} task${task.dependents.length > 1 ? 's' : ''}`}
+                                    label={`🔒 Chặn ${task.dependents.length} công việc`}
                 size="small"
                                     sx={{ 
                                       fontSize: '10px',
@@ -1204,7 +1204,7 @@ export default function TaskDashboardPage() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                       <Block sx={{ color: COLORS.danger, fontSize: 20 }} />
                       <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '14px' }}>
-                        🚫 Blocked ({blockedTasks.length})
+                        🚫 Bị chặn ({blockedTasks.length})
                       </Typography>
                     </Box>
                     <Stack spacing={1}>
@@ -1256,10 +1256,10 @@ export default function TaskDashboardPage() {
                   }}>
                     <CheckCircle sx={{ fontSize: 48, color: COLORS.success, mb: 1 }} />
                     <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-                      All Good! 🎉
+                      Tất cả đều ổn! 🎉
             </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      No blocked or at-risk tasks
+                      Không có công việc bị chặn hoặc có rủi ro
                     </Typography>
                   </Paper>
                 )}

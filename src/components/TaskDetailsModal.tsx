@@ -33,6 +33,8 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
+import EditIcon from "@mui/icons-material/Edit";
+import ClearIcon from "@mui/icons-material/Clear";
 import axiosInstance from "../../ultis/axios";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/constants/settings";
 import { toast } from "sonner";
@@ -101,6 +103,12 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
+  
+  // Date editing state
+  const [editingStartDate, setEditingStartDate] = useState(false);
+  const [tempStartDate, setTempStartDate] = useState('');
+  const [editingDeadline, setEditingDeadline] = useState(false);
+  const [tempDeadline, setTempDeadline] = useState('');
 
   // Get tab name from index
   const getTabContent = (index: number) => {
@@ -113,6 +121,10 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
       setCurrentTab(0); // Reset to Overview tab when task changes
       setIsEditingTitle(false); // Reset title editing state
       setEditingTitle(''); // Reset editing title
+      setEditingStartDate(false); // Reset date editing states
+      setEditingDeadline(false);
+      setTempStartDate('');
+      setTempDeadline('');
       loadTaskDetails();
       loadDependencies();
       // Load constants instead of API call
@@ -310,6 +322,138 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
   const handleCancelEditTitle = () => {
     setEditingTitle('');
     setIsEditingTitle(false);
+  };
+
+  const handleStartEditStartDate = () => {
+    setTempStartDate(task?.start_date ? new Date(task.start_date).toISOString().split('T')[0] : '');
+    setEditingStartDate(true);
+  };
+
+  const handleSaveStartDate = async () => {
+    if (hasMandatoryDependencies) {
+      const confirm = window.confirm(
+        '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+        'Thay đổi ngày bắt đầu có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+        'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
+        'Bạn có muốn tiếp tục không?'
+      );
+      if (!confirm) {
+        setEditingStartDate(false);
+        return;
+      }
+    }
+    try {
+      const result = await handleTaskUpdate({ start_date: tempStartDate || null });
+      await loadDependencies(); // Reload to check new state
+      setEditingStartDate(false);
+      if (result?.success) {
+        toast.success('Đã cập nhật ngày bắt đầu thành công');
+      }
+    } catch (error: any) {
+      console.error('Error updating start date:', error);
+      toast.error('Không thể cập nhật ngày bắt đầu', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
+    }
+  };
+
+  const handleCancelEditStartDate = () => {
+    setTempStartDate('');
+    setEditingStartDate(false);
+  };
+
+  const handleClearStartDate = async () => {
+    if (hasMandatoryDependencies) {
+      const confirm = window.confirm(
+        '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+        'Xóa ngày bắt đầu có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+        'Bạn có muốn tiếp tục không?'
+      );
+      if (!confirm) return;
+    }
+    try {
+      const result = await handleTaskUpdate({ start_date: null });
+      await loadDependencies();
+      if (result?.success) {
+        toast.success('Đã xóa ngày bắt đầu');
+      }
+    } catch (error: any) {
+      console.error('Error clearing start date:', error);
+      toast.error('Không thể xóa ngày bắt đầu', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
+    }
+  };
+
+  const handleStartEditDeadline = () => {
+    setTempDeadline(task?.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
+    setEditingDeadline(true);
+  };
+
+  const handleSaveDeadline = async () => {
+    if (hasMandatoryDependencies) {
+      const confirm = window.confirm(
+        '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+        'Thay đổi hạn chót có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+        'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
+        'Bạn có muốn tiếp tục không?'
+      );
+      if (!confirm) {
+        setEditingDeadline(false);
+        return;
+      }
+    }
+    try {
+      const result = await handleTaskUpdate({ deadline: tempDeadline || null });
+      await loadDependencies(); // Reload to check new state
+      setEditingDeadline(false);
+      if (result?.success) {
+        toast.success('Đã cập nhật hạn chót thành công');
+      }
+    } catch (error: any) {
+      console.error('Error updating deadline:', error);
+      toast.error('Không thể cập nhật hạn chót', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
+    }
+  };
+
+  const handleCancelEditDeadline = () => {
+    setTempDeadline('');
+    setEditingDeadline(false);
+  };
+
+  const handleClearDeadline = async () => {
+    if (hasMandatoryDependencies) {
+      const confirm = window.confirm(
+        '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
+        'Xóa hạn chót có thể vi phạm ràng buộc phụ thuộc.\n\n' +
+        'Bạn có muốn tiếp tục không?'
+      );
+      if (!confirm) return;
+    }
+    try {
+      const result = await handleTaskUpdate({ deadline: null });
+      await loadDependencies();
+      if (result?.success) {
+        toast.success('Đã xóa hạn chót');
+      }
+    } catch (error: any) {
+      console.error('Error clearing deadline:', error);
+      toast.error('Không thể xóa hạn chót', {
+        description: error?.response?.data?.message || 'Vui lòng thử lại'
+      });
+    }
+  };
+
+  const formatDateDisplay = (dateString: string | undefined) => {
+    if (!dateString) return 'Chưa đặt';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -708,7 +852,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return 'Không có ưu tiên';
+                  if (!value) return '';
                     const priorityObj = allPriorities.find(p => p._id === value);
                     const name = priorityObj?.name || '';
                     const emoji = name.toLowerCase().includes('critical') ? '🔥'
@@ -728,7 +872,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     }
                   }}
                 >
-                  <MenuItem value="">Không có ưu tiên</MenuItem>
                   {allPriorities.map((p) => {
                     const emoji = p.name.toLowerCase().includes('critical') ? '🔥'
                       : p.name.toLowerCase().includes('high') ? '🔴'
@@ -813,7 +956,7 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                   }}
                   displayEmpty
                   renderValue={(value) => {
-                    if (!value) return <em style={{ color: '#9ca3af' }}>Chọn chức năng</em>;
+                  if (!value) return '';
                     const selected = allFunctions.find((f: any) => f._id === value);
                     const title = selected?.title || 'Không rõ';
                     return (
@@ -850,7 +993,6 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     }
                   }}
                 >
-                  <MenuItem value=""><em>Không chọn</em></MenuItem>
                   {allFunctions.map((f: any) => (
                     <MenuItem key={f._id} value={f._id}>
                       <Tooltip title={f.title} arrow placement="right">
@@ -915,11 +1057,18 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
                     }
                     
                     return (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 20, height: 20, fontSize: '10px', bgcolor: '#7b68ee' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+                        <Avatar sx={{ width: 20, height: 20, fontSize: '10px', bgcolor: '#7b68ee', flexShrink: 0 }}>
                           {name[0].toUpperCase()}
                         </Avatar>
-                        <Typography fontSize="13px" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <Typography 
+                          fontSize="13px" 
+                          sx={{ 
+                            flex: 1,
+                            minWidth: 0
+                          }}
+                          title={name}
+                        >
                           {name}
                         </Typography>
                       </Box>
@@ -963,125 +1112,238 @@ export default function TaskDetailsModal({ open, taskId, projectId, onClose, onU
 
             {/* Dates */}
             <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Ngày bắt đầu
-                {hasMandatoryDependencies && (
-                  <Chip 
-                    label="⚠️ Bị ràng buộc bởi phụ thuộc" 
-                    size="small" 
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                <Typography fontSize="12px" fontWeight={600} color="text.secondary">
+                  Ngày bắt đầu
+                  {hasMandatoryDependencies && (
+                    <Chip 
+                      label="⚠️ Bị ràng buộc" 
+                      size="small" 
+                      sx={{ 
+                        ml: 1,
+                        height: 18,
+                        fontSize: '10px',
+                        bgcolor: '#fff3cd',
+                        color: '#856404',
+                        fontWeight: 600
+                      }} 
+                    />
+                  )}
+                </Typography>
+                {!readonly && !editingStartDate && task?.start_date && (
+                  <IconButton
+                    size="small"
+                    onClick={handleClearStartDate}
                     sx={{ 
-                      ml: 1,
-                      height: 18,
-                      fontSize: '10px',
-                      bgcolor: '#fff3cd',
-                      color: '#856404',
-                      fontWeight: 600
-                    }} 
-                  />
+                      width: 20, 
+                      height: 20,
+                      color: '#9ca3af',
+                      '&:hover': { color: '#ef4444', bgcolor: '#fee2e2' }
+                    }}
+                  >
+                    <ClearIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
                 )}
-              </Typography>
-              <TextField
-                type="date"
-                fullWidth
-                size="small"
-                disabled={readonly}
-                value={task?.start_date ? new Date(task.start_date).toISOString().split('T')[0] : ''}
-                onChange={async (e) => {
-                  if (hasMandatoryDependencies) {
-                    const confirm = window.confirm(
-                      '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
-                      'Thay đổi ngày bắt đầu có thể vi phạm ràng buộc phụ thuộc.\n\n' +
-                      'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
-                      'Bạn có muốn tiếp tục không?'
-                    );
-                    if (!confirm) return;
-                  }
-                  try {
-                    const result = await handleTaskUpdate({ start_date: e.target.value });
-                    await loadDependencies(); // Reload to check new state
-                    if (result?.success) {
-                      toast.success('Đã cập nhật ngày bắt đầu thành công');
+              </Box>
+              {editingStartDate ? (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <TextField
+                    type="date"
+                    fullWidth
+                    size="small"
+                    value={tempStartDate}
+                    onChange={(e) => setTempStartDate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSaveStartDate();
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditStartDate();
+                      }
+                    }}
+                    autoFocus
+                    InputProps={{
+                      sx: { 
+                        fontSize: '13px',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: hasMandatoryDependencies ? '#ffc107' : '#7b68ee',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: hasMandatoryDependencies ? '#ff9800' : '#7b68ee',
+                        }
+                      }
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={handleSaveStartDate}
+                    sx={{
+                      color: '#7b68ee',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <SaveIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={handleCancelEditStartDate}
+                    sx={{
+                      color: '#6b7280',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <CancelIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Stack>
+              ) : (
+                <Box
+                  onClick={readonly ? undefined : handleStartEditStartDate}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: '#f9fafb',
+                    border: '1px solid #e8e9eb',
+                    cursor: readonly ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    '&:hover': readonly ? {} : {
+                      borderColor: '#7b68ee',
+                      bgcolor: '#faf5ff'
                     }
-                  } catch (error: any) {
-                    console.error('Error updating start date:', error);
-                    toast.error('Không thể cập nhật ngày bắt đầu', {
-                      description: error?.response?.data?.message || 'Vui lòng thử lại'
-                    });
-                  }
-                }}
-                InputProps={{
-                  sx: { 
-                    fontSize: '13px',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: hasMandatoryDependencies ? '#ffc107' : '#e8e9eb',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: hasMandatoryDependencies ? '#ff9800' : '#7b68ee',
-                    }
-                  }
-                }}
-              />
+                  }}
+                >
+                  <Typography 
+                    fontSize="13px" 
+                    fontWeight={500}
+                    color={task?.start_date ? 'text.primary' : 'text.secondary'}
+                    sx={{ fontStyle: task?.start_date ? 'normal' : 'italic' }}
+                  >
+                    {formatDateDisplay(task?.start_date)}
+                  </Typography>
+                  {!readonly && (
+                    <EditIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                  )}
+                </Box>
+              )}
             </Box>
 
             <Box>
-              <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-                Hạn chót
-                {hasMandatoryDependencies && (
-                  <Chip 
-                    label="⚠️ Bị ràng buộc bởi phụ thuộc" 
-                    size="small" 
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                <Typography fontSize="12px" fontWeight={600} color="text.secondary">
+                  Hạn chót
+                  {hasMandatoryDependencies && (
+                    <Chip 
+                      label="⚠️ Bị ràng buộc" 
+                      size="small" 
+                      sx={{ 
+                        ml: 1,
+                        height: 18,
+                        fontSize: '10px',
+                        bgcolor: '#fff3cd',
+                        color: '#856404',
+                        fontWeight: 600
+                      }} 
+                    />
+                  )}
+                </Typography>
+                {!readonly && !editingDeadline && task?.deadline && (
+                  <IconButton
+                    size="small"
+                    onClick={handleClearDeadline}
                     sx={{ 
-                      ml: 1,
-                      height: 18,
-                      fontSize: '10px',
-                      bgcolor: '#fff3cd',
-                      color: '#856404',
-                      fontWeight: 600
-                    }} 
-                  />
+                      width: 20, 
+                      height: 20,
+                      color: '#9ca3af',
+                      '&:hover': { color: '#ef4444', bgcolor: '#fee2e2' }
+                    }}
+                  >
+                    <ClearIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
                 )}
-              </Typography>
-              <TextField
-                type="date"
-                fullWidth
-                size="small"
-                disabled={readonly}
-                value={task?.deadline ? new Date(task.deadline).toISOString().split('T')[0] : ''}
-                onChange={async (e) => {
-                  if (hasMandatoryDependencies) {
-                    const confirm = window.confirm(
-                      '⚠️ Công việc này có phụ thuộc bắt buộc!\n\n' +
-                      'Thay đổi hạn chót có thể vi phạm ràng buộc phụ thuộc.\n\n' +
-                      'Hãy cân nhắc sử dụng "Tự động điều chỉnh ngày" trong tab Phụ thuộc thay vào đó.\n\n' +
-                      'Bạn có muốn tiếp tục không?'
-                    );
-                    if (!confirm) return;
-                  }
-                  try {
-                    const result = await handleTaskUpdate({ deadline: e.target.value });
-                    await loadDependencies(); // Reload to check new state
-                    if (result?.success) {
-                      toast.success('Đã cập nhật hạn chót thành công');
+              </Box>
+              {editingDeadline ? (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <TextField
+                    type="date"
+                    fullWidth
+                    size="small"
+                    value={tempDeadline}
+                    onChange={(e) => setTempDeadline(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSaveDeadline();
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditDeadline();
+                      }
+                    }}
+                    autoFocus
+                    InputProps={{
+                      sx: { 
+                        fontSize: '13px',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: hasMandatoryDependencies ? '#ffc107' : '#7b68ee',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: hasMandatoryDependencies ? '#ff9800' : '#7b68ee',
+                        }
+                      }
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={handleSaveDeadline}
+                    sx={{
+                      color: '#7b68ee',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <SaveIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={handleCancelEditDeadline}
+                    sx={{
+                      color: '#6b7280',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }}
+                  >
+                    <CancelIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Stack>
+              ) : (
+                <Box
+                  onClick={readonly ? undefined : handleStartEditDeadline}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: task?.deadline && new Date(task.deadline) < new Date() && task?.status !== 'Done' ? '#fef3c7' : '#f9fafb',
+                    border: `1px solid ${task?.deadline && new Date(task.deadline) < new Date() && task?.status !== 'Done' ? '#fbbf24' : '#e8e9eb'}`,
+                    cursor: readonly ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    '&:hover': readonly ? {} : {
+                      borderColor: task?.deadline && new Date(task.deadline) < new Date() && task?.status !== 'Done' ? '#f59e0b' : '#7b68ee',
+                      bgcolor: task?.deadline && new Date(task.deadline) < new Date() && task?.status !== 'Done' ? '#fef3c7' : '#faf5ff'
                     }
-                  } catch (error: any) {
-                    console.error('Error updating deadline:', error);
-                    toast.error('Không thể cập nhật hạn chót', {
-                      description: error?.response?.data?.message || 'Vui lòng thử lại'
-                    });
-                  }
-                }}
-                InputProps={{
-                  sx: { 
-                    fontSize: '13px',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: hasMandatoryDependencies ? '#ffc107' : '#e8e9eb',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: hasMandatoryDependencies ? '#ff9800' : '#7b68ee',
+                  }}
+                >
+                  <Typography 
+                    fontSize="13px" 
+                    fontWeight={500}
+                    color={task?.deadline 
+                      ? (new Date(task.deadline) < new Date() && task?.status !== 'Done' ? '#92400e' : 'text.primary')
+                      : 'text.secondary'
                     }
-                  }
-                }}
-              />
+                    sx={{ fontStyle: task?.deadline ? 'normal' : 'italic' }}
+                  >
+                    {formatDateDisplay(task?.deadline)}
+                  </Typography>
+                  {!readonly && (
+                    <EditIcon sx={{ fontSize: 16, color: '#9ca3af' }} />
+                  )}
+                </Box>
+              )}
             </Box>
 
             <Divider />

@@ -40,6 +40,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { vi } from "date-fns/locale";
 import axiosInstance from "../../ultis/axios";
+import { toast } from "sonner";
 
 interface Meeting {
   _id: string;
@@ -70,7 +71,6 @@ export default function EditMeetingModal({
 }: EditMeetingModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Form data
   const [topic, setTopic] = useState("");
@@ -109,7 +109,6 @@ export default function EditMeetingModal({
       setLocation(meeting.location || "Online");
       setGoogleMeetLink(meeting.google_meet_link || "");
       setError(null);
-      setSuccess(null);
       setActiveStep(0);
     }
   }, [open, meeting]);
@@ -164,7 +163,7 @@ export default function EditMeetingModal({
         meetingData
       );
 
-      setSuccess("Cập nhật lịch họp thành công!");
+      toast.success("Cập nhật lịch họp thành công!");
       
       // Reset form
       resetForm();
@@ -177,10 +176,9 @@ export default function EditMeetingModal({
 
     } catch (error: any) {
       console.error("Error updating meeting:", error);
-      setError(
-        error?.response?.data?.message || 
-        "Có lỗi xảy ra khi cập nhật lịch họp"
-      );
+      const errorMessage = error?.response?.data?.message || "Có lỗi xảy ra khi cập nhật lịch họp";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -196,7 +194,6 @@ export default function EditMeetingModal({
     setLocation("Online");
     setGoogleMeetLink("");
     setError(null);
-    setSuccess(null);
     setActiveStep(0);
   };
 
@@ -499,23 +496,6 @@ export default function EditMeetingModal({
                 }
               >
                 {error}
-              </Alert>
-            )}
-
-            {success && (
-              <Alert 
-                severity="success" 
-                sx={{ mb: 3, borderRadius: 2 }}
-                action={
-                  <IconButton
-                    size="small"
-                    onClick={() => setSuccess(null)}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                }
-              >
-                {success}
               </Alert>
             )}
 

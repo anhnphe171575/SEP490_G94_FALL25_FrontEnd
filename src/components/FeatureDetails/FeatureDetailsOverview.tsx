@@ -15,9 +15,10 @@ interface FeatureDetailsOverviewProps {
   feature: any;
   onUpdate: (updates: any) => Promise<void>;
   projectId?: string;
+  readonly?: boolean;
 }
 
-export default function FeatureDetailsOverview({ feature, onUpdate, projectId }: FeatureDetailsOverviewProps) {
+export default function FeatureDetailsOverview({ feature, onUpdate, projectId, readonly = false }: FeatureDetailsOverviewProps) {
   const [editing, setEditing] = useState(false);
   const [description, setDescription] = useState(feature?.description || '');
 
@@ -48,7 +49,7 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
           <Typography fontSize="13px" fontWeight={700} color="#6b7280" textTransform="uppercase">
             Mô tả
           </Typography>
-          {!editing && (
+          {!editing && !readonly && (
             <Button 
               size="small"
               startIcon={<EditIcon sx={{ fontSize: 16 }} />}
@@ -126,13 +127,17 @@ export default function FeatureDetailsOverview({ feature, onUpdate, projectId }:
               borderRadius: 2,
               border: '1px solid #e8e9eb',
               minHeight: 120,
-              cursor: 'text',
+              cursor: readonly ? 'default' : 'text',
               '&:hover': {
-                borderColor: '#d1d5db',
-                bgcolor: '#f9fafb'
+                borderColor: readonly ? '#e8e9eb' : '#d1d5db',
+                bgcolor: readonly ? '#fafbfc' : '#f9fafb'
               }
             }}
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              if (!readonly) {
+                setEditing(true);
+              }
+            }}
           >
             {feature?.description ? (
               <Typography 

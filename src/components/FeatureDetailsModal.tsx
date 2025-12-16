@@ -57,9 +57,10 @@ interface FeatureDetailsModalProps {
   projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
+  readonly?: boolean; // If true, disable edit, add dependency, etc. Only allow view and add comment
 }
 
-export default function FeatureDetailsModal({ open, featureId, projectId, onClose, onUpdate }: FeatureDetailsModalProps) {
+export default function FeatureDetailsModal({ open, featureId, projectId, onClose, onUpdate, readonly = false }: FeatureDetailsModalProps) {
   const [feature, setFeature] = useState<Feature | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -347,6 +348,23 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
 
               {/* Meta Info Row */}
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+                {/* ID */}
+                {feature?._id && (
+                  <Typography 
+                    fontSize="12px" 
+                    color="text.secondary"
+                    sx={{ 
+                      fontFamily: 'monospace',
+                      bgcolor: '#f3f4f6',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontWeight: 500
+                    }}
+                  >
+                    ID: {feature._id}
+                  </Typography>
+                )}
                 {/* Status */}
                 {feature?.status && (
                   <Chip 
@@ -464,8 +482,8 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
             </Box>
           ) : (
             <>
-              {getTabContent(currentTab) === 'overview' && feature && <FeatureDetailsOverview feature={feature} onUpdate={handleFeatureUpdate} projectId={projectId} />}
-              {getTabContent(currentTab) === 'functions' && featureId && projectId && <FeatureDetailsFunctions featureId={featureId} projectId={projectId} />}
+              {getTabContent(currentTab) === 'overview' && feature && <FeatureDetailsOverview feature={feature} onUpdate={handleFeatureUpdate} projectId={projectId} readonly={readonly} />}
+              {getTabContent(currentTab) === 'functions' && featureId && projectId && <FeatureDetailsFunctions featureId={featureId} projectId={projectId} readonly={readonly} />}
               {getTabContent(currentTab) === 'comments' && featureId && <FeatureDetailsComments featureId={featureId} />}
               {getTabContent(currentTab) === 'files' && featureId && <FeatureDetailsAttachments key={feature?.updateAt || featureId} featureId={featureId} />}
               {getTabContent(currentTab) === 'activity' && featureId && <FeatureDetailsActivity featureId={featureId} />}
@@ -490,43 +508,27 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
           </Typography>
 
           <Stack spacing={2.5}>
-            {/* Status */}
+            {/* Status - Chỉ hiển thị, không cho chỉnh sửa (tự động cập nhật từ functions) */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Trạng thái
               </Typography>
-              <FormControl fullWidth size="small">
-                <Select
-                  value={typeof feature?.status === 'object' ? (feature.status as any)?._id : feature?.status || ''}
-                  onChange={async (e) => {
-                    try {
-                      await handleFeatureUpdate({ status: e.target.value });
-                    } catch (error) {
-                      console.error('Error updating status:', error);
-                      // Error already shown in handleFeatureUpdate
-                    }
-                  }}
-                  displayEmpty
-                  renderValue={(value) => {
-                    const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Chọn trạng thái';
-                  }}
-                  sx={{ 
-                    fontSize: '13px', 
-                    fontWeight: 500,
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#e8e9eb',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#7b68ee',
-                    }
-                  }}
-                >
-                  {allStatuses.map((s) => (
-                    <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: '#f9fafb',
+                  border: '1px solid #e8e9eb',
+                  fontSize: '13px',
+                  color: 'text.secondary',
+                  fontStyle: 'italic'
+                }}
+              >
+                {feature?.status ? (typeof feature.status === 'object' ? feature.status.name : feature.status) : 'Chưa có trạng thái'}
+                <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5 }}>
+                  (Tự động cập nhật từ chức năng)
+                </Typography>
+              </Box>
             </Box>
 
             {/* Priority */}
@@ -538,14 +540,17 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 <Select
                   value={typeof feature?.priority === 'object' ? (feature.priority as any)?._id : feature?.priority || ''}
                   onChange={async (e) => {
-                    try {
-                      await handleFeatureUpdate({ priority: e.target.value || null });
-                    } catch (error) {
-                      console.error('Error updating priority:', error);
-                      // Error already shown in handleFeatureUpdate
+                    if (!readonly) {
+                      try {
+                        await handleFeatureUpdate({ priority: e.target.value || null });
+                      } catch (error) {
+                        console.error('Error updating priority:', error);
+                        // Error already shown in handleFeatureUpdate
+                      }
                     }
                   }}
                   displayEmpty
+                  disabled={readonly}
                   renderValue={(value) => {
                     if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
@@ -596,14 +601,17 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 fullWidth
                 value={feature?.start_date ? new Date(feature.start_date).toISOString().split('T')[0] : ''}
                 onChange={async (e) => {
-                  try {
-                    await handleFeatureUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
-                  } catch (error) {
-                    console.error('Error updating start date:', error);
-                    // Error already shown in handleFeatureUpdate
+                  if (!readonly) {
+                    try {
+                      await handleFeatureUpdate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null });
+                    } catch (error) {
+                      console.error('Error updating start date:', error);
+                      // Error already shown in handleFeatureUpdate
+                    }
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
+                disabled={readonly}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '13px',
@@ -629,14 +637,17 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 fullWidth
                 value={feature?.end_date ? new Date(feature.end_date).toISOString().split('T')[0] : ''}
                 onChange={async (e) => {
-                  try {
-                    await handleFeatureUpdate({ end_date: e.target.value ? new Date(e.target.value).toISOString() : null });
-                  } catch (error) {
-                    console.error('Error updating end date:', error);
-                    // Error already shown in handleFeatureUpdate
+                  if (!readonly) {
+                    try {
+                      await handleFeatureUpdate({ end_date: e.target.value ? new Date(e.target.value).toISOString() : null });
+                    } catch (error) {
+                      console.error('Error updating end date:', error);
+                      // Error already shown in handleFeatureUpdate
+                    }
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
+                disabled={readonly}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '13px',
@@ -663,30 +674,33 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                   multiple
                   value={featureMilestoneIds}
                   onChange={async (e) => {
-                    const newMilestoneIds = e.target.value as string[];
-                    try {
-                      // Remove all old links
-                      await axiosInstance.delete(`/api/features/${featureId}/milestones`).catch(() => null);
-                      
-                      // Add new links
-                      if (newMilestoneIds.length > 0) {
-                        await axiosInstance.post(`/api/features/${featureId}/milestones`, {
-                          milestone_ids: newMilestoneIds
-                        });
+                    if (!readonly) {
+                      const newMilestoneIds = e.target.value as string[];
+                      try {
+                        // Remove all old links
+                        await axiosInstance.delete(`/api/features/${featureId}/milestones`).catch(() => null);
+                        
+                        // Add new links
+                        if (newMilestoneIds.length > 0) {
+                          await axiosInstance.post(`/api/features/${featureId}/milestones`, {
+                            milestone_ids: newMilestoneIds
+                          });
+                        }
+                        
+                        setFeatureMilestoneIds(newMilestoneIds);
+                        
+                        // Notify parent to refresh
+                        if (onUpdate) {
+                          await onUpdate();
+                        }
+                        toast.success("Đã cập nhật cột mốc thành công");
+                      } catch (error: any) {
+                        console.error('Error updating milestones:', error);
+                        toast.error(error?.response?.data?.message || "Không thể cập nhật cột mốc");
                       }
-                      
-                      setFeatureMilestoneIds(newMilestoneIds);
-                      
-                      // Notify parent to refresh
-                      if (onUpdate) {
-                        await onUpdate();
-                      }
-                      toast.success("Đã cập nhật cột mốc thành công");
-                    } catch (error: any) {
-                      console.error('Error updating milestones:', error);
-                      toast.error(error?.response?.data?.message || "Không thể cập nhật cột mốc");
                     }
                   }}
+                  disabled={readonly}
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {(selected as string[]).map((id) => {
@@ -769,19 +783,22 @@ export default function FeatureDetailsModal({ open, featureId, projectId, onClos
                 size="small"
                 options={availableTags}
                 value={feature?.tags || []}
+                disabled={readonly}
                 onChange={async (_, newValue) => {
-                  try {
-                    // Remove duplicates and trim
-                    const uniqueTags = Array.from(new Set(newValue.map(tag => tag.trim()).filter(Boolean)));
-                    await handleFeatureUpdate({ tags: uniqueTags });
-                    
-                    // Reload tags to include the new one
-                    if (projectId) {
-                      await loadProjectTags();
+                  if (!readonly) {
+                    try {
+                      // Remove duplicates and trim
+                      const uniqueTags = Array.from(new Set(newValue.map(tag => tag.trim()).filter(Boolean)));
+                      await handleFeatureUpdate({ tags: uniqueTags });
+                      
+                      // Reload tags to include the new one
+                      if (projectId) {
+                        await loadProjectTags();
+                      }
+                    } catch (error) {
+                      console.error('Error updating tags:', error);
+                      // Error already shown in handleFeatureUpdate
                     }
-                  } catch (error) {
-                    console.error('Error updating tags:', error);
-                    // Error already shown in handleFeatureUpdate
                   }
                 }}
                 filterOptions={(options, params) => {

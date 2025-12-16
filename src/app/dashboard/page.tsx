@@ -363,13 +363,24 @@ export default function DashboardPage() {
   };
 
   // Edit project handlers
-  const handleEditProject = (project: Project) => {
+  const handleEditProject = async (project: Project) => {
     setEditingProject(project);
-    setEditForm({
-      topic: project.topic || '',
-      code: project.code || '',
-      description: project.description || ''
-    });
+    try {
+      const res = await axiosInstance.get(`/api/projects/${project._id}`);
+      const full = res.data || {};
+      setEditForm({
+        topic: full.topic || project.topic || '',
+        code: full.code || project.code || '',
+        description: full.description || project.description || ''
+      });
+    } catch (e) {
+      // Fallback to existing data if detail call fails
+      setEditForm({
+        topic: project.topic || '',
+        code: project.code || '',
+        description: project.description || ''
+      });
+    }
   };
 
   const handleUpdateProject = async (e: React.FormEvent) => {

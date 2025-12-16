@@ -41,6 +41,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { vi } from "date-fns/locale";
 import axiosInstance from "../../ultis/axios";
+import { toast } from "sonner";
 
 interface Project {
   _id: string;
@@ -72,7 +73,6 @@ export default function CreateMeetingModal({
 }: CreateMeetingModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Form data
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -120,9 +120,9 @@ export default function CreateMeetingModal({
       
       let apiEndpoint = "/api/projects";
       
-      // Nếu là giảng viên hướng dẫn (role 4), lấy projects mà user là mentor
+      // Nếu là giảng viên hướng dẫn (role 4), lấy projects mà user là supervisor
       if (userData?.role === 4) {
-        apiEndpoint = `/api/projects/mentor/${userData._id}`;
+        apiEndpoint = `/api/projects/supervisor/${userData._id}`;
       }
       
       const response = await axiosInstance.get(apiEndpoint);
@@ -224,7 +224,7 @@ export default function CreateMeetingModal({
         statusMessage = " (Trạng thái: Chờ xác nhận)";
       }
       
-      setSuccess(`${response.data.message || "Tạo lịch họp thành công!"} Mentor: ${mentorName}${statusMessage}`);
+      toast.success(`${response.data.message || "Tạo lịch họp thành công!"} Mentor: ${mentorName}${statusMessage}`);
       
       // Reset form
       resetForm();
@@ -237,10 +237,9 @@ export default function CreateMeetingModal({
 
     } catch (error: any) {
       console.error("Error creating meeting:", error);
-      setError(
-        error?.response?.data?.message || 
-        "Có lỗi xảy ra khi tạo lịch họp"
-      );
+      const errorMessage = error?.response?.data?.message || "Có lỗi xảy ra khi tạo lịch họp";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -257,7 +256,6 @@ export default function CreateMeetingModal({
     setLocation("Online");
     setGoogleMeetLink("");
     setError(null);
-    setSuccess(null);
     setActiveStep(0);
   };
 
@@ -629,23 +627,6 @@ export default function CreateMeetingModal({
                 }
               >
                 {error}
-              </Alert>
-            )}
-
-            {success && (
-              <Alert 
-                severity="success" 
-                sx={{ mb: 3, borderRadius: 2 }}
-                action={
-                  <IconButton
-                    size="small"
-                    onClick={() => setSuccess(null)}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                }
-              >
-                {success}
               </Alert>
             )}
 

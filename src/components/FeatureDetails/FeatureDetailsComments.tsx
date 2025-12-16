@@ -34,12 +34,32 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
   const [editText, setEditText] = useState("");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedComment, setSelectedComment] = useState<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (featureId) {
       loadComments();
     }
+    loadCurrentUser();
   }, [featureId]);
+
+  const loadCurrentUser = async () => {
+    if (currentUser?._id) {
+      setCurrentUserId(String(currentUser._id));
+      return;
+    }
+    try {
+      const res = await axiosInstance.get('/api/users/me');
+      if (res?.data?._id) {
+        setCurrentUserId(String(res.data._id));
+      } else {
+        setCurrentUserId(null);
+      }
+    } catch (error) {
+      console.error("Error loading current user:", error);
+      setCurrentUserId(null);
+    }
+  };
 
   const loadComments = async () => {
     if (!featureId) return;
@@ -83,6 +103,8 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
 
   const updateComment = async (commentId: string) => {
     if (!editText.trim()) return;
+    const target = comments.find((c) => c._id === commentId);
+    if (!isOwner(target)) return;
     
     try {
       await axiosInstance.patch(`/api/features/${featureId}/comments/${commentId}`, {
@@ -98,6 +120,8 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
   };
 
   const deleteComment = async (commentId: string) => {
+    const target = comments.find((c) => c._id === commentId);
+    if (!isOwner(target)) return;
     if (!confirm('Xóa bình luận này?')) return;
     
     try {
@@ -121,12 +145,18 @@ export default function FeatureDetailsComments({ featureId, currentUser, onUpdat
     if (diffMins < 60) return `${diffMins} phút trước`;
     if (diffHours < 24) return `${diffHours} giờ trước`;
     if (diffDays < 7) return `${diffDays} ngày trước`;
-    return commentDate.toLocaleDateString();
+    return commentDate.toLocaleDateString('vi-VN');
   };
 
   const isOwner = (comment: any) => {
-    if (!currentUser || !comment.user_id) return false;
-    return String(currentUser._id) === String(comment.user_id._id);
+    if (!comment?.user_id) return false;
+    const userId = currentUserId || currentUser?._id;
+    if (!userId) return false;
+    const ownerId =
+      typeof comment.user_id === 'string'
+        ? comment.user_id
+        : (comment.user_id?._id || (comment.user_id as any)?.id || comment.user_id);
+    return ownerId ? String(ownerId) === String(userId) : false;
   };
 
   return (

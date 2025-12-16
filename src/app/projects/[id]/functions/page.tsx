@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import FunctionDetailsModal from "@/components/FunctionDetailsModal";
 import { PRIORITY_OPTIONS } from "@/constants/settings";
 import {
@@ -105,6 +105,8 @@ export default function ProjectFunctionsPage() {
   const [stats, setStats] = useState<FunctionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const isSupervisor = userRole === 4;
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFunction, setEditingFunction] = useState<FunctionType | null>(null);
@@ -137,6 +139,17 @@ export default function ProjectFunctionsPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    
+    // Load user role
+    (async () => {
+      try {
+        const userRes = await axiosInstance.get('/api/users/me');
+        setUserRole(userRes.data?.role || null);
+      } catch {
+        setUserRole(null);
+      }
+    })();
+    
     loadAllData();
   }, [projectId]);
 
@@ -255,7 +268,8 @@ export default function ProjectFunctionsPage() {
         description: functionForm.description || undefined,
         priority: functionForm.priority || undefined,
         feature_id: functionForm.feature_id,
-        status: functionForm.status || undefined,
+        // Status không cho phép chỉnh sửa thủ công, chỉ tự động cập nhật từ tasks
+        // status: functionForm.status || undefined,
       };
 
       if (editingFunction) {
@@ -266,7 +280,7 @@ export default function ProjectFunctionsPage() {
       
       handleCloseDialog();
       await loadAllData();
-      toast.success(editingFunction ? "Đã cập nhật function thành công" : "Đã tạo function thành công");
+      toast.success(editingFunction ? "Đã cập nhật function thành công" : "Đã Tạo chức năng thành công");
     } catch (e: any) {
       const errorData = e?.response?.data;
       const errorMessage = errorData?.message || "Không thể lưu function";
@@ -311,6 +325,13 @@ export default function ProjectFunctionsPage() {
     // Prevent double-save
     if (isSaving) return;
     
+    // Không cho phép chỉnh sửa status (tự động cập nhật từ tasks)
+    if (field === 'status') {
+      cancelEdit();
+      toast.info('Trạng thái tự động cập nhật từ công việc, không thể chỉnh sửa thủ công');
+      return;
+    }
+    
     try {
       // Use provided value or fallback to editValue
       const valueToSave = value !== undefined ? value : editValue;
@@ -331,7 +352,7 @@ export default function ProjectFunctionsPage() {
       await loadAllData();
       
       cancelEdit();
-      toast.success(`Đã cập nhật ${field === 'priority' ? 'ưu tiên' : field === 'status' ? 'trạng thái' : field} thành công`);
+      toast.success(`Đã cập nhật ${field === 'priority' ? 'ưu tiên' : field} thành công`);
     } catch (e: any) {
       const errorMessage = e?.response?.data?.message || `Không thể cập nhật ${field}`;
       setError(errorMessage);
@@ -440,7 +461,7 @@ export default function ProjectFunctionsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main className="p-4 md:p-6 md:ml-56">
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={28} />
@@ -452,7 +473,7 @@ export default function ProjectFunctionsPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main>
         <div className="w-full">
           {/* ClickUp-style Top Bar (standardized) */}
@@ -505,7 +526,7 @@ export default function ProjectFunctionsPage() {
                 {/* Quick Navigation */}
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}`)}
+                  onClick={() => router.push(`/projects/${projectId}/milestones`)}
                   sx={{
                     textTransform: 'none',
                     fontSize: '13px',
@@ -557,27 +578,29 @@ export default function ProjectFunctionsPage() {
                 
                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                 
-                <Button 
-                  variant="contained" 
-                  onClick={() => handleOpenDialog()}
-                  startIcon={<AddIcon />} 
-                  sx={{ 
-                    bgcolor: '#7b68ee',
-                    color: 'white',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    px: 2.5,
-                    py: 1,
-                    borderRadius: 1.5,
-                    boxShadow: 'none',
-                    '&:hover': { 
-                      bgcolor: '#6952d6',
-                    },
-                  }}
-                >
-                  Tạo Function
-                </Button>
+                {!isSupervisor && (
+                  <Button 
+                    variant="contained" 
+                    onClick={() => handleOpenDialog()}
+                    startIcon={<AddIcon />} 
+                    sx={{ 
+                      bgcolor: '#7b68ee',
+                      color: 'white',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      px: 2.5,
+                      py: 1,
+                      borderRadius: 1.5,
+                      boxShadow: 'none',
+                      '&:hover': { 
+                        bgcolor: '#6952d6',
+                      },
+                    }}
+                  >
+                    Tạo chức năng
+                  </Button>
+                )}
               </Stack>
             </Box>
           </Box>
@@ -935,7 +958,7 @@ export default function ProjectFunctionsPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Tên Function</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Tiêu đề</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Tính năng</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Ưu tiên</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>Trạng thái</TableCell>
@@ -989,7 +1012,7 @@ export default function ProjectFunctionsPage() {
                         {/* Priority - Inline Editable */}
                         <TableCell 
                           onClick={() => {
-                            if (!isEditingPriority) {
+                            if (!isSupervisor && !isEditingPriority) {
                               const currentPriorityId = typeof func.priority === 'object' 
                                 ? func.priority?._id 
                                 : func.priority;
@@ -997,8 +1020,8 @@ export default function ProjectFunctionsPage() {
                             }
                           }}
                           sx={{ 
-                            cursor: isEditingPriority ? 'default' : 'pointer',
-                            '&:hover': !isEditingPriority ? { bgcolor: '#f9fafb' } : {},
+                            cursor: isSupervisor || isEditingPriority ? 'default' : 'pointer',
+                            '&:hover': !isSupervisor && !isEditingPriority ? { bgcolor: '#f9fafb' } : {},
                           }}
                         >
                           {isEditingPriority ? (
@@ -1027,9 +1050,6 @@ export default function ProjectFunctionsPage() {
                                 },
                               }}
                             >
-                              <MenuItem value="">
-                                <em>Không có</em>
-                              </MenuItem>
                               {priorityTypes.map((priority) => (
                                 <MenuItem key={priority._id} value={priority._id}>
                                   {priority.name}
@@ -1052,70 +1072,8 @@ export default function ProjectFunctionsPage() {
                             )
                           )}
                         </TableCell>
-                        {/* Status - Inline Editable */}
-                        <TableCell 
-                          onClick={() => {
-                            if (!isEditingStatus) {
-                              const currentStatusId = typeof func.status === 'object' 
-                                ? func.status?._id 
-                                : func.status;
-                              startEdit(func._id, 'status', currentStatusId);
-                            }
-                          }}
-                          sx={{ 
-                            cursor: isEditingStatus ? 'default' : 'pointer',
-                            '&:hover': !isEditingStatus ? { bgcolor: '#f9fafb' } : {},
-                          }}
-                        >
-                          {isEditingStatus ? (
-                            <Select
-                              value={editValue || ""}
-                              onChange={(e) => {
-                                const newValue = e.target.value;
-                                setEditValue(newValue);
-                                // Auto-save immediately with the new value
-                                saveInlineEdit(func._id, 'status', newValue);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  e.stopPropagation();
-                                  cancelEdit();
-                                }
-                              }}
-                              size="small"
-                              autoFocus
-                              open
-                              sx={{
-                                fontSize: '13px',
-                                minWidth: 140,
-                                '& .MuiOutlinedInput-notchedOutline': {
-                                  borderColor: '#7b68ee',
-                                },
-                              }}
-                            >
-                              {statusTypes.map((status) => {
-                                const { icon, color, bg } = getStatusIconAndColor(status.name);
-                                return (
-                                  <MenuItem key={status._id} value={status._id}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Box sx={{ 
-                                        width: 24, 
-                                        height: 24, 
-                                        borderRadius: 1,
-                                        bgcolor: bg,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                      }}>
-                                        {React.cloneElement(icon, { sx: { color, fontSize: 16 } })}
-                                      </Box>
-                                      {status.name}
-                                    </Box>
-                                  </MenuItem>
-                                );
-                              })}
-                            </Select>
-                          ) : (
+                        {/* Status - Read Only (tự động cập nhật từ tasks) */}
+                        <TableCell>
                           <Chip
                             label={statusName}
                             size="small"
@@ -1125,7 +1083,7 @@ export default function ProjectFunctionsPage() {
                               fontWeight: 600,
                             }}
                           />
-                          )}
+                         
                         </TableCell>
                         
                         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -1142,18 +1100,20 @@ export default function ProjectFunctionsPage() {
                                 <AssignmentIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Xóa Function">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteFunction(func._id);
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {!isSupervisor && (
+                              <Tooltip title="Xóa Function">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteFunction(func._id);
+                                  }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -1166,15 +1126,15 @@ export default function ProjectFunctionsPage() {
                           <Typography variant="body2" color="text.secondary">
                             {functions.length === 0 ? (
                               features.length === 0 ? (
-                                <>📋 Project chưa có Features. Hãy tạo Features trước, sau đó tạo Functions cho từng Feature.</>
+                                <>📋 Project chưa có Features. Hãy Tạo tính năngs trước, sau đó Tạo chức năngs cho từng Feature.</>
                               ) : (
-                                <>📝 Chưa có Functions nào. Bấm "Tạo Function" để thêm mới.</>
+                                <>📝 Chưa có Functions nào. Bấm "Tạo chức năng" để thêm mới.</>
                               )
                             ) : (
-                              <>🔍 Không tìm thấy Functions nào với bộ lọc hiện tại. Thử xóa bộ lọc hoặc tạo Function mới.</>
+                              <>🔍 Không tìm thấy Functions nào với bộ lọc hiện tại. Thử xóa bộ lọc hoặc Tạo chức năng mới.</>
                             )}
                         </Typography>
-                          {functions.length === 0 && features.length > 0 && (
+                          {functions.length === 0 && features.length > 0 && !isSupervisor && (
                             <Button
                               variant="contained"
                               startIcon={<AddIcon />}
@@ -1184,7 +1144,7 @@ export default function ProjectFunctionsPage() {
                                 borderRadius: 2,
                               }}
                             >
-                              Tạo Function Mới
+                              Tạo chức năng Mới
                             </Button>
                           )}
                         </Stack>
@@ -1317,7 +1277,7 @@ export default function ProjectFunctionsPage() {
               </Box>
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-              Tạo Function mới
+              Tạo chức năng mới
                 </Typography>
                 {editingFunction && (
                   <Typography variant="caption" sx={{ color: '#6b7280' }}>
@@ -1329,7 +1289,7 @@ export default function ProjectFunctionsPage() {
             <DialogContent>
               <Stack spacing={3} sx={{ mt: 2 }}>
                 <TextField
-                  label="Tên Function *"
+                  label="Tên chức năng *"
                   value={functionForm.title}
                   onChange={(e) => setFunctionForm({ ...functionForm, title: e.target.value })}
                   fullWidth
@@ -1373,27 +1333,9 @@ export default function ProjectFunctionsPage() {
                       label="Ưu tiên"
                       onChange={(e) => setFunctionForm({ ...functionForm, priority: e.target.value })}
                     >
-                      <MenuItem value="">
-                        <em>Không chọn</em>
-                      </MenuItem>
                       {priorityTypes.map((priority) => (
                         <MenuItem key={priority._id} value={priority._id}>
                           {priority.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <FormControl fullWidth required>
-                    <InputLabel>Trạng thái *</InputLabel>
-                    <Select
-                      value={functionForm.status}
-                      label="Trạng thái *"
-                      onChange={(e) => setFunctionForm({ ...functionForm, status: e.target.value })}
-                    >
-                      {statusTypes.map((status) => (
-                        <MenuItem key={status._id} value={status._id}>
-                          {status.name}
                         </MenuItem>
                       ))}
                     </Select>
@@ -1430,7 +1372,7 @@ export default function ProjectFunctionsPage() {
               <Button 
                 variant="contained" 
                 onClick={handleSaveFunction}
-                disabled={!functionForm.title || !functionForm.status || !functionForm.feature_id}
+                disabled={!functionForm.title || !functionForm.feature_id}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
@@ -1461,7 +1403,7 @@ export default function ProjectFunctionsPage() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                {editingFunction ? "💾 Cập nhật" : "✨ Tạo Function"}
+                {editingFunction ? "💾 Cập nhật" : "✨ Tạo chức năng"}
               </Button>
             </DialogActions>
           </Dialog>
@@ -1472,6 +1414,7 @@ export default function ProjectFunctionsPage() {
               open={functionModal.open}
               functionId={functionModal.functionId}
               projectId={projectId}
+              readonly={isSupervisor}
               onClose={() => setFunctionModal({ open: false, functionId: null })}
               onUpdate={async () => {
                 await loadAllData();

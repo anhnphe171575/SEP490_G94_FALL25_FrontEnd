@@ -68,6 +68,23 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
     }
   }, [taskId, projectId]);
 
+  // Reset selected task if it already has a dependency
+  useEffect(() => {
+    if (newDependency.depends_on_task_id && dependencies.length > 0) {
+      const existingDependencyIds = dependencies.map((dep: any) => {
+        const taskId = typeof dep.depends_on_task_id === 'object' 
+          ? dep.depends_on_task_id?._id 
+          : dep.depends_on_task_id;
+        return taskId;
+      });
+      
+      if (existingDependencyIds.includes(newDependency.depends_on_task_id)) {
+        setNewDependency((prev) => ({ ...prev, depends_on_task_id: '' }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dependencies]);
+
   const loadCurrentTask = async () => {
     if (!taskId) return;
     
@@ -481,8 +498,19 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                     <ArrowForwardIcon sx={{ fontSize: 16, color: '#d1d5db' }} />
 
                     {/* Task Info */}
-                    <Box sx={{ flex: 1 }}>
-                      <Typography fontSize="14px" fontWeight={600} color="text.primary" sx={{ mb: 0.5 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography 
+                        fontSize="14px" 
+                        fontWeight={600} 
+                        color="text.primary" 
+                        sx={{ 
+                          mb: 0.5,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={dep.depends_on_task_id?.title}
+                      >
                         {dep.depends_on_task_id?.title}
                       </Typography>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -616,24 +644,48 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
             <Stack spacing={2}>
               {/* Task Selection */}
               <FormControl fullWidth size="small">
-                <InputLabel>Công việc phải hoàn thành trước</InputLabel>
+                <InputLabel>Công việc phụ thuộc</InputLabel>
                 <Select
                   value={newDependency.depends_on_task_id}
-                  label="Công việc phải hoàn thành trước"
+                  label="Công việc phụ thuộc"
                   onChange={(e) => setNewDependency({ ...newDependency, depends_on_task_id: e.target.value })}
                 >
-                  {availableTasks.map((task) => (
-                    <MenuItem key={task._id} value={task._id}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography fontSize="13px">{task.title}</Typography>
-                        <Chip 
-                          label={typeof task.status === 'object' ? task.status?.name : task.status} 
-                          size="small"
-                          sx={{ height: 18, fontSize: '10px' }}
-                        />
-                      </Box>
-                    </MenuItem>
-                  ))}
+                  {(() => {
+                    // Get list of task IDs that already have dependencies
+                    const existingDependencyIds = dependencies.map((dep: any) => {
+                      const taskId = typeof dep.depends_on_task_id === 'object' 
+                        ? dep.depends_on_task_id?._id 
+                        : dep.depends_on_task_id;
+                      return taskId;
+                    });
+                    
+                    // Filter out tasks that already have a dependency
+                    return availableTasks
+                      .filter((task) => !existingDependencyIds.includes(task._id))
+                      .map((task) => (
+                        <MenuItem key={task._id} value={task._id}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+                            <Typography 
+                              fontSize="13px"
+                              sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flex: 1
+                              }}
+                              title={task.title}
+                            >
+                              {task.title}
+                            </Typography>
+                            <Chip 
+                              label={typeof task.status === 'object' ? task.status?.name : task.status} 
+                              size="small"
+                              sx={{ height: 18, fontSize: '10px', flexShrink: 0 }}
+                            />
+                          </Box>
+                        </MenuItem>
+                      ));
+                  })()}
                 </Select>
               </FormControl>
 
@@ -917,8 +969,19 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                     <BlockIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
 
                     {/* Task Info */}
-                    <Box sx={{ flex: 1 }}>
-                      <Typography fontSize="14px" fontWeight={600} color="text.primary" sx={{ mb: 0.5 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography 
+                        fontSize="14px" 
+                        fontWeight={600} 
+                        color="text.primary" 
+                        sx={{ 
+                          mb: 0.5,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={dep.task_id?.title}
+                      >
                         {dep.task_id?.title}
                       </Typography>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -982,6 +1045,23 @@ export default function TaskDetailsDependencies({ taskId, projectId, onTaskUpdat
                         </Box>
                       )}
                     </Box>
+
+                    {/* Delete Button */}
+                    {!readonly && (
+                      <IconButton
+                        size="small"
+                        onClick={() => removeDependency(dep._id)}
+                        sx={{
+                          color: '#9ca3af',
+                          '&:hover': {
+                            color: '#ef4444',
+                            bgcolor: '#fee2e2'
+                          }
+                        }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    )}
                   </Stack>
 
                   {/* Dependency Type Description */}

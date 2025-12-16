@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
 
 type ProjectDetails = {
   _id: string;
@@ -132,8 +131,7 @@ export default function ProjectDetailsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -148,8 +146,7 @@ export default function ProjectDetailsPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-white">
-        <ResponsiveSidebar />
-        <main className="p-4 md:p-6 md:ml-64">
+        <main className="p-4 md:p-6">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -184,8 +181,7 @@ export default function ProjectDetailsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <ResponsiveSidebar />
-      <main className="p-4 md:p-6 md:ml-64">
+      <main className="p-4 md:p-6">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
@@ -244,19 +240,6 @@ export default function ProjectDetailsPage() {
                   <p className="text-gray-900 bg-gray-50 p-4 rounded-lg">
                     {project.description || 'Chưa có mô tả'}
                   </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Trạng thái</label>
-                  <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${
-                    project.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    project.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {project.status === 'completed' ? 'Đã hoàn thành' :
-                     project.status === 'in-progress' ? 'Đang thực hiện' :
-                     'Đã lên kế hoạch'}
-                  </span>
                 </div>
 
                 {project.progress !== undefined && (
@@ -494,7 +477,7 @@ export default function ProjectDetailsPage() {
               <h3 className="text-lg font-bold text-gray-900 mb-4">Hành động</h3>
               <div className="space-y-3">
                 <button
-                  onClick={() => router.push(`/projects/${projectId}`)}
+                  onClick={() => router.push(`/projects/${projectId}/milestones`)}
                   className="w-full bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white px-4 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

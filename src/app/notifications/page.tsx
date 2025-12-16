@@ -56,8 +56,20 @@ export default function NotificationsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedNotification, setSelectedNotification] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const isSupervisor = userRole === 4;
 
   useEffect(() => {
+    // Load user role
+    (async () => {
+      try {
+        const userRes = await axiosInstance.get('/api/users/me');
+        setUserRole(userRes.data?.role || null);
+      } catch {
+        setUserRole(null);
+      }
+    })();
+    
     fetchNotifications();
   }, [page]);
 
@@ -223,7 +235,7 @@ export default function NotificationsPage() {
                 Thông báo
               </div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-black">
-                Thông báo của tôi
+                {isSupervisor ? 'Thông báo của giảng viên' : 'Thông báo của tôi'}
               </h1>
               {unreadCount > 0 && (
                 <Typography variant="body2" color="text.secondary">

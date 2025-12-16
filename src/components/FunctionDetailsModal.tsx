@@ -54,9 +54,10 @@ interface FunctionDetailsModalProps {
   projectId?: string;
   onClose: () => void;
   onUpdate?: () => void;
+  readonly?: boolean; // If true, disable edit, add dependency, etc. Only allow view and add comment
 }
 
-export default function FunctionDetailsModal({ open, functionId, projectId, onClose, onUpdate }: FunctionDetailsModalProps) {
+export default function FunctionDetailsModal({ open, functionId, projectId, onClose, onUpdate, readonly = false }: FunctionDetailsModalProps) {
   const [func, setFunc] = useState<FunctionType | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -280,14 +281,16 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                   variant="h5" 
                   fontWeight={700}
                   onClick={() => {
-                    setTitle(func?.title || '');
-                    setEditingTitle(true);
+                    if (!readonly) {
+                      setTitle(func?.title || '');
+                      setEditingTitle(true);
+                    }
                   }}
                   sx={{ 
                     mb: 1.5,
                     color: '#1f2937',
+                    cursor: readonly ? 'default' : 'pointer',
                     lineHeight: 1.3,
-                    cursor: 'text',
                     '&:hover': {
                       bgcolor: '#f9fafb',
                       borderRadius: 1,
@@ -301,6 +304,23 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
               )}
 
               <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
+                {/* ID */}
+                {func?._id && (
+                  <Typography 
+                    fontSize="12px" 
+                    color="text.secondary"
+                    sx={{ 
+                      fontFamily: 'monospace',
+                      bgcolor: '#f3f4f6',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontWeight: 500
+                    }}
+                  >
+                    ID: {func._id}
+                  </Typography>
+                )}
                 {func?.status && (
                   <Chip 
                     label={typeof func.status === 'object' ? func.status.name : func.status} 
@@ -459,13 +479,17 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                         borderRadius: 2,
                         border: '1px solid #e8e9eb',
                         minHeight: 120,
-                        cursor: 'text',
+                        cursor: readonly ? 'default' : 'text',
                         '&:hover': {
-                          borderColor: '#d1d5db',
-                          bgcolor: '#f9fafb'
+                          borderColor: readonly ? '#e8e9eb' : '#d1d5db',
+                          bgcolor: readonly ? '#fafbfc' : '#f9fafb'
                         }
                       }}
-                      onClick={() => setEditing(true)}
+                      onClick={() => {
+                        if (!readonly) {
+                          setEditing(true);
+                        }
+                      }}
                     >
                       {func?.description ? (
                         <Typography 
@@ -489,6 +513,7 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                 <FunctionDetailsTasks 
                   functionId={functionId} 
                   projectId={projectId}
+                  readonly={readonly}
                 />
               )}
               
@@ -524,34 +549,27 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
           </Typography>
 
           <Stack spacing={2.5}>
-            {/* Status */}
+            {/* Status - Chỉ hiển thị, không cho chỉnh sửa (tự động cập nhật từ tasks) */}
             <Box>
               <Typography fontSize="12px" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
                 Trạng thái
               </Typography>
-              <FormControl fullWidth size="small">
-                <Select
-                  value={typeof func?.status === 'object' ? (func.status as any)?._id : func?.status || ''}
-                  onChange={async (e) => {
-                    try {
-                      await handleFunctionUpdate({ status: e.target.value });
-                    } catch (error) {
-                      console.error('Error updating status:', error);
-                      // Error already shown in handleFunctionUpdate
-                    }
-                  }}
-                  displayEmpty
-                  renderValue={(value) => {
-                    const statusObj = allStatuses.find(s => s._id === value);
-                    return statusObj?.name || 'Chọn trạng thái';
-                  }}
-                  sx={{ fontSize: '13px', fontWeight: 500 }}
-                >
-                  {allStatuses.map((s) => (
-                    <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: '#f9fafb',
+                  border: '1px solid #e8e9eb',
+                  fontSize: '13px',
+                  color: 'text.secondary',
+                  fontStyle: 'italic'
+                }}
+              >
+                {func?.status ? (typeof func.status === 'object' ? func.status.name : func.status) : 'Chưa có trạng thái'}
+                <Typography fontSize="11px" color="text.secondary" sx={{ mt: 0.5 }}>
+                  (Tự động cập nhật từ công việc)
+                </Typography>
+              </Box>
             </Box>
 
             {/* Priority */}
@@ -563,14 +581,17 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                 <Select
                   value={typeof func?.priority === 'object' ? (func.priority as any)?._id : func?.priority || ''}
                   onChange={async (e) => {
-                    try {
-                      await handleFunctionUpdate({ priority: e.target.value || null });
-                    } catch (error) {
-                      console.error('Error updating priority:', error);
-                      // Error already shown in handleFunctionUpdate
+                    if (!readonly) {
+                      try {
+                        await handleFunctionUpdate({ priority: e.target.value || null });
+                      } catch (error) {
+                        console.error('Error updating priority:', error);
+                        // Error already shown in handleFunctionUpdate
+                      }
                     }
                   }}
                   displayEmpty
+                  disabled={readonly}
                   renderValue={(value) => {
                     if (!value) return 'Không có ưu tiên';
                     const priorityObj = allPriorities.find(p => p._id === value);
@@ -610,14 +631,17 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                 <Select
                   value={typeof func?.feature_id === 'object' ? func.feature_id?._id || '' : func?.feature_id || ''}
                   onChange={async (e) => {
-                    try {
-                      await handleFunctionUpdate({ feature_id: e.target.value || null });
-                    } catch (error) {
-                      console.error('Error updating feature:', error);
-                      // Error already shown in handleFunctionUpdate
+                    if (!readonly) {
+                      try {
+                        await handleFunctionUpdate({ feature_id: e.target.value || null });
+                      } catch (error) {
+                        console.error('Error updating feature:', error);
+                        // Error already shown in handleFunctionUpdate
+                      }
                     }
                   }}
                   displayEmpty
+                  disabled={readonly}
                   renderValue={(value) => {
                     if (!value) return <em style={{ color: '#9ca3af' }}>Chọn tính năng</em>;
                     const selected = allFeatures.find((f: any) => f._id === value);
@@ -625,9 +649,6 @@ export default function FunctionDetailsModal({ open, functionId, projectId, onCl
                   }}
                   sx={{ fontSize: '13px', fontWeight: 500 }}
                 >
-                  <MenuItem value="">
-                    <em>Không có tính năng</em>
-                  </MenuItem>
                   {allFeatures.map((f: any) => (
                     <MenuItem key={f._id} value={f._id}>{f.title}</MenuItem>
                   ))}

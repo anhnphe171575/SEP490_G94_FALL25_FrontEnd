@@ -40,7 +40,7 @@ const roleOptions = [
 const ROLE_VALUES = {
   ADMIN_DEVELOPER: 0,
   ADMIN: 8,
-  LECTURER: 4,
+  SUPERVISOR: 4,
   STUDENT: 1,
 };
 
@@ -241,7 +241,7 @@ export default function UserManagement() {
     switch (role) {
       case ROLE_VALUES.ADMIN_DEVELOPER: return "Admin Developer";
       case ROLE_VALUES.ADMIN: return "Admin";
-      case ROLE_VALUES.LECTURER: return "Giám sát viên";
+      case ROLE_VALUES.SUPERVISOR: return "Giám sát viên";
       case ROLE_VALUES.STUDENT: return "Sinh viên";
       default: return "Không xác định";
     }
@@ -252,7 +252,7 @@ export default function UserManagement() {
       case ROLE_VALUES.ADMIN_DEVELOPER:
       case ROLE_VALUES.ADMIN:
         return "bg-purple-100 text-purple-800";
-      case ROLE_VALUES.LECTURER:
+      case ROLE_VALUES.SUPERVISOR:
         return "bg-green-100 text-green-800";
       case ROLE_VALUES.STUDENT:
         return "bg-blue-100 text-blue-800";
@@ -361,7 +361,7 @@ export default function UserManagement() {
                 }`}
               >
                 <UploadCloud className="w-4 h-4" />
-                {importing ? "Đang import..." : "Import giảng viên"}
+                {importing ? "Đang import..." : "Import người dùng"}
               </button>
               <button
                 onClick={handleExportUsers}
@@ -481,7 +481,7 @@ export default function UserManagement() {
           <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="flex flex-col md:flex-row justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800 mb-1">Kết quả import giảng viên</h2>
+                <h2 className="text-lg font-semibold text-gray-800 mb-1">Kết quả import người dùng</h2>
                 <p className="text-sm text-gray-500">{importReport.defaultPasswordHint}</p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full md:w-auto">

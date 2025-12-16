@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
 import { getStartOfWeekUTC, addDays } from "@/lib/timeline";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import GanttChart from "@/components/GanttChart";
 import ModalMilestone from "@/components/ModalMilestone";
-import { Button, FormControl, FormControlLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete, Pagination } from "@mui/material";
+import { Button, FormControl, FormControlLabel, InputLabel, Checkbox as MUICheckbox, Select as MUISelect, MenuItem, Typography, Box, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, LinearProgress, Stack, TextField, InputAdornment, Tooltip, Collapse, Slider, Divider, Badge, Popover, Tabs, Tab, IconButton, Link, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete, Pagination } from "@mui/material";
 import { toast } from "sonner";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -17,7 +17,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import EditIcon from "@mui/icons-material/Edit";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ArchiveIcon from "@mui/icons-material/Archive";
@@ -41,6 +40,7 @@ type Milestone = {
   deadline?: string;
   description?: string;
   tags?: string[];
+  status?: 'To Do' | 'Doing' | 'Done';
   created_by?: User;
   last_updated_by?: User;
   createdAt?: string;
@@ -110,12 +110,15 @@ export default function ProjectDetailPage() {
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [milestoneModal, setMilestoneModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
   const [createMilestoneModal, setCreateMilestoneModal] = useState(false);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const isSupervisor = userRole === 4;
   const [newMilestone, setNewMilestone] = useState({
     title: '',
     description: '',
     start_date: '',
     deadline: '',
     tags: [] as string[],
+    status: 'To Do' as 'To Do' | 'Doing' | 'Done',
   });
   // Pagination for milestones list (similar to Feature/Function lists)
   const [page, setPage] = useState(1);
@@ -123,6 +126,17 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    
+    // Load user role
+    (async () => {
+      try {
+        const userRes = await axiosInstance.get('/api/users/me');
+        setUserRole(userRes.data?.role || null);
+      } catch {
+        setUserRole(null);
+      }
+    })();
+    
     (async () => {
       try {
         const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
@@ -542,7 +556,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="min-h-screen bg-white text-black">
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main className="p-4 md:p-6 md:ml-56">
         <div className="mx-auto w-full max-w-7xl">
           {/* Modern Header */}
@@ -644,29 +658,31 @@ export default function ProjectDetailPage() {
                     Công việc
                   </Button>
                   <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => setCreateMilestoneModal(true)}
-                    sx={{
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
-                      height: 36,
-                      px: 2.5,
-                      borderRadius: 2.5,
-                      boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
-                        boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
-                        transform: 'translateY(-1px)',
-                      },
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                Thêm cột mốc
-              </Button>
+                  {!isSupervisor && (
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={() => setCreateMilestoneModal(true)}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                        height: 36,
+                        px: 2.5,
+                        borderRadius: 2.5,
+                        boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                          boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      Thêm cột mốc
+                    </Button>
+                  )}
                 </Stack>
               </Box>
 
@@ -912,17 +928,19 @@ export default function ProjectDetailPage() {
                     </Typography>
                   </Button>
 
-                  <Button
-                    variant="text"
-                    size="small"
-                    startIcon={<DeleteIcon />}
-                    onClick={handleDelete}
-                    sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
-                  >
-                    <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      Xóa
-                    </Typography>
-                  </Button>
+                  {!isSupervisor && (
+                    <Button
+                      variant="text"
+                      size="small"
+                      startIcon={<DeleteIcon />}
+                      onClick={handleDelete}
+                      sx={{ color: '#1976D2', minWidth: 'auto', px: 2 }}
+                    >
+                      <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                        Xóa
+                      </Typography>
+                    </Button>
+                  )}
 
 
                   <Box sx={{ flexGrow: 1 }} />
@@ -1031,17 +1049,66 @@ export default function ProjectDetailPage() {
 
                   {/* Tab Content */}
                   {viewTab === 'list' && (
-                    <Paper variant="outlined" sx={{ borderRadius: 3 }}>
-                      <Table size="small" sx={{ '& td, & th': { borderColor: 'var(--border)' } }}>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Tiêu đề</TableCell>
-                            <TableCell>Bắt đầu - Hết hạn</TableCell>
-                            <TableCell sx={{ width: 120 }}>Thao tác</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {getPaginatedMilestones().map((m, idx) => (
+                    <>
+                      {getFilteredMilestones().length === 0 && !searchTerm ? (
+                        <Paper variant="outlined" sx={{ borderRadius: 3, p: 6 }}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <FlagIcon sx={{ fontSize: 64, color: '#9ca3af', mb: 2 }} />
+                            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
+                              Chưa có cột mốc nào
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#6b7280', mb: 3 }}>
+                              Tạo cột mốc đầu tiên để theo dõi tiến độ dự án
+                            </Typography>
+                            {!isSupervisor && (
+                              <Button
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                onClick={() => setCreateMilestoneModal(true)}
+                                sx={{
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  fontSize: '14px',
+                                  background: 'linear-gradient(135deg, #7b68ee, #9b59b6)',
+                                  px: 3,
+                                  py: 1.5,
+                                  borderRadius: 2.5,
+                                  boxShadow: '0 4px 12px rgba(123, 104, 238, 0.3)',
+                                  '&:hover': {
+                                    background: 'linear-gradient(135deg, #6b5dd6, #8b49a6)',
+                                    boxShadow: '0 6px 16px rgba(123, 104, 238, 0.4)',
+                                    transform: 'translateY(-1px)',
+                                  },
+                                  transition: 'all 0.2s ease',
+                                }}
+                              >
+                                Thêm cột mốc
+                              </Button>
+                            )}
+                          </Box>
+                        </Paper>
+                      ) : (
+                        <Paper variant="outlined" sx={{ borderRadius: 3 }}>
+                          <Table size="small" sx={{ '& td, & th': { borderColor: 'var(--border)' } }}>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Tiêu đề</TableCell>
+                                <TableCell>Trạng thái</TableCell>
+                                <TableCell>Bắt đầu - Hết hạn</TableCell>
+                                {!isSupervisor && <TableCell sx={{ width: 120 }}>Thao tác</TableCell>}
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {getPaginatedMilestones().length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={!isSupervisor ? 4 : 3} sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Không tìm thấy cột mốc nào
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                getPaginatedMilestones().map((m, idx) => (
                             <TableRow key={m._id} hover>
                               <TableCell>
                                 <Link
@@ -1065,23 +1132,27 @@ export default function ProjectDetailPage() {
                                 </Link>
                               </TableCell>
                               <TableCell>
+                                <Chip
+                                  label={m.status || 'To Do'}
+                                  size="small"
+                                  color={
+                                    m.status === 'Done' ? 'success' :
+                                    m.status === 'Doing' ? 'warning' :
+                                    'default'
+                                  }
+                                  sx={{
+                                    fontWeight: 600,
+                                    fontSize: '12px',
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
                                 <Typography variant="caption" color="text.secondary">
                                   {m.start_date ? new Date(m.start_date).toLocaleDateString('vi-VN') : '—'} {m.deadline ? `→ ${new Date(m.deadline).toLocaleDateString('vi-VN')}` : ''}
                                 </Typography>
                               </TableCell>
                               <TableCell>
-                                <Stack direction="row" spacing={0.5}>
-                                  <Tooltip title="Chỉnh sửa milestone">
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setMilestoneModal({ open: true, milestoneId: m._id });
-                                      }}
-                                    >
-                                      <EditIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
+                                {!isSupervisor && (
                                   <Tooltip title="Xóa milestone">
                                     <IconButton
                                       size="small"
@@ -1094,15 +1165,16 @@ export default function ProjectDetailPage() {
                                       <DeleteIcon fontSize="small" />
                                     </IconButton>
                                   </Tooltip>
-                                </Stack>
+                                )}
                               </TableCell>
                             </TableRow>
-                          ))}
-                          </TableBody>
-                      </Table>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
 
-                      {/* Pagination for milestones */}
-                      {getFilteredMilestones().length > 0 && (
+                          {/* Pagination for milestones */}
+                          {getFilteredMilestones().length > 0 && (
                         <Box
                           sx={{
                             display: 'flex',
@@ -1178,8 +1250,10 @@ export default function ProjectDetailPage() {
                             />
                           </Stack>
                         </Box>
+                          )}
+                        </Paper>
                       )}
-                    </Paper>
+                    </>
                   )}
                   {milestoneModal.open && milestoneModal.milestoneId && (
                     <ModalMilestone
@@ -1187,6 +1261,7 @@ export default function ProjectDetailPage() {
                       onClose={() => setMilestoneModal({ open: false })}
                       projectId={projectId}
                       milestoneId={milestoneModal.milestoneId}
+                      readonly={isSupervisor}
                       onUpdate={async () => {
                         try {
                           const [milestoneRes, progressRes] = await Promise.all([
@@ -1217,6 +1292,7 @@ export default function ProjectDetailPage() {
               start_date: '',
               deadline: '',
               tags: [],
+              status: 'To Do',
             });
           }} 
           maxWidth="md" 
@@ -1247,6 +1323,9 @@ export default function ProjectDetailPage() {
                   value={newMilestone.start_date}
                   onChange={(e) => setNewMilestone(prev => ({ ...prev, start_date: e.target.value }))}
                   fullWidth
+                  required
+                  error={!newMilestone.start_date}
+                  helperText={!newMilestone.start_date ? 'Vui lòng chọn ngày bắt đầu' : ''}
                   InputLabelProps={{ shrink: true }}
                 />
                 <TextField
@@ -1255,9 +1334,24 @@ export default function ProjectDetailPage() {
                   value={newMilestone.deadline}
                   onChange={(e) => setNewMilestone(prev => ({ ...prev, deadline: e.target.value }))}
                   fullWidth
+                  required
+                  error={!newMilestone.deadline}
+                  helperText={!newMilestone.deadline ? 'Vui lòng chọn hạn chót' : ''}
                   InputLabelProps={{ shrink: true }}
                 />
               </Stack>
+              <FormControl fullWidth>
+                <InputLabel>Trạng thái</InputLabel>
+                <MUISelect
+                  value={newMilestone.status}
+                  onChange={(e) => setNewMilestone(prev => ({ ...prev, status: e.target.value as 'To Do' | 'Doing' | 'Done' }))}
+                  label="Trạng thái"
+                >
+                  <MenuItem value="To Do">To Do</MenuItem>
+                  <MenuItem value="Doing">Doing</MenuItem>
+                  <MenuItem value="Done">Done</MenuItem>
+                </MUISelect>
+              </FormControl>
               <Autocomplete
                 multiple
                 freeSolo
@@ -1289,13 +1383,14 @@ export default function ProjectDetailPage() {
           <DialogActions>
             <Button onClick={() => {
               setCreateMilestoneModal(false);
-              setNewMilestone({
-                title: '',
-                description: '',
-                start_date: '',
-                deadline: '',
-                tags: [],
-              });
+            setNewMilestone({
+              title: '',
+              description: '',
+              start_date: '',
+              deadline: '',
+              tags: [],
+              status: 'To Do',
+            });
             }}>
               Hủy
             </Button>
@@ -1306,23 +1401,37 @@ export default function ProjectDetailPage() {
                   toast.error('Vui lòng nhập tên cột mốc');
                   return;
                 }
+                if (!newMilestone.start_date) {
+                  toast.error('Vui lòng chọn ngày bắt đầu');
+                  return;
+                }
+                if (!newMilestone.deadline) {
+                  toast.error('Vui lòng chọn hạn chót');
+                  return;
+                }
+                if (new Date(newMilestone.start_date) > new Date(newMilestone.deadline)) {
+                  toast.error('Ngày bắt đầu phải trước hạn chót');
+                  return;
+                }
                 try {
                   await axiosInstance.post(`/api/projects/${projectId}/milestones`, {
                     title: newMilestone.title,
                     description: newMilestone.description,
-                    start_date: newMilestone.start_date || undefined,
-                    deadline: newMilestone.deadline || undefined,
+                    start_date: newMilestone.start_date,
+                    deadline: newMilestone.deadline,
                     tags: newMilestone.tags,
+                    status: newMilestone.status,
                   });
                   toast.success('Tạo cột mốc thành công');
                   setCreateMilestoneModal(false);
-                  setNewMilestone({
-                    title: '',
-                    description: '',
-                    start_date: '',
-                    deadline: '',
-                    tags: [],
-                  });
+            setNewMilestone({
+              title: '',
+              description: '',
+              start_date: '',
+              deadline: '',
+              tags: [],
+              status: 'To Do',
+            });
                   // Reload milestones
                   const res = await axiosInstance.get(`/api/projects/${projectId}/milestones`);
                   const milestonesData = Array.isArray(res.data) ? res.data : [];
@@ -1341,7 +1450,7 @@ export default function ProjectDetailPage() {
                   toast.error(error?.response?.data?.message || 'Không thể tạo cột mốc');
                 }
               }}
-              disabled={!newMilestone.title.trim()}
+              disabled={!newMilestone.title.trim() || !newMilestone.start_date || !newMilestone.deadline}
             >
               Tạo
             </Button>
@@ -1372,7 +1481,24 @@ function Timeline({ milestones, projectId, onLocalUpdate, searchTerm }: { milest
   const [autoFit, setAutoFit] = useState<boolean>(true);
   const [openModal, setOpenModal] = useState<{ open: boolean; milestoneId?: string }>({ open: false });
   if (!milestones || milestones.length === 0) {
-    return <div className="text-black">Chưa có milestone nào.</div>;
+    return (
+      <div className="text-center text-sm text-slate-600 border border-[var(--border)] bg-white rounded-xl p-6">
+        <div className="font-semibold text-slate-800 mb-2">Chưa có milestone nào</div>
+        <div className="mb-4 text-slate-500">Tạo cột mốc đầu tiên để theo dõi tiến độ.</div>
+        <Button
+          variant="contained"
+          onClick={() => setOpenModal({ open: true, milestoneId: undefined })}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            bgcolor: '#7b68ee',
+            '&:hover': { bgcolor: '#6952d6' }
+          }}
+        >
+          Tạo milestone
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -1629,20 +1755,6 @@ function MilestonesList({
                         sx={{ fontWeight: 600 }}
                       />
                     )}
-                    <Tooltip title="Chỉnh sửa milestone">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenModal({ open: true, milestoneId: milestone._id });
-                        }}
-                        sx={{ minWidth: 'auto' }}
-                      >
-                        Edit
-                      </Button>
-                    </Tooltip>
                   </Stack>
                 </Box>
 

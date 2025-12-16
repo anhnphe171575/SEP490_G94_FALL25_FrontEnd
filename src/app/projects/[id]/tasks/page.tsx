@@ -3,7 +3,7 @@
 import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SidebarWrapper from "@/components/SidebarWrapper";
 import TaskDetailsModal from "@/components/TaskDetailsModal";
 import DependencyDateConflictDialog from "@/components/DependencyDateConflictDialog";
 import dynamic from 'next/dynamic';
@@ -27,7 +27,7 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-    Avatar,
+  Avatar,
   Dialog,
   DialogActions,
   DialogContent,
@@ -62,13 +62,13 @@ import EditIcon from "@mui/icons-material/Edit";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
-  import FlagIcon from "@mui/icons-material/Flag";
-  import TuneIcon from "@mui/icons-material/Tune";
-  import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-  import ListIcon from "@mui/icons-material/List";
-  import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
-  import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-  import DashboardIcon from "@mui/icons-material/Dashboard";
+import FlagIcon from "@mui/icons-material/Flag";
+import TuneIcon from "@mui/icons-material/Tune";
+import ViewColumnIcon from "@mui/icons-material/ViewColumn";
+import ListIcon from "@mui/icons-material/List";
+import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import DashboardIcon from "@mui/icons-material/Dashboard";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -140,6 +140,7 @@ export default function ProjectTasksPage() {
   const projectId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string);
   const featureIdFromUrl = searchParams.get('featureId');
   const functionIdFromUrl = searchParams.get('functionId');
+  const assigneeIdFromUrl = searchParams.get('assignee');
 
   const [view, setView] = useState<"table" | "kanban" | "calendar" | "gantt">("table");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -161,6 +162,8 @@ export default function ProjectTasksPage() {
     newStatus: ''
   });
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [userRole, setUserRole] = useState<number | null>(null);
+  const isSupervisor = userRole === 4;
 
   // filters/sort/search
   const [search, setSearch] = useState("");
@@ -226,6 +229,8 @@ export default function ProjectTasksPage() {
   const [allStatuses, setAllStatuses] = useState<any[]>([]);
   const [allPriorities, setAllPriorities] = useState<any[]>([]);
   const [allFunctions, setAllFunctions] = useState<any[]>([]);
+  // Map feature_id -> milestone_ids[]
+  const [featureMilestoneMap, setFeatureMilestoneMap] = useState<Map<string, string[]>>(new Map());
 
   const [form, setForm] = useState({
     title: "",
@@ -256,6 +261,17 @@ export default function ProjectTasksPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    
+    // Load user role
+    (async () => {
+      try {
+        const userRes = await axiosInstance.get('/api/users/me');
+        setUserRole(userRes.data?.role || null);
+      } catch {
+        setUserRole(null);
+      }
+    })();
+    
     loadAll();
     loadFilterOptions();
   }, [projectId]);
@@ -326,9 +342,7 @@ export default function ProjectTasksPage() {
   // Load functions when feature_id changes
   useEffect(() => {
     if (form.feature_id) {
-      console.log("Feature ID changed to:", form.feature_id);
       loadFunctionsByFeature(form.feature_id);
-      // Reset function_id when feature changes
       setForm(prev => ({ ...prev, function_id: "" }));
     } else {
       setFormFunctions([]);
@@ -358,7 +372,6 @@ export default function ProjectTasksPage() {
       
       const extractedMembers = Array.from(uniqueUsers.values());
       if (extractedMembers.length > 0) {
-        console.log("Extracted team members from tasks:", extractedMembers);
         setTeamMembers(extractedMembers);
       }
     }
@@ -401,16 +414,25 @@ export default function ProjectTasksPage() {
     }
   }, [functionIdFromUrl, allFunctions]);
 
+  // Auto-filter by assignee when assignee is in URL
+  useEffect(() => {
+    if (assigneeIdFromUrl && teamMembers.length > 0) {
+      const assigneeExists = teamMembers.some((m: any) => {
+        const userId = m.user_id?._id || m._id;
+        return String(userId) === String(assigneeIdFromUrl);
+      });
+      if (assigneeExists) {
+        setFilterAssignee(assigneeIdFromUrl);
+      }
+    }
+  }, [assigneeIdFromUrl, teamMembers]);
+
   const loadTeamMembers = async () => {
     try {
       const response = await axiosInstance.get(`/api/projects/${projectId}/team-members`);
-      console.log("Team members response:", response.data);
-      
-      // API trả về { team_members: { leaders: [], members: [] } }
       const teamData = response.data?.team_members;
       if (teamData) {
         const allMembers = [...(teamData.leaders || []), ...(teamData.members || [])];
-        console.log("All team members:", allMembers);
         setTeamMembers(allMembers);
       } else {
         setTeamMembers([]);
@@ -438,16 +460,11 @@ export default function ProjectTasksPage() {
         setFormFunctions([]);
         return;
       }
-      console.log("Loading functions for feature:", featureId);
       const response = await axiosInstance.get(`/api/projects/${projectId}/features/${featureId}/functions`);
-      // API 返回格式: { message: '...', functions: [...] }
       const functions = response.data?.functions || response.data;
-      console.log("Functions response:", response.data, "Extracted functions:", functions);
       if (Array.isArray(functions)) {
         setFormFunctions(functions);
-        console.log("Set formFunctions with", functions.length, "items");
       } else {
-        console.warn("API returned non-array data for functions:", response.data);
         setFormFunctions([]);
       }
     } catch (e: any) {
@@ -480,6 +497,25 @@ export default function ProjectTasksPage() {
       // Set statuses and priorities from constants
       setAllStatuses(STATUS_OPTIONS);
       setAllPriorities(PRIORITY_OPTIONS);
+
+      // Load feature-milestone links
+      const map = new Map<string, string[]>();
+      await Promise.all(
+        featuresData.map(async (feature: any) => {
+          try {
+            const featureId = feature._id || feature.id;
+            if (!featureId) return;
+            const linksRes = await axiosInstance.get(`/api/features/${featureId}/milestones`).catch(() => ({ data: [] }));
+            const milestoneIds = Array.isArray(linksRes.data) ? linksRes.data : [];
+            if (milestoneIds.length > 0) {
+              map.set(String(featureId), milestoneIds.map((id: any) => String(id)));
+            }
+          } catch (err) {
+            // Ignore errors for individual features
+          }
+        })
+      );
+      setFeatureMilestoneMap(map);
 
     } catch (e: any) {
       console.error("Error loading filter options:", e);
@@ -533,9 +569,25 @@ export default function ProjectTasksPage() {
 
     if (filterFeature !== 'all') {
       filtered = filtered.filter(task => {
-        const feature = task.feature_id;
-        const featureId = typeof feature === 'object' ? (feature as any)?._id : feature;
-        return String(featureId || '') === String(filterFeature);
+        // Get feature_id from task (through function_id)
+        let featureId: string | null = null;
+        
+        // Try to get feature_id from task.feature_id (if populated)
+        if (task.feature_id) {
+          featureId = typeof task.feature_id === 'object' ? (task.feature_id as any)?._id : String(task.feature_id);
+        }
+        
+        // If not found, try to get from task.function_id.feature_id
+        if (!featureId && (task as any).function_id) {
+          const func = (task as any).function_id;
+          if (typeof func === 'object' && func.feature_id) {
+            featureId = typeof func.feature_id === 'object' ? (func.feature_id as any)?._id : String(func.feature_id);
+          }
+        }
+        
+        if (!featureId) return false;
+        
+        return String(featureId) === String(filterFeature);
       });
     }
 
@@ -549,9 +601,29 @@ export default function ProjectTasksPage() {
 
     if (filterMilestone !== 'all') {
       filtered = filtered.filter(task => {
-        const milestone = task.milestone_id;
-        const milestoneId = typeof milestone === 'object' ? (milestone as any)?._id : milestone;
-        return String(milestoneId || '') === String(filterMilestone);
+        // Get feature_id from task (through function_id or directly)
+        let featureId: string | null = null;
+        
+        // Try to get feature_id from task.feature_id
+        if (task.feature_id) {
+          featureId = typeof task.feature_id === 'object' ? (task.feature_id as any)?._id : String(task.feature_id);
+        }
+        
+        // If not found, try to get from task.function_id.feature_id
+        if (!featureId && (task as any).function_id) {
+          const func = (task as any).function_id;
+          if (typeof func === 'object' && func.feature_id) {
+            featureId = typeof func.feature_id === 'object' ? (func.feature_id as any)?._id : String(func.feature_id);
+          }
+        }
+        
+        if (!featureId) return false;
+        
+        // Get milestone_ids linked to this feature
+        const milestoneIds = featureMilestoneMap.get(String(featureId)) || [];
+        
+        // Check if filterMilestone is in the list
+        return milestoneIds.includes(String(filterMilestone));
       });
     }
 
@@ -617,7 +689,8 @@ export default function ProjectTasksPage() {
     filterMilestone,
     filterDateRange.from,
     filterDateRange.to,
-    sortBy
+    sortBy,
+    featureMilestoneMap
   ]);
 
   useEffect(() => {
@@ -707,9 +780,15 @@ export default function ProjectTasksPage() {
 
   const saveTask = async () => {
     try {
+      const estimateNumber = Number(form.estimate);
+      if (Number.isNaN(estimateNumber) || estimateNumber <= 0) {
+        toast.error("Vui lòng nhập số giờ ước tính lớn hơn 0");
+        return;
+      }
+
       const payload = {
         ...form,
-        estimate: Number(form.estimate),
+        estimate: estimateNumber,
         assignee: form.assignee || undefined,
         feature_id: form.feature_id || undefined,
         function_id: form.function_id || undefined,
@@ -724,6 +803,7 @@ export default function ProjectTasksPage() {
         await axiosInstance.patch(`/api/tasks/${editing._id}`, payload);
       } else {
         await axiosInstance.post(`/api/projects/${projectId}/tasks`, payload);
+        toast.success("Tạo task thành công");
       }
       setOpenDialog(false);
       await loadAll();
@@ -807,6 +887,29 @@ export default function ProjectTasksPage() {
   };
 
   const addDependency = async (taskId: string, dependsOnTaskId: string, type: string = 'FS', lagDays: number = 0, isMandatory: boolean = true, notes: string = '') => {
+    // Check if dependency already exists between these two tasks (any type)
+    const existingDependencies = taskDependencies[taskId]?.dependencies || [];
+    const existingDep = existingDependencies.find((dep: any) => {
+      const depTaskId = typeof dep.depends_on_task_id === 'object' 
+        ? dep.depends_on_task_id._id 
+        : dep.depends_on_task_id;
+      return String(depTaskId) === String(dependsOnTaskId);
+    });
+
+    // If dependency exists, show error and prevent adding
+    if (existingDep) {
+      const existingType = existingDep.dependency_type || 'FS';
+      const existingTypeLabel = existingType === 'FS' ? 'Hoàn thành - Bắt đầu (FS)'
+        : existingType === 'FF' ? 'Hoàn thành - Hoàn thành (FF)'
+        : existingType === 'SS' ? 'Bắt đầu - Bắt đầu (SS)'
+        : existingType === 'SF' ? 'Bắt đầu - Hoàn thành (SF)'
+        : existingType === 'relates_to' ? 'Liên quan đến'
+        : existingType;
+      
+      toast.error(`Đã tồn tại phụ thuộc giữa 2 task này với loại "${existingTypeLabel}". Vui lòng xóa phụ thuộc hiện tại trước khi thêm loại khác.`);
+      return;
+    }
+
     try {
       const response = await axiosInstance.post(`/api/tasks/${taskId}/dependencies`, {
         depends_on_task_id: dependsOnTaskId,
@@ -822,63 +925,64 @@ export default function ProjectTasksPage() {
       const statusWarning = response.data.status_warning;
       const dateWarning = response.data.warning;
       
-      // Check if there's a date warning that should show the conflict dialog
-      const dateWarningInWarnings = warnings.find((w: any) => w.type === 'date_violation' && (w.current_start_date || w.current_deadline));
-      const violationToShow = dateWarningInWarnings || (dateWarning && dateWarning.current_start_date ? dateWarning : null);
-      
-      if (violationToShow && (violationToShow.current_start_date || violationToShow.required_start_date)) {
-        // Show conflict dialog for date violations (both mandatory and optional)
-        // Load current task info
-        await loadCurrentTaskForDependency(taskId);
-        
-        // Store pending dependency data (dependency already created for optional, but we want to show dialog)
-        setPendingDependencyData({
-          taskId,
-          dependsOnTaskId,
-          type,
-          lagDays,
-          isMandatory,
-          notes
+      // Handle warnings similar to TaskDetailsDependencies
+      if (warnings.length > 0) {
+        let warningMessage = '⚠️ Dependency created with warnings:\n\n';
+        warnings.forEach((w: any, index: number) => {
+          warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
         });
         
-        // Show conflict dialog
-        setConflictViolation(violationToShow);
-        setShowConflictDialog(true);
-        
-        // Don't clear form yet - wait for user action
-        // Don't reload dependencies yet - wait for user to decide
-        return;
-      }
-      
-      // Handle other warnings (status warnings, etc.) with alert
-      if (warnings.length > 0) {
-        // Filter out date warnings (already handled above)
-        const otherWarnings = warnings.filter((w: any) => !(w.type === 'date_violation' && (w.current_start_date || w.current_deadline)));
-        
-        if (otherWarnings.length > 0) {
-          let warningMessage = '⚠️ Dependency created with warnings:\n\n';
-          otherWarnings.forEach((w: any, index: number) => {
-            warningMessage += `${index + 1}. ${w.message}\n${w.suggestion || ''}\n\n`;
-          });
-          toast.warning(warningMessage, { duration: 5000 });
-        }
+        toast.warning('Dependency được tạo với cảnh báo', {
+          description: warnings.map((w: any) => w.message).join('\n'),
+          duration: 5000
+        });
       } else if (statusWarning) {
-        const confirmMessage = `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency was created successfully, but you may want to check task statuses.`;
-        toast.info(confirmMessage, { duration: 5000 });
+        // Legacy: show status warning
+        toast.warning('Cảnh báo trạng thái', {
+          description: `${statusWarning.message}\n\n${statusWarning.suggestion}\n\n✅ Dependency được tạo thành công, nhưng bạn nên kiểm tra trạng thái task.`,
+          duration: 5000
+        });
+      } else if (dateWarning) {
+        // Legacy: show date warning - especially for SS dependency
+        const isSS = type === 'SS';
+        const warningTitle = isSS 
+          ? '⚠️ Cảnh báo: Ngày bắt đầu không khớp (SS Dependency)'
+          : '⚠️ Cảnh báo: Ngày tháng không khớp';
+        
+        toast.warning(warningTitle, {
+          description: `${dateWarning.message}\n\n${dateWarning.suggestion}\n\n✅ Dependency được tạo thành công.`,
+          duration: 6000
+        });
+      } else {
+        // Success without warnings
+        toast.success('Đã thêm phụ thuộc thành công');
       }
       
       setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
       setError(null);
       await loadTaskDependencies(taskId);
     } catch (error: any) {
+      console.error('Error adding dependency:', error);
+      console.error('Error response:', error?.response);
+      console.error('Error data:', error?.response?.data);
+      
       const errorData = error?.response?.data;
       if (error?.response?.status === 400 && errorData?.violation) {
         // Date violation - show detailed error
         const violation = errorData.violation;
         const errorMessage = `${errorData.message}\n\n${violation.suggestion || ''}`;
+        const isSS = type === 'SS';
+        
+        // For SS dependency, check if we can auto-fix based on required_start_date or predecessor_start_date
+        const canAutoFixSS = violation.required_start_date || violation.predecessor_start_date;
+        const hasRequiredDate = violation.required_start_date || violation.predecessor_start_date;
         
         // Only offer auto-fix for MANDATORY dependencies
-        if (isMandatory && errorData.can_auto_fix && violation.required_start_date) {
+        if (isMandatory && (errorData.can_auto_fix || (isSS && canAutoFixSS)) && hasRequiredDate) {
+          // Show new conflict dialog instead of window.confirm
+          setConflictViolation(violation);
+          setShowConflictDialog(true);
+          
           // Store pending dependency data
           setPendingDependencyData({
             taskId,
@@ -888,10 +992,6 @@ export default function ProjectTasksPage() {
             isMandatory,
             notes
           });
-          
-          // Show conflict dialog instead of window.confirm
-          setConflictViolation(violation);
-          setShowConflictDialog(true);
         } else if (!isMandatory) {
           // For OPTIONAL dependencies, show warning and ask if user wants to proceed anyway
           const proceed = window.confirm(
@@ -908,14 +1008,32 @@ export default function ProjectTasksPage() {
                 notes: notes,
                 strict_validation: false
               });
+              setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
               await loadTaskDependencies(taskId);
+              toast.success('Đã thêm phụ thuộc tùy chọn thành công');
             } catch (forceError: any) {
-              setError(forceError?.response?.data?.message || 'Không thể thêm dependency');
+              const forceErrorMsg = forceError?.response?.data?.message || 'Không thể thêm dependency';
+              toast.error('Không thể thêm phụ thuộc', {
+                description: forceErrorMsg
+              });
             }
           }
+        } else {
+          // Mandatory dependency but cannot auto-fix - show error message
+          const errorMsg = errorData?.message || violation?.message || 'Không thể thêm phụ thuộc vì vi phạm quy tắc ngày tháng';
+          const suggestion = violation?.suggestion || '';
+          toast.error('Không thể thêm phụ thuộc', {
+            description: suggestion ? `${errorMsg}\n\n${suggestion}` : errorMsg,
+            duration: 6000
+          });
         }
       } else {
-        setError(errorData?.message || 'Không thể tạo dependency');
+        // Other 400 errors or non-400 errors
+        const errorMsg = errorData?.message || error?.message || 'Failed to add dependency';
+        toast.error('Không thể thêm phụ thuộc', {
+          description: errorMsg,
+          duration: 5000
+        });
       }
     }
   };
@@ -932,10 +1050,8 @@ export default function ProjectTasksPage() {
       let dependencyExists = false;
       
       if (pendingDependencyData.isMandatory) {
-        // STEP 1: Create dependency first (without strict validation)
-        console.log('➕ Step 1: Creating dependency...');
         try {
-          const retryResponse = await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/dependencies`, {
+          await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/dependencies`, {
             depends_on_task_id: pendingDependencyData.dependsOnTaskId,
             dependency_type: pendingDependencyData.type,
             lag_days: pendingDependencyData.lagDays,
@@ -943,47 +1059,28 @@ export default function ProjectTasksPage() {
             notes: pendingDependencyData.notes,
             strict_validation: false
           });
-          console.log('✅ Dependency created:', retryResponse.data);
         } catch (createError: any) {
-          // If dependency already exists, that's OK
           if (createError?.response?.status === 400 && createError?.response?.data?.message?.includes('đã tồn tại')) {
-            console.log('ℹ️ Dependency already exists, skipping creation');
             dependencyExists = true;
           } else {
             throw createError;
           }
         }
       } else {
-        // For optional, dependency should already be created
         dependencyExists = true;
-        console.log('ℹ️ Optional dependency already created, proceeding to date adjustment');
       }
       
-      // STEP 2: Auto-adjust dates based on the dependency
-      console.log('🔧 Step 2: Auto-adjusting dates for task:', pendingDependencyData.taskId);
       try {
         const adjustResponse = await axiosInstance.post(`/api/tasks/${pendingDependencyData.taskId}/auto-adjust-dates`, {
           preserve_duration: true
         });
-        console.log('✅ Auto-adjust response:', adjustResponse.data);
         
-        if (adjustResponse.data.success) {
-          console.log('✅ Dates adjusted successfully!');
-          console.log('Old dates:', adjustResponse.data.task?.old_dates);
-          console.log('New dates:', adjustResponse.data.task?.new_dates);
-        } else {
-          console.warn('⚠️ No adjustments made:', adjustResponse.data.message);
-          // For optional dependencies, this is OK - dependency was created without date adjustment
-          if (!pendingDependencyData.isMandatory) {
-            console.log('ℹ️ Optional dependency exists. Date adjustment not needed or failed, but dependency is OK.');
-          }
+        if (!adjustResponse.data.success && pendingDependencyData.isMandatory) {
+          throw new Error(adjustResponse.data.message || 'Không thể điều chỉnh ngày tháng');
         }
       } catch (adjustError: any) {
-        // If auto-adjust fails, it's OK for optional dependencies
-        if (!pendingDependencyData.isMandatory) {
-          console.log('ℹ️ Optional dependency exists. Date adjustment failed but dependency is OK.');
-        } else {
-          throw adjustError; // Re-throw for mandatory dependencies
+        if (pendingDependencyData.isMandatory) {
+          throw adjustError;
         }
       }
       
@@ -991,24 +1088,20 @@ export default function ProjectTasksPage() {
       setPendingDependencyData(null);
       setConflictViolation(null);
       
-      // STEP 3: Reload everything to show changes
-      console.log('🔄 Step 3: Reloading data...');
+      toast.success('Đã thêm phụ thuộc và điều chỉnh ngày tháng thành công');
       await loadTaskDependencies(pendingDependencyData.taskId);
       await loadCurrentTaskForDependency(pendingDependencyData.taskId);
       await loadAll();
-      console.log('✅ All done!');
     } catch (fixError: any) {
-      console.error('❌ Auto-fix error:', fixError);
-      console.error('Error details:', fixError?.response?.data);
-      setError(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
-      setShowConflictDialog(true); // Show dialog again on error
+      toast.error(fixError?.response?.data?.message || 'Không thể tự động điều chỉnh');
+      setShowConflictDialog(true);
     }
   };
 
   const handleManualEditDependency = () => {
     // Close conflict dialog but keep add form open so user can edit dates
     setShowConflictDialog(false);
-    setError('⚠️ Vui lòng chỉnh sửa ngày tháng của task trong tab Overview trước khi thêm dependency này. Sau đó thử lại.');
+    toast.warning('⚠️ Vui lòng chỉnh sửa ngày tháng của task trong tab Overview trước khi thêm dependency này. Sau đó thử lại.');
     setPendingDependencyData(null);
     setConflictViolation(null);
     // For optional dependencies, dependency is already created, so reload dependencies
@@ -1020,9 +1113,10 @@ export default function ProjectTasksPage() {
   const removeDependency = async (taskId: string, dependencyId: string) => {
     try {
       await axiosInstance.delete(`/api/tasks/${taskId}/dependencies/${dependencyId}`);
+      toast.success('Đã xóa phụ thuộc thành công');
       await loadTaskDependencies(taskId);
     } catch (error: any) {
-      setError(error?.response?.data?.message || 'Không thể xóa dependency');
+      toast.error(error?.response?.data?.message || 'Không thể xóa dependency');
     }
   };
 
@@ -1063,7 +1157,10 @@ export default function ProjectTasksPage() {
 
   const resolveName = (value: any, fallback = "-") => {
     if (!value) return fallback;
-    if (typeof value === "object") return value.name || value.title || fallback;
+    if (typeof value === "object") {
+      // Check for User model fields (full_name, name, title)
+      return value.full_name || value.name || value.title || fallback;
+    }
     return String(value);
   };
 
@@ -1132,7 +1229,7 @@ export default function ProjectTasksPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
-        <ResponsiveSidebar />
+        <SidebarWrapper />
         <main className="p-4 md:p-6">
           <Box sx={{ 
             display: "flex", 
@@ -1160,7 +1257,7 @@ export default function ProjectTasksPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fb]">
-      <ResponsiveSidebar />
+      <SidebarWrapper />
       <main>
         <div className="w-full">
           {/* ClickUp-style Top Bar */}
@@ -1213,7 +1310,7 @@ export default function ProjectTasksPage() {
                 {/* Quick Navigation */}
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}`)}
+                  onClick={() => router.push(`/projects/${projectId}/milestones`)}
                   sx={{
                     textTransform: 'none',
                     fontSize: '13px',
@@ -1226,7 +1323,7 @@ export default function ProjectTasksPage() {
                     }
                   }}
                 >
-                  Milestone
+                  Cột Mốc
                 </Button>
                 <Button
                   variant="outlined"
@@ -1265,28 +1362,30 @@ export default function ProjectTasksPage() {
                 
                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                 
-                <Button 
-                  variant="contained" 
-                  onClick={openCreate} 
-                  startIcon={<AddIcon />} 
-                  sx={{ 
-                    bgcolor: '#7b68ee',
-                    color: 'white',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    px: 2.5,
-                    py: 1,
-                    borderRadius: 1.5,
-                    boxShadow: 'none',
-                    '&:hover': { 
-                      bgcolor: '#6952d6',
-                      boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
-                    },
-                  }}
-                >
-                  Tạo công việc
-                </Button>
+                {!isSupervisor && (
+                  <Button 
+                    variant="contained" 
+                    onClick={openCreate} 
+                    startIcon={<AddIcon />} 
+                    sx={{ 
+                      bgcolor: '#7b68ee',
+                      color: 'white',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      px: 2.5,
+                      py: 1,
+                      borderRadius: 1.5,
+                      boxShadow: 'none',
+                      '&:hover': { 
+                        bgcolor: '#6952d6',
+                        boxShadow: '0 2px 8px rgba(123, 104, 238, 0.3)',
+                      },
+                    }}
+                  >
+                    Tạo công việc
+                  </Button>
+                )}
             </Stack>
             </Box>
           </Box>
@@ -1300,6 +1399,7 @@ export default function ProjectTasksPage() {
         
 
           {/* ClickUp-style View Toolbar */}
+          
           <Box 
             sx={{ 
               bgcolor: 'white',
@@ -1312,7 +1412,7 @@ export default function ProjectTasksPage() {
             }}
           >
             <Stack direction="row" spacing={0.5}>
-                <Button
+              <Button
                 onClick={() => setView('table')}
                 startIcon={<ListIcon fontSize="small" />}
                 sx={{
@@ -1397,7 +1497,6 @@ export default function ProjectTasksPage() {
                 Gantt
               </Button>
             </Stack>
-
             <Stack direction="row" spacing={1.5} alignItems="center">
               {/* Quick Search */}
               <TextField
@@ -1478,6 +1577,7 @@ export default function ProjectTasksPage() {
               </Badge>
             </Stack>
           </Box>
+       
 
           {/* Active Filters Chips - Modern Enhanced Style */}
           {(filterAssignee !== 'all' || filterStatus !== 'all' || filterPriority !== 'all' || 
@@ -2691,9 +2791,11 @@ export default function ProjectTasksPage() {
                                       openTaskDetailsModal(t._id);
                                     }}
                                     onDoubleClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingTaskId(t._id);
-                                      setEditingTitle(t.title);
+                                      if (!isSupervisor) {
+                                        e.stopPropagation();
+                                        setEditingTaskId(t._id);
+                                        setEditingTitle(t.title);
+                                      }
                                     }}
                                     sx={{ 
                                       fontWeight: 500, 
@@ -2845,6 +2947,55 @@ export default function ProjectTasksPage() {
                           </Box>
                           {/* Assignee - với dropdown để quick assign */}
                           <Box onClick={(e) => e.stopPropagation()}>
+                            {isSupervisor ? (
+                              // Hiển thị readonly cho supervisor
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, flex: 1, maxWidth: '100%', overflow: 'hidden' }}>
+                                {assigneeName ? (
+                                  <>
+                                    <Tooltip title={assigneeName}>
+                                      <Avatar 
+                                        sx={{ 
+                                          width: 24, 
+                                          height: 24, 
+                                          fontSize: '10px',
+                                          fontWeight: 600,
+                                          bgcolor: '#7b68ee',
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        {assigneeInitials}
+                                      </Avatar>
+                                    </Tooltip>
+                                    <Typography 
+                                      sx={{ 
+                                        fontSize: '12px', 
+                                        fontWeight: 500,
+                                        color: '#1f2937',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        minWidth: 0,
+                                        flex: 1,
+                                        maxWidth: 'calc(100% - 30px)',
+                                        pr: 0.5
+                                      }}
+                                      title={assigneeName}
+                                    >
+                                      {assigneeName}
+                                    </Typography>
+                                  </>
+                                ) : (
+                                  <Stack direction="row" alignItems="center" spacing={0.75}>
+                                    <Avatar sx={{ width: 24, height: 24, bgcolor: '#e5e7eb', color: '#9ca3af', flexShrink: 0 }}>
+                                      <PersonIcon sx={{ fontSize: 14 }} />
+                                    </Avatar>
+                                    <Typography fontSize="11px" color="text.secondary" fontStyle="italic">
+                                      Chưa giao
+                                    </Typography>
+                                  </Stack>
+                                )}
+                              </Box>
+                            ) : (
                             <Select
                               value={typeof t.assignee_id === 'object' ? t.assignee_id?._id : t.assignee_id || ''}
                               onChange={async (e) => {
@@ -2867,31 +3018,101 @@ export default function ProjectTasksPage() {
                               renderValue={(value) => {
                                 if (!value) {
                                   return (
-                                    <Avatar sx={{ width: 28, height: 28, bgcolor: '#e5e7eb', color: '#9ca3af' }}>
-                                      <PersonIcon sx={{ fontSize: 16 }} />
-                                    </Avatar>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, width: '100%' }}>
+                                      <Avatar sx={{ width: 24, height: 24, bgcolor: '#e5e7eb', color: '#9ca3af', flexShrink: 0 }}>
+                                        <PersonIcon sx={{ fontSize: 14 }} />
+                                      </Avatar>
+                                      <Typography fontSize="11px" color="text.secondary" fontStyle="italic" sx={{ flex: 1, minWidth: 0 }}>
+                                        Chưa giao
+                                      </Typography>
+                                    </Box>
                                   );
                                 }
+                                // Only show "Chưa giao" if assigneeName is truly empty, not if it's a valid name
+                                const nameToShow = assigneeName && assigneeName.trim() !== "" ? assigneeName : 'Chưa giao';
                                 return (
-                                  <Tooltip title={assigneeName}>
-                                    <Avatar 
+                                    <Box 
                                       sx={{ 
-                                        width: 28, 
-                                        height: 28, 
-                                        fontSize: '11px',
-                                        fontWeight: 600,
-                                        bgcolor: '#7b68ee',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.75,
+                                        minWidth: 0, 
+                                        width: '100%',
+                                        maxWidth: '100%',
+                                        overflow: 'hidden',
+                                        position: 'relative'
                                       }}
                                     >
-                                      {assigneeInitials}
-                                    </Avatar>
-                                  </Tooltip>
+                                      <Avatar 
+                                        sx={{ 
+                                          width: 24, 
+                                          height: 24, 
+                                          fontSize: '10px',
+                                          fontWeight: 600,
+                                          bgcolor: '#7b68ee',
+                                          flexShrink: 0
+                                        }}
+                                        title={nameToShow}
+                                      >
+                                        {assigneeInitials}
+                                      </Avatar>
+                                      <Typography
+                                        component="span"
+                                        sx={{ 
+                                          fontSize: '12px', 
+                                          fontWeight: 500,
+                                          color: '#1f2937',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                          flex: 1,
+                                          minWidth: 0,
+                                          maxWidth: 'calc(100% - 50px)',
+                                          lineHeight: 1.4,
+                                          display: 'block',
+                                          pr: 0.5
+                                        }}
+                                        title={nameToShow}
+                                      >
+                                        {nameToShow}
+                                      </Typography>
+                                    </Box>
                                 );
                               }}
                               sx={{
+                                width: '100%',
+                                minWidth: 0,
+                                maxWidth: '100%',
                                 '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                                '& .MuiSelect-select': { p: 0 },
+                                '& .MuiSelect-select': { 
+                                  p: '4px 32px 4px 8px !important',
+                                  display: 'flex !important',
+                                  alignItems: 'center !important',
+                                  minWidth: 0,
+                                  maxWidth: '100%',
+                                  overflow: 'hidden !important',
+                                  height: 'auto !important',
+                                  '& > *': {
+                                    width: '100%'
+                                  }
+                                },
+                                '& .MuiSelect-icon': {
+                                  right: '8px !important'
+                                },
+                                '& .MuiSelect-select .MuiBox-root': {
+                                  width: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.75,
+                                  minWidth: 0
+                                },
+                                '& .MuiSelect-select .MuiTypography-root': {
+                                  display: 'block !important',
+                                  visibility: 'visible !important',
+                                  opacity: '1 !important'
+                                },
                                 '&:hover': { bgcolor: '#f3f4f6', borderRadius: 1 },
+                                  cursor: 'pointer',
                               }}
                             >
                               <MenuItem value="">
@@ -2917,6 +3138,7 @@ export default function ProjectTasksPage() {
                                 );
                               })}
                             </Select>
+                            )}
                           </Box>
 
                           {/* Due date - inline edit */}
@@ -2926,29 +3148,32 @@ export default function ProjectTasksPage() {
                               size="small"
                               value={t.deadline ? new Date(t.deadline).toISOString().split('T')[0] : ''}
                               onChange={async (e) => {
-                                try {
-                                  await axiosInstance.patch(`/api/tasks/${t._id}`, {
-                                    deadline: e.target.value
-                                  });
-                                  await loadAll();
-                                  toast.success('Đã cập nhật hạn chót thành công');
-                                } catch (error: any) {
-                                  console.error('Error updating deadline:', error);
-                                  toast.error('Không thể cập nhật hạn chót', {
-                                    description: error?.response?.data?.message || 'Vui lòng thử lại'
-                                  });
+                                if (!isSupervisor) {
+                                  try {
+                                    await axiosInstance.patch(`/api/tasks/${t._id}`, {
+                                      deadline: e.target.value
+                                    });
+                                    await loadAll();
+                                    toast.success('Đã cập nhật hạn chót thành công');
+                                  } catch (error: any) {
+                                    console.error('Error updating deadline:', error);
+                                    toast.error('Không thể cập nhật hạn chót', {
+                                      description: error?.response?.data?.message || 'Vui lòng thử lại'
+                                    });
+                                  }
                                 }
                               }}
+                              disabled={isSupervisor}
                               InputProps={{
                                 sx: {
                                   fontSize: '13px',
                                   color: isOverdue ? '#ef4444' : '#6b7280',
                                   fontWeight: 500,
                                   '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                                  '&:hover': { bgcolor: '#f3f4f6', borderRadius: 1 },
+                                  '&:hover': { bgcolor: isSupervisor ? 'transparent' : '#f3f4f6', borderRadius: 1 },
                                   '& input': { 
                                     p: 0.5,
-                                    cursor: 'pointer',
+                                    cursor: isSupervisor ? 'default' : 'pointer',
                                   }
                                 }
                               }}
@@ -2961,13 +3186,12 @@ export default function ProjectTasksPage() {
                             <Select
                             value={typeof t.status === 'object' ? (t.status as any)?._id : t.status || ''}
                               onChange={async (e) => {
-                                e.stopPropagation();
-                              const newStatusId = e.target.value;
+                                if (!isSupervisor) {
+                                  e.stopPropagation();
+                                  const newStatusId = e.target.value;
                               // Get status name from STATUS_OPTIONS if it's an ID
                               const statusObj = allStatuses.find(s => s._id === newStatusId);
                               const statusToSend = statusObj?.name || statusObj?._id || newStatusId;
-                              
-                              console.log('Changing status:', { newStatusId, statusToSend, currentStatus: t.status });
                               
                                 try {
                                   await axiosInstance.patch(`/api/tasks/${t._id}`, {
@@ -2976,18 +3200,10 @@ export default function ProjectTasksPage() {
                                   await loadAll();
                                   toast.success('Đã cập nhật trạng thái thành công');
                                 } catch (error: any) {
-                                  console.error('Error updating status:', error);
-                                  console.log('Error response:', error?.response);
-                                  console.log('Error response data:', error?.response?.data);
-                                  console.log('Error status code:', error?.response?.status);
-                                  
-                                  // Check if it's a dependency violation error
                                   if (error?.response?.status === 400) {
                                     const responseData = error?.response?.data || {};
                                     
-                                    // Check for violations array (dependency violations)
                                     if (responseData.violations && Array.isArray(responseData.violations) && responseData.violations.length > 0) {
-                                      console.log('✅ Setting dependency violation dialog with violations:', responseData.violations);
                                     setDependencyViolationDialog({
                                       open: true,
                                         violations: responseData.violations,
@@ -3014,7 +3230,6 @@ export default function ProjectTasksPage() {
                                           is_mandatory: true
                                         }));
                                         
-                                        console.log('✅ Converting errors to violations:', violations);
                                         setDependencyViolationDialog({
                                           open: true,
                                           violations: violations,
@@ -3026,16 +3241,15 @@ export default function ProjectTasksPage() {
                                     }
                                   }
                                   
-                                  // Show regular error message
-                                  console.log('❌ No violations found, showing error message');
-                                  console.log('Response data keys:', Object.keys(error?.response?.data || {}));
                                   toast.error('Không thể cập nhật trạng thái', {
                                     description: error?.response?.data?.message || 'Vui lòng thử lại'
                                   });
                                 }
-                              }}
+                              }
+                            }}
                               size="small"
                               displayEmpty
+                              disabled={isSupervisor}
                             renderValue={(value) => {
                               const statusObj = allStatuses.find(s => s._id === value);
                       const statusName = statusObj?.name || 'Không có trạng thái';
@@ -3057,7 +3271,8 @@ export default function ProjectTasksPage() {
                               sx={{
                                 '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                                 '& .MuiSelect-select': { p: 0 },
-                                '&:hover': { bgcolor: '#f3f4f6', borderRadius: 1 },
+                                '&:hover': { bgcolor: isSupervisor ? 'transparent' : '#f3f4f6', borderRadius: 1 },
+                                cursor: isSupervisor ? 'default' : 'pointer',
                               }}
                             >
                             {allStatuses.map((s) => (
@@ -3082,6 +3297,7 @@ export default function ProjectTasksPage() {
                             <Select
                             value={typeof t.priority === 'object' ? (t.priority as any)?._id : t.priority || ''}
                               onChange={async (e) => {
+                                if (!isSupervisor) {
                                 e.stopPropagation();
                                 try {
                                   await axiosInstance.patch(`/api/tasks/${t._id}`, {
@@ -3094,10 +3310,12 @@ export default function ProjectTasksPage() {
                                   toast.error('Không thể cập nhật ưu tiên', {
                                     description: error?.response?.data?.message || 'Vui lòng thử lại'
                                   });
+                                  }
                                 }
                               }}
                               size="small"
                               displayEmpty
+                              disabled={isSupervisor}
                               renderValue={(value) => {
                               if (!value) {
                                   return (
@@ -3123,7 +3341,8 @@ export default function ProjectTasksPage() {
                               sx={{
                                 '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                                 '& .MuiSelect-select': { p: 0.5 },
-                                '&:hover': { bgcolor: '#f3f4f6', borderRadius: 1 },
+                                '&:hover': { bgcolor: isSupervisor ? 'transparent' : '#f3f4f6', borderRadius: 1 },
+                                cursor: isSupervisor ? 'default' : 'pointer',
                               }}
                             >
                               <MenuItem value="">
@@ -3159,7 +3378,17 @@ export default function ProjectTasksPage() {
                                           Đang chờ:
                                         </Typography>
                                         {taskDependencies[t._id].dependencies.map((d: any) => (
-                                          <Typography key={d._id} fontSize="11px" sx={{ pl: 1 }}>
+                                          <Typography 
+                                            key={d._id} 
+                                            fontSize="11px" 
+                                            sx={{ 
+                                              pl: 1,
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              whiteSpace: 'nowrap'
+                                            }}
+                                            title={`[${d.dependency_type}] ${d.depends_on_task_id?.title}${d.lag_days !== 0 ? ` (${d.lag_days > 0 ? '+' : ''}${d.lag_days}d)` : ''}`}
+                                          >
                                             • [{d.dependency_type}] {d.depends_on_task_id?.title}
                                             {d.lag_days !== 0 && ` (${d.lag_days > 0 ? '+' : ''}${d.lag_days}d)`}
                                           </Typography>
@@ -3172,7 +3401,17 @@ export default function ProjectTasksPage() {
                                           Blocking:
                                         </Typography>
                                         {taskDependencies[t._id].dependents.map((d: any) => (
-                                          <Typography key={d._id} fontSize="11px" sx={{ pl: 1 }}>
+                                          <Typography 
+                                            key={d._id} 
+                                            fontSize="11px" 
+                                            sx={{ 
+                                              pl: 1,
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              whiteSpace: 'nowrap'
+                                            }}
+                                            title={`[${d.dependency_type}] ${d.task_id?.title}${d.lag_days !== 0 ? ` (${d.lag_days > 0 ? '+' : ''}${d.lag_days}d)` : ''}`}
+                                          >
                                             • [{d.dependency_type}] {d.task_id?.title}
                                             {d.lag_days !== 0 && ` (${d.lag_days > 0 ? '+' : ''}${d.lag_days}d)`}
                                           </Typography>
@@ -3195,14 +3434,16 @@ export default function ProjectTasksPage() {
                                     bgcolor: '#f0f5ff',
                                     color: '#3b82f6',
                                     fontWeight: 600,
-                                    cursor: 'pointer',
-                                    '&:hover': { bgcolor: '#dbeafe' }
+                                    cursor: isSupervisor ? 'default' : 'pointer',
+                                    '&:hover': { bgcolor: isSupervisor ? '#f0f5ff' : '#dbeafe' }
                                   }}
                                   onClick={(e) => {
+                                    if (!isSupervisor) {
                                     e.stopPropagation();
                                     setDependencyTaskId(t._id);
                                     loadTaskDependencies(t._id);
                                     setOpenDependencyDialog(true);
+                                    }
                                   }}
                                 />
                               </Tooltip>
@@ -3210,16 +3451,19 @@ export default function ProjectTasksPage() {
                               <IconButton
                                 size="small"
                                 onClick={(e) => {
+                                  if (!isSupervisor) {
                                   e.stopPropagation();
                                   setDependencyTaskId(t._id);
                                   loadTaskDependencies(t._id);
                                   setOpenDependencyDialog(true);
+                                  }
                                 }}
+                                disabled={isSupervisor}
                                 sx={{ 
                                   color: '#9ca3af',
                                   '&:hover': { 
-                                    color: '#7b68ee',
-                                    bgcolor: '#f3f4f6' 
+                                    color: isSupervisor ? '#9ca3af' : '#7b68ee',
+                                    bgcolor: isSupervisor ? 'transparent' : '#f3f4f6' 
                                   }
                                 }}
                               >
@@ -3238,26 +3482,28 @@ export default function ProjectTasksPage() {
                             }} 
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Tooltip title="Xóa task">
-                              <IconButton
-                                size="small"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (confirm(`Bạn có chắc muốn xóa task "${t.title}"?`)) {
-                                    await deleteTask(t._id);
-                                  }
-                                }}
-                                sx={{ 
-                                  color: '#ef4444',
-                                  '&:hover': { 
-                                    color: '#dc2626',
-                                    bgcolor: '#fef2f2' 
-                                  }
-                                }}
-                              >
-                                <DeleteIcon sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Tooltip>
+                            {!isSupervisor && (
+                              <Tooltip title="Xóa task">
+                                <IconButton
+                                  size="small"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Bạn có chắc muốn xóa task "${t.title}"?`)) {
+                                      await deleteTask(t._id);
+                                    }
+                                  }}
+                                  sx={{ 
+                                    color: '#ef4444',
+                                    '&:hover': { 
+                                      color: '#dc2626',
+                                      bgcolor: '#fef2f2' 
+                                    }
+                                  }}
+                                >
+                                  <DeleteIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Box>
 
                         </Box>
@@ -3269,7 +3515,7 @@ export default function ProjectTasksPage() {
                     })}
 
                     {/* ClickUp-style Add Task inline */}
-                    {!collapsedGroups[statusName] && (
+                    {!collapsedGroups[statusName] && !isSupervisor && (
                       <Box 
                         sx={{ 
                           px: 3, 
@@ -3312,28 +3558,32 @@ export default function ProjectTasksPage() {
                     <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: '#6b7280' }}>
                       Chưa có công việc nào
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      Tạo công việc đầu tiên để bắt đầu
-                    </Typography>
-                    <Button 
-                      variant="contained" 
-                      startIcon={<AddIcon />} 
-                      onClick={openCreate}
-                      sx={{
-                        bgcolor: '#7b68ee',
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        px: 3,
-                        py: 1,
-                        borderRadius: 1.5,
-                        boxShadow: 'none',
-                        '&:hover': {
-                          bgcolor: '#6952d6',
-                        },
-                      }}
-                    >
-                      Tạo công việc
-                    </Button>
+                    {!isSupervisor && (
+                      <>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                          Tạo công việc đầu tiên để bắt đầu
+                        </Typography>
+                        <Button 
+                          variant="contained" 
+                          startIcon={<AddIcon />} 
+                          onClick={openCreate}
+                          sx={{
+                            bgcolor: '#7b68ee',
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            px: 3,
+                            py: 1,
+                            borderRadius: 1.5,
+                            boxShadow: 'none',
+                            '&:hover': {
+                              bgcolor: '#6952d6',
+                            },
+                          }}
+                        >
+                          Tạo công việc
+                        </Button>
+                      </>
+                    )}
                   </Box>
                 )}
               </Box>
@@ -3393,9 +3643,11 @@ export default function ProjectTasksPage() {
                             }} 
                           />
                         </Stack>
-                        <IconButton size="small" onClick={openCreate} sx={{ color: '#6b7280' }}>
-                          <AddIcon sx={{ fontSize: 18 }} />
-                        </IconButton>
+                        {!isSupervisor && (
+                          <IconButton size="small" onClick={openCreate} sx={{ color: '#6b7280' }}>
+                            <AddIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        )}
                       </Stack>
               </Box>
 
@@ -3560,32 +3812,55 @@ export default function ProjectTasksPage() {
 
                               {/* Bottom Row - Assignee & Indicators */}
                               <Stack direction="row" alignItems="center" justifyContent="space-between">
-                                {/* Assignee Avatar */}
+                                {/* Assignee Avatar & Name */}
                                 {assigneeName ? (
-                                  <Tooltip title={assigneeName}>
+                                  <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Tooltip title={assigneeName}>
+                                      <Avatar 
+                                        sx={{ 
+                                          width: 28, 
+                                          height: 28, 
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          bgcolor: '#7b68ee',
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        {assigneeInitials}
+                                      </Avatar>
+                                    </Tooltip>
+                                    <Typography 
+                                      fontSize="12px" 
+                                      fontWeight={500}
+                                      color="text.secondary"
+                                      sx={{
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        maxWidth: '120px'
+                                      }}
+                                      title={assigneeName}
+                                    >
+                                      {assigneeName}
+                                    </Typography>
+                                  </Stack>
+                                ) : (
+                                  <Stack direction="row" alignItems="center" spacing={1}>
                                     <Avatar 
                                       sx={{ 
                                         width: 28, 
                                         height: 28, 
-                                        fontSize: '11px',
-                                        fontWeight: 600,
-                                        bgcolor: '#7b68ee',
+                                        bgcolor: '#e5e7eb',
+                                        color: '#9ca3af',
+                                        flexShrink: 0
                                       }}
                                     >
-                                      {assigneeInitials}
+                                      <PersonIcon sx={{ fontSize: 16 }} />
                                     </Avatar>
-                                  </Tooltip>
-                                ) : (
-                                  <Avatar 
-                                    sx={{ 
-                                      width: 28, 
-                                      height: 28, 
-                                      bgcolor: '#e5e7eb',
-                                      color: '#9ca3af'
-                                    }}
-                                  >
-                                    <PersonIcon sx={{ fontSize: 16 }} />
-                                  </Avatar>
+                                    <Typography fontSize="12px" color="text.secondary" fontStyle="italic">
+                                      Chưa giao
+                                    </Typography>
+                                  </Stack>
                                 )}
 
                                 {/* Indicators */}
@@ -3945,12 +4220,12 @@ export default function ProjectTasksPage() {
                     </Typography>
                     <Stack spacing={2.5}>
                 <TextField 
-                        label="Tên task *" 
+                        label="Tên công việc *" 
                   value={form.title} 
                   onChange={(e) => setForm({ ...form, title: e.target.value })} 
                   fullWidth 
                         required
-                        placeholder="Nhập tên task..."
+                        placeholder="Nhập tên công việc..."
                   sx={{ 
                     '& .MuiOutlinedInput-root': { 
                             bgcolor: 'white',
@@ -4037,7 +4312,7 @@ export default function ProjectTasksPage() {
                     />
                     <TextField 
                       type="number" 
-                      label="Estimate (giờ)" 
+                      label="Estimate (giờ) *" 
                       value={form.estimate} 
                       onChange={(e) => setForm({ ...form, estimate: Number(e.target.value) })} 
                       fullWidth 
@@ -4049,6 +4324,8 @@ export default function ProjectTasksPage() {
                             </Box>
                           )
                         }}
+                        inputProps={{ min: 0, step: 0.5 }}
+                        required
                         sx={{ 
                           '& .MuiOutlinedInput-root': { 
                             bgcolor: 'white',
@@ -4327,6 +4604,7 @@ export default function ProjectTasksPage() {
             open={openTaskDetails}
             taskId={selectedTaskId}
             projectId={projectId}
+            readonly={isSupervisor}
             onClose={() => {
               setOpenTaskDetails(false);
               setSelectedTaskId(null);
@@ -4461,10 +4739,11 @@ export default function ProjectTasksPage() {
                         status: dependencyViolationDialog.newStatus,
                         force_update: true
                       });
+                      toast.success('Đã cập nhật trạng thái thành công');
                       await loadAll();
                       setDependencyViolationDialog({ open: false, violations: [], taskId: '', newStatus: '' });
                     } catch (error: any) {
-                      setError(error?.response?.data?.message || 'Không thể cập nhật status');
+                      toast.error(error?.response?.data?.message || 'Không thể cập nhật status');
                       setDependencyViolationDialog({ open: false, violations: [], taskId: '', newStatus: '' });
                     }
                   }}
@@ -4508,7 +4787,16 @@ export default function ProjectTasksPage() {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                       Đang quản lý phụ thuộc cho:
                     </Typography>
-                    <Typography variant="h6" fontWeight={600}>
+                    <Typography 
+                      variant="h6" 
+                      fontWeight={600}
+                      sx={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={tasks.find(t => t._id === dependencyTaskId)?.title}
+                    >
                       {tasks.find(t => t._id === dependencyTaskId)?.title}
                     </Typography>
                   </Box>
@@ -4516,26 +4804,10 @@ export default function ProjectTasksPage() {
 
                 {/* Dependencies (tasks this task depends on) */}
                 <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <BlockIcon sx={{ fontSize: 18, color: '#ef4444' }} />
-                      Đang chờ (bị chặn bởi)
-                    </Typography>
-                    <Button
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() => {
-                        setDependencyForm({ depends_on_task_id: '', dependency_type: 'FS', lag_days: 0, is_mandatory: true, notes: '' });
-                      }}
-                      sx={{ 
-                        textTransform: 'none',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                      }}
-                    >
-                      Thêm
-                    </Button>
-                  </Box>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <BlockIcon sx={{ fontSize: 18, color: '#ef4444' }} />
+                    Đang chờ (bị chặn bởi)
+                  </Typography>
 
                   {taskDependencies[dependencyTaskId || '']?.dependencies?.length > 0 ? (
                     <Stack spacing={1}>
@@ -4582,7 +4854,18 @@ export default function ProjectTasksPage() {
                                 <ArrowForwardIcon sx={{ fontSize: 14, color: '#d1d5db' }} />
                                 
                                 {/* Task Title */}
-                                <Typography fontSize="14px" fontWeight={500} sx={{ flex: 1 }}>
+                                <Typography 
+                                  fontSize="14px" 
+                                  fontWeight={500} 
+                                  sx={{ 
+                                    flex: 1,
+                                    minWidth: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title={dep.depends_on_task_id?.title}
+                                >
                                   {dep.depends_on_task_id?.title}
                                 </Typography>
                                 
@@ -4670,10 +4953,10 @@ export default function ProjectTasksPage() {
                     <Stack spacing={2}>
                       {/* Task Selection */}
                       <FormControl fullWidth size="small">
-                        <InputLabel>Công việc phải hoàn thành trước</InputLabel>
+                        <InputLabel>Công việc phụ thuộc</InputLabel>
                         <Select
                           value={dependencyForm.depends_on_task_id}
-                          label="Công việc phải hoàn thành trước"
+                          label="Công việc phụ thuộc"
                           onChange={(e) => setDependencyForm({ ...dependencyForm, depends_on_task_id: e.target.value })}
                         >
                           {tasks
@@ -4937,7 +5220,18 @@ export default function ProjectTasksPage() {
                             <BlockIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
                             
                             {/* Task Title */}
-                            <Typography fontSize="14px" fontWeight={500} sx={{ flex: 1 }}>
+                            <Typography 
+                              fontSize="14px" 
+                              fontWeight={500} 
+                              sx={{ 
+                                flex: 1,
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title={dep.task_id?.title}
+                            >
                               {dep.task_id?.title}
                             </Typography>
                             

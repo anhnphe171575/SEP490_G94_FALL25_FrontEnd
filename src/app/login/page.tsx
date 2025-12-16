@@ -128,7 +128,10 @@ export default function LoginPage() {
         localStorage.setItem("token", token);
       }
 
-      if (userRole === 4) {
+      // Ưu tiên redirect URL từ query params (nếu có)
+      if (redirectUrl) {
+        router.replace(redirectUrl);
+      } else if (userRole === 4) {
         router.replace("/supervisor/projects");
       } else {
         router.replace("/dashboard");
@@ -186,7 +189,10 @@ export default function LoginPage() {
         localStorage.setItem("token", token);
       }
 
-      if (user?.redirectUrl) {
+      // Ưu tiên redirect URL từ query params (nếu có)
+      if (redirectUrl) {
+        router.replace(redirectUrl);
+      } else if (user?.redirectUrl) {
         router.replace(user.redirectUrl);
       } else if (user?.role === 4) {
         router.replace("/supervisor/projects");
@@ -266,11 +272,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input type="checkbox" id="remember" className="mr-2" />
-                <label htmlFor="remember" className="text-sm text-gray-600">Ghi nhớ đăng nhập</label>
-              </div>
+            <div className="flex items-center justify-end">
               <a href="/forgotpassword" className="text-sm text-green-600 hover:underline font-medium">
                 Quên mật khẩu?
               </a>

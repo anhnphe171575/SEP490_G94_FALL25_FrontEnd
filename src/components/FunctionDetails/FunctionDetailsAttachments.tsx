@@ -615,7 +615,7 @@ export default function FunctionDetailsAttachments({ functionId }: FunctionDetai
           {dragActive ? 'Drop files here' : 'Drag & drop files here or click to browse'}
         </Typography>
         <Typography fontSize="12px" sx={{ color: '#666', mb: 2 }}>
-          Supports images, PDFs, and office documents (max 20MB per file)
+          Supports images, PDFs, and office documents (max 20MB mỗi tệp)
         </Typography>
         <input
           ref={fileInputRef}

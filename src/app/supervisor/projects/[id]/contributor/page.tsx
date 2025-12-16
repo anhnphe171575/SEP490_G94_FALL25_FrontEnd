@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import axiosInstance from "../../../../../../ultis/axios";
-import ResponsiveSidebar from "@/components/ResponsiveSidebar";
+import SupervisorSidebar from "@/components/SupervisorSidebar";
 import QuickNav from "@/components/QuickNav";
 
 type TypeKey = "Simple" | "Medium" | "Complex" | "Very Complex";
@@ -351,9 +351,9 @@ export default function ContributorDashboardPage() {
       });
     }
     
-    const detailHref =
+    const tasksHref =
       userId && projectId && typeof userId === 'string' && userId.length > 0
-        ? `/supervisor/contributor/detail?userId=${encodeURIComponent(userId)}&project_id=${encodeURIComponent(projectId)}`
+        ? `/projects/${projectId}/tasks?assignee=${encodeURIComponent(userId)}`
         : null;
 
     const topTypes = TYPE_DISPLAY_ORDER.filter((type) => member.type_counts[type] > 0).slice(0, 3);
@@ -366,7 +366,16 @@ export default function ContributorDashboardPage() {
               {avatarLetter}
             </div>
             <div>
-              <p className="font-medium text-slate-900">{member.member.full_name || "Chưa cập nhật"}</p>
+              {tasksHref ? (
+                <button
+                  onClick={() => router.push(tasksHref)}
+                  className="font-medium text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left transition-colors"
+                >
+                  {member.member.full_name || "Chưa cập nhật"}
+                </button>
+              ) : (
+                <p className="font-medium text-slate-900">{member.member.full_name || "Chưa cập nhật"}</p>
+              )}
               <p className="text-sm text-slate-500">{member.member.email || "Không có email"}</p>
             </div>
           </div>
@@ -483,22 +492,14 @@ export default function ContributorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <ResponsiveSidebar />
+      <SupervisorSidebar />
       <main className="min-h-screen px-6 py-8 md:ml-64 md:px-10">
         <div className="mx-auto w-full max-w-7xl">
+          {/* QuickNav - Always at the top
+          <div className="mb-6">
+            <QuickNav selectedProject={projectId || undefined} />
+          </div> */}
           
-          
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Bảng điều khiển Giám sát</p>
-              <h1 className="text-3xl font-bold text-slate-900">Bảng theo dõi đóng góp</h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Giám sát hiệu suất của từng thành viên, phân bổ khối lượng công việc và chất lượng hoàn thành trong dự án.
-              </p>
-            </div>
-            
-          </div>
-
           {error && (
             <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex items-start gap-3">
@@ -528,58 +529,6 @@ export default function ContributorDashboardPage() {
             </div>
           ) : contribution ? (
             <div className="space-y-6">
-              <section className="rounded-lg border border-slate-200 bg-white p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900">
-                      {projectInfo?.topic || "Thông tin dự án"}
-                    </h2>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                      {projectInfo?.code && <span>Mã: <strong className="text-slate-700">{projectInfo.code}</strong></span>}
-                      {projectInfo?.semester && (
-                        <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                          {projectInfo.semester}
-                        </span>
-                      )}
-                      {projectInfo?.status && (
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            STATUS_BADGE_CLASSES[String(projectInfo.status).toLowerCase()] || "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          {projectInfo.status}
-                        </span>
-                      )}
-                    </div>
-                    {projectInfo?.description && (
-                      <p className="mt-3 max-w-3xl text-sm text-slate-600">
-                        {projectInfo.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Thành viên</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">
-                        {formatNumber(contribution.metadata.team_members)}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Tính năng</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">
-                        {formatNumber(contribution.metadata.feature_count)}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Chức năng</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">
-                        {formatNumber(contribution.metadata.function_count)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               <section className="rounded-lg border border-slate-200 bg-white p-6">
                 <div className="lg:col-span-2 space-y-6">
                   <div className="rounded-lg border border-slate-200 bg-white p-6">
@@ -654,145 +603,7 @@ export default function ContributorDashboardPage() {
 
                 
                 
-              </section>
-              <section className="rounded-lg border border-slate-200 bg-white p-6">
-              
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Task chưa được phân công</h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Danh sách các công việc chưa có người phụ trách để tránh tồn đọng.
-                        </p>
-                      </div>
-                      {contribution.unassigned && (
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                          {formatNumber(contribution.unassigned.total_tasks)} task
-                        </span>
-                      )}
-                    </div>
-                    
-                    {loadingUnassignedTasks ? (
-                      <div className="flex h-64 flex-col items-center justify-center">
-                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
-                        <p className="mt-4 text-sm font-medium text-slate-500">Đang tải danh sách task...</p>
-                      </div>
-                    ) : unassignedTasks.length === 0 ? (
-                      <ContributionPlaceholder message="Hiện tất cả task đều đã có người phụ trách." />
-                    ) : (
-                      <div className="space-y-3">
-                        {unassignedTasks.map((task) => {
-                          const taskStatus = typeof task.status === "object" ? task.status?.name : task.status || "Không xác định";
-                          const taskPriority = typeof task.priority === "object" ? task.priority?.name : task.priority || "";
-                          const isOverdue = task.deadline 
-                            ? new Date(task.deadline).getTime() < Date.now() && !taskStatus.toLowerCase().includes('done') && !taskStatus.toLowerCase().includes('completed')
-                            : false;
-                          const deadlineDate = task.deadline ? new Date(task.deadline) : null;
-                          const daysUntilDeadline = deadlineDate 
-                            ? Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-                            : null;
-                          
-                          // Get task type
-                          let taskType = "Simple";
-                          if (task.estimate) {
-                            if (task.estimate >= 40) taskType = "Very Complex";
-                            else if (task.estimate >= 20) taskType = "Complex";
-                            else if (task.estimate >= 8) taskType = "Medium";
-                            else taskType = "Simple";
-                          }
-                          
-                          return (
-                            <div
-                              key={task._id}
-                              onClick={() => {
-                                if (projectId) {
-                                  router.push(`/projects/${projectId}/tasks?taskId=${task._id}`);
-                                }
-                              }}
-                              className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-600 font-semibold flex-shrink-0">
-                                      UA
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="font-semibold text-slate-900 text-base mb-1 line-clamp-2">
-                                        {task.title || "Task không có tiêu đề"}
-                                      </h4>
-                                      {task.description && (
-                                        <p className="text-sm text-slate-600 line-clamp-2 mb-2">
-                                          {task.description}
-                                        </p>
-                                      )}
-                                      
-                                      <div className="flex flex-wrap items-center gap-2 mt-3">
-                                        {/* Status */}
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                          taskStatus.toLowerCase().includes('done') || taskStatus.toLowerCase().includes('completed')
-                                            ? 'bg-green-100 text-green-800'
-                                            : taskStatus.toLowerCase().includes('doing') || taskStatus.toLowerCase().includes('progress')
-                                            ? 'bg-blue-100 text-blue-800'
-                                            : 'bg-orange-100 text-orange-800'
-                                        }`}>
-                                          {taskStatus}
-                                        </span>
-                                        
-                                        {/* Priority */}
-                                        {taskPriority && (
-                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                                            {taskPriority}
-                                          </span>
-                                        )}
-                                        
-                                        {/* Type */}
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLOR[taskType as TypeKey] || TYPE_BADGE_COLOR.Simple}`}>
-                                          {taskType}
-                                        </span>
-                                        
-                                        {/* Deadline */}
-                                        {deadlineDate && (
-                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            isOverdue
-                                              ? 'bg-red-100 text-red-800'
-                                              : daysUntilDeadline !== null && daysUntilDeadline <= 3
-                                              ? 'bg-yellow-100 text-yellow-800'
-                                              : 'bg-slate-100 text-slate-700'
-                                          }`}>
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                            {isOverdue 
-                                              ? `Quá hạn ${Math.abs(daysUntilDeadline!)} ngày`
-                                              : daysUntilDeadline === 0
-                                              ? 'Hôm nay'
-                                              : daysUntilDeadline === 1
-                                              ? 'Ngày mai'
-                                              : daysUntilDeadline! > 0
-                                              ? `Còn ${daysUntilDeadline} ngày`
-                                              : deadlineDate.toLocaleDateString('vi-VN')
-                                            }
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex-shrink-0">
-                                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div></section>
-              
+              </section>              
             </div>
           ) : null}
         </div>

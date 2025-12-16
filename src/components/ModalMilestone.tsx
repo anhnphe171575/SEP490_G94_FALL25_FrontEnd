@@ -44,11 +44,11 @@ import Menu from "@mui/material/Menu";
 import { toast } from "sonner";
 import FeatureDetailsModal from "./FeatureDetailsModal";
 
-type Update = { _id: string; content: string; createdAt: string; updatedAt?: string; user_id?: { full_name?: string; email?: string; avatar?: string } };
+type Update = { _id: string; content: string; createdAt: string; updatedAt?: string; user_id?: { _id?: string; full_name?: string; email?: string; avatar?: string } | string };
 type ActivityLog = { _id: string; action: string; createdAt: string; metadata?: any; created_by?: { full_name?: string; email?: string; avatar?: string } };
 type FileDoc = { _id: string; title: string; file_url: string; createdAt: string };
 
-export default function ModalMilestone({ open, onClose, projectId, milestoneId, onUpdate }: { open: boolean; onClose: () => void; projectId: string; milestoneId: string; onUpdate?: () => void; }) {
+export default function ModalMilestone({ open, onClose, projectId, milestoneId, onUpdate, readonly = false }: { open: boolean; onClose: () => void; projectId: string; milestoneId: string; onUpdate?: () => void; readonly?: boolean; }) {
   const [tab, setTab] = useState<"updates"|"activity"|"features">("updates");
   const [updates, setUpdates] = useState<Update[]>([]);
   const [files, setFiles] = useState<FileDoc[]>([]);
@@ -77,6 +77,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
   const [features, setFeatures] = useState<any[]>([]);
   const [loadingFeatures, setLoadingFeatures] = useState(false);
   const [featureModal, setFeatureModal] = useState<{ open: boolean; featureId?: string | null }>({ open: false, featureId: null });
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const toInputDate = (d: Date | null) => {
     if (!d) return "";
@@ -92,6 +93,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     (async () => {
       setLoading(true);
       try {
+        await loadCurrentUser();
         const [m, u, a] = await Promise.all([
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}`),
           axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/comments`),
@@ -115,6 +117,17 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
       }
     })();
   }, [open, projectId, milestoneId]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const res = await axiosInstance.get('/api/users/me');
+      const id = res?.data?._id;
+      setCurrentUserId(id ? String(id) : null);
+    } catch (error) {
+      console.error('Error loading current user:', error);
+      setCurrentUserId(null);
+    }
+  };
 
   const loadProjectTags = async () => {
     try {
@@ -184,6 +197,15 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     }
   };
 
+  const isOwner = (comment: Update | null) => {
+    if (!comment) return false;
+    const raw = typeof comment.user_id === 'string'
+      ? comment.user_id
+      : (comment.user_id?._id || (comment.user_id as any)?.id || comment.user_id);
+    if (!raw || !currentUserId) return false;
+    return String(raw) === String(currentUserId);
+  };
+
   const submitUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
@@ -191,6 +213,12 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     try {
       const res = await axiosInstance.post(`/api/projects/${projectId}/milestones/${milestoneId}/comments`, { content });
       setUpdates(prev => [res.data, ...prev]);
+      if (!currentUserId) {
+        const newUserId = typeof res.data?.user_id === 'string'
+          ? res.data.user_id
+          : res.data?.user_id?._id || res.data?.user_id?.id;
+        if (newUserId) setCurrentUserId(String(newUserId));
+      }
       setContent("");
       toast.success('Đã thêm bình luận mới');
     } catch (error: any) {
@@ -253,14 +281,6 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
     if (diffHours < 24) return `${diffHours} giờ trước`;
     if (diffDays < 7) return `${diffDays} ngày trước`;
     return commentDate.toLocaleDateString('vi-VN');
-  };
-
-  const getStatusColor = (statusName: string) => {
-    const key = (statusName || '').toLowerCase();
-    if (key.includes('completed') || key.includes('done')) return '#16a34a';
-    if (key.includes('progress') || key.includes('doing')) return '#f59e0b';
-    if (key.includes('overdue') || key.includes('blocked')) return '#ef4444';
-    return '#9ca3af';
   };
 
   const getPriorityColor = (priorityName: string) => {
@@ -586,16 +606,18 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                                 </Stack>
 
                                 {/* Actions Menu */}
-                                <IconButton
-              size="small"
-                                  onClick={(e) => {
-                                    setAnchorEl(e.currentTarget);
-                                    setSelectedComment(comment);
-                                  }}
-                                  sx={{ color: '#9ca3af' }}
-                                >
-                                  <MoreVertIcon sx={{ fontSize: 18 }} />
-                                </IconButton>
+                                {isOwner(comment) && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      setAnchorEl(e.currentTarget);
+                                      setSelectedComment(comment);
+                                    }}
+                                    sx={{ color: '#9ca3af' }}
+                                  >
+                                    <MoreVertIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                )}
                               </Stack>
 
                               {/* Comment Content */}
@@ -676,28 +698,32 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                       sx: { borderRadius: 2, minWidth: 160 }
                     }}
                   >
-                    <MenuItem
-                      onClick={() => {
-                        setEditingId(selectedComment?._id);
-                        setEditingContent(selectedComment?.content);
-                        setAnchorEl(null);
-                      }}
-                      sx={{ fontSize: '13px', gap: 1.5 }}
-                    >
-                      <EditIcon sx={{ fontSize: 16 }} />
-                      Chỉnh sửa
-                    </MenuItem>
-                    <MenuItem
-                      onClick={() => {
-                        deleteComment(selectedComment?._id);
-                        setAnchorEl(null);
-                        setSelectedComment(null);
-                      }}
-                      sx={{ fontSize: '13px', gap: 1.5, color: '#ef4444' }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 16 }} />
-                      Xóa
-                    </MenuItem>
+                    {isOwner(selectedComment) && (
+                      <>
+                        <MenuItem
+                          onClick={() => {
+                            setEditingId(selectedComment?._id);
+                            setEditingContent(selectedComment?.content);
+                            setAnchorEl(null);
+                          }}
+                          sx={{ fontSize: '13px', gap: 1.5 }}
+                        >
+                          <EditIcon sx={{ fontSize: 16 }} />
+                          Chỉnh sửa
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() => {
+                            deleteComment(selectedComment?._id);
+                            setAnchorEl(null);
+                            setSelectedComment(null);
+                          }}
+                          sx={{ fontSize: '13px', gap: 1.5, color: '#ef4444' }}
+                        >
+                          <DeleteIcon sx={{ fontSize: 16 }} />
+                          Xóa
+                        </MenuItem>
+                      </>
+                    )}
                   </Menu>
                     </Box>
                   )}
@@ -827,6 +853,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 required
                 error={!title.trim()}
                 placeholder="Nhập tiêu đề cột mốc"
+                disabled={readonly}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '14px',
@@ -849,6 +876,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 fullWidth 
                 size="small" 
                 InputLabelProps={{ shrink: true }}
+                disabled={readonly}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '14px',
@@ -869,6 +897,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 fullWidth 
                 size="small" 
                 InputLabelProps={{ shrink: true }}
+                disabled={readonly}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '14px',
@@ -892,6 +921,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 fullWidth 
                 size="small"
                 placeholder="Thêm mô tả..."
+                disabled={readonly}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: '14px',
@@ -911,6 +941,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
                 size="small"
                 options={availableTags}
                 value={tags}
+                disabled={readonly}
                 onChange={async (_, newValue) => {
                   try {
                     // Remove duplicates and trim
@@ -1006,49 +1037,53 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
               </Typography>
             </Box>
 
-            <Divider />
+            {!readonly && (
+              <>
+                <Divider />
 
-            {/* Save Button */}
-            <Button 
-              variant="contained" 
-              fullWidth
-              disabled={saving || !title.trim()} 
-              onClick={async ()=>{ 
-                setSaving(true); 
-                try { 
-                  await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { 
-                    title, 
-                    description, 
-                    start_date: startDate ? new Date(startDate).toISOString() : undefined, 
-                    deadline: deadline ? new Date(deadline).toISOString() : undefined,
-                    tags: tags
-                  });
-                  // Refresh activity logs to show the update
-                  const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
-                  setActivity(Array.isArray(a.data) ? a.data : []);
-                  toast.success('Đã cập nhật cột mốc thành công!', {
-                    description: title,
-                  });
-                  // Notify parent to refresh data/charts
-                  if (onUpdate) onUpdate();
-                } catch (error: any) {
-                  const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi không xác định';
-                  toast.error('Không thể cập nhật cột mốc', {
-                    description: errorMessage,
-                  });
-                } finally { 
-                  setSaving(false); 
-                } 
-              }}
-              sx={{
-                bgcolor: '#7b68ee',
-                '&:hover': {
-                  bgcolor: '#6952d6',
-                }
-              }}
-            >
-              {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-            </Button>
+                {/* Save Button */}
+                <Button 
+                  variant="contained" 
+                  fullWidth
+                  disabled={saving || !title.trim()} 
+                  onClick={async ()=>{ 
+                    setSaving(true); 
+                    try { 
+                      await axiosInstance.patch(`/api/projects/${projectId}/milestones/${milestoneId}`, { 
+                        title, 
+                        description, 
+                        start_date: startDate ? new Date(startDate).toISOString() : undefined, 
+                        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+                        tags: tags
+                      });
+                      // Refresh activity logs to show the update
+                      const a = await axiosInstance.get(`/api/projects/${projectId}/milestones/${milestoneId}/activity-logs`);
+                      setActivity(Array.isArray(a.data) ? a.data : []);
+                      toast.success('Đã cập nhật cột mốc thành công!', {
+                        description: title,
+                      });
+                      // Notify parent to refresh data/charts
+                      if (onUpdate) onUpdate();
+                    } catch (error: any) {
+                      const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi không xác định';
+                      toast.error('Không thể cập nhật cột mốc', {
+                        description: errorMessage,
+                      });
+                    } finally { 
+                      setSaving(false); 
+                    } 
+                  }}
+                  sx={{
+                    bgcolor: '#7b68ee',
+                    '&:hover': {
+                      bgcolor: '#6952d6',
+                    }
+                  }}
+                >
+                  {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </Button>
+              </>
+            )}
           </Stack>
         </Box>
       </Box>
@@ -1059,6 +1094,7 @@ export default function ModalMilestone({ open, onClose, projectId, milestoneId, 
           open={featureModal.open}
           featureId={featureModal.featureId}
           projectId={projectId}
+          readonly={readonly}
           onClose={() => setFeatureModal({ open: false, featureId: null })}
           onUpdate={async () => {
             // Reload features when feature is updated
