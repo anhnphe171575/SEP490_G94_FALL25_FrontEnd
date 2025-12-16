@@ -915,7 +915,7 @@ export default function ProjectTasksPage() {
           }
         }
       } else {
-        setError(errorData?.message || 'Không thể tạo dependency');
+        setError(errorData?.message || 'Không thể tạo phụ thuộc');
       }
     }
   };
@@ -3915,9 +3915,9 @@ export default function ProjectTasksPage() {
             }}
           >
             <DialogTitle sx={{ fontWeight: 'bold' }}>
-              {editing ? 'Cập nhật Task - Lên Kế Hoạch' : 'Tạo Task Mới - Lên Kế Hoạch'}
+              {editing ? 'Cập nhật Công Việc - Lên Kế Hoạch' : 'Tạo Công Việc Mới - Lên Kế Hoạch'}
               <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary', fontWeight: 'normal', mt: 0.5 }}>
-                {editing ? 'Cập nhật thông tin task trong dự án' : 'Thêm task mới vào dự án'}
+                {editing ? 'Cập nhật thông tin công việc trong dự án' : 'Thêm công việc mới vào dự án'}
               </Box>
             </DialogTitle>
             <DialogContent sx={{ p: 4 }}>
@@ -4316,7 +4316,7 @@ export default function ProjectTasksPage() {
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  {editing ? "💾 Cập nhật" : "✨ Tạo Task"}
+                  {editing ? "💾 Cập nhật" : "✨ Tạo Công Việc"}
                 </Button>
               </Box>
             </DialogActions>

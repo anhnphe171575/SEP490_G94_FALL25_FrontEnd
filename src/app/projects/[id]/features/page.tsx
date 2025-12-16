@@ -367,9 +367,9 @@ export default function ProjectFeaturesPage() {
         end_date: "",
         tags: []
       });
-      toast.success("Đã tạo feature thành công");
+      toast.success("Đã tạo tính năng thành công");
     } catch (e: any) {
-      const errorMessage = e?.response?.data?.message || "Không thể tạo feature";
+      const errorMessage = e?.response?.data?.message || "Không thể tạo tính năng";
       setError(errorMessage);
       toast.error(errorMessage);
     }
@@ -598,7 +598,7 @@ export default function ProjectFeaturesPage() {
                       },
                     }}
                   >
-                    Tạo Milestone
+                    Tạo Cột mốc
                   </Button>
                 )}
                 <Button 
@@ -620,7 +620,7 @@ export default function ProjectFeaturesPage() {
                     },
                   }}
                 >
-                  Tạo Feature
+                  Tạo Tính Năng
                 </Button>
               </Stack>
             </Box>
@@ -1305,7 +1305,7 @@ export default function ProjectFeaturesPage() {
               {viewTab === 'table' && features.length === 0 && (
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                    Chưa có feature nào. Bấm "Tạo Feature" để thêm.
+                    Chưa có tính năng nào. Bấm "Tạo tính năng" để thêm.
                   </Typography>
                 </Paper>
               )}
@@ -1314,9 +1314,9 @@ export default function ProjectFeaturesPage() {
 
           <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="md">
             <DialogTitle sx={{ fontWeight: 'bold' }}>
-              Tạo Feature Mới - Lên Kế Hoạch
+              Tạo tính năng Mới - Lên Kế Hoạch
               <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary', fontWeight: 'normal', mt: 0.5 }}>
-                Tạo feature và gắn vào milestone để lên kế hoạch dự án
+                Tạo tính năng và gắn vào cột mốc để lên kế hoạch dự án
               </Box>
             </DialogTitle>
             <DialogContent>
@@ -1458,7 +1458,7 @@ export default function ProjectFeaturesPage() {
                 onClick={handleCreateFeature}
                 disabled={!form.title}
               >
-                Tạo Feature
+                Tạo tính năng
               </Button>
             </DialogActions>
           </Dialog>
@@ -1494,7 +1494,7 @@ export default function ProjectFeaturesPage() {
                   );
                   setFeatures(enriched);
                 }
-                toast.success('Tạo milestone thành công');
+                toast.success('Tạo cột mốc thành công');
               } catch (error) {
                 console.error('Error reloading data:', error);
               }
@@ -1686,7 +1686,7 @@ export default function ProjectFeaturesPage() {
                       })
                     );
                     setFeatures(enriched);
-                    toast.success("Đã tạo cột mốc từ features thành công");
+                    toast.success("Đã tạo cột mốc từ tính năng thành công");
                   }
                 } catch (error: any) {
                   console.error('Error reloading features:', error);

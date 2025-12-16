@@ -266,7 +266,7 @@ export default function ProjectFunctionsPage() {
       
       handleCloseDialog();
       await loadAllData();
-      toast.success(editingFunction ? "Đã cập nhật function thành công" : "Đã tạo function thành công");
+      toast.success(editingFunction ? "Đã cập nhật chức năng thành công" : "Đã tạo chức năng thành công");
     } catch (e: any) {
       const errorData = e?.response?.data;
       const errorMessage = errorData?.message || "Không thể lưu function";
@@ -576,7 +576,7 @@ export default function ProjectFunctionsPage() {
                     },
                   }}
                 >
-                  Tạo Function
+                  Tạo Chức năng
                 </Button>
               </Stack>
             </Box>
@@ -1166,12 +1166,12 @@ export default function ProjectFunctionsPage() {
                           <Typography variant="body2" color="text.secondary">
                             {functions.length === 0 ? (
                               features.length === 0 ? (
-                                <>📋 Project chưa có Features. Hãy tạo Features trước, sau đó tạo Functions cho từng Feature.</>
+                                <>📋 Dự án chưa có tính năng. Hãy tạo tính năng trước, sau đó tạo chức năng cho từng tính năng.</>
                               ) : (
-                                <>📝 Chưa có Functions nào. Bấm "Tạo Function" để thêm mới.</>
+                                <>📝 Chưa có chức năng nào. Bấm "Tạo chức năng" để thêm mới.</>
                               )
                             ) : (
-                              <>🔍 Không tìm thấy Functions nào với bộ lọc hiện tại. Thử xóa bộ lọc hoặc tạo Function mới.</>
+                              <>🔍 Không tìm thấy chức năng nào với bộ lọc hiện tại. Thử xóa bộ lọc hoặc tạo chức năng mới.</>
                             )}
                         </Typography>
                           {functions.length === 0 && features.length > 0 && (
@@ -1184,7 +1184,7 @@ export default function ProjectFunctionsPage() {
                                 borderRadius: 2,
                               }}
                             >
-                              Tạo Function Mới
+                              Tạo Chức năng Mới
                             </Button>
                           )}
                         </Stack>
@@ -1317,7 +1317,7 @@ export default function ProjectFunctionsPage() {
               </Box>
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-              Tạo Function mới
+              Tạo Chức năng mới
                 </Typography>
                 {editingFunction && (
                   <Typography variant="caption" sx={{ color: '#6b7280' }}>
@@ -1461,7 +1461,7 @@ export default function ProjectFunctionsPage() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                {editingFunction ? "💾 Cập nhật" : "✨ Tạo Function"}
+                {editingFunction ? "💾 Cập nhật" : "✨ Tạo Chức năng"}
               </Button>
             </DialogActions>
           </Dialog>
