@@ -23,6 +23,12 @@ interface AddSupervisorModalProps {
     full_name: string;
     email: string;
   } | null;
+  currentSupervisors?: Array<{
+    _id: string;
+    full_name: string;
+    email: string;
+    type?: 'frontend' | 'backend' | 'fullstack';
+  }> | null;
   onSuccess?: () => void;
 }
 
@@ -31,12 +37,14 @@ export default function AddSupervisorModal({
   onClose,
   projectId,
   currentSupervisor,
+  currentSupervisors,
   onSuccess,
 }: AddSupervisorModalProps) {
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLecturer, setSelectedLecturer] = useState<Lecturer | null>(null);
+  const [supervisorType, setSupervisorType] = useState<'frontend' | 'backend' | 'fullstack'>('fullstack');
   const [saving, setSaving] = useState(false);
   const [fetchingLecturers, setFetchingLecturers] = useState(false);
 
@@ -55,11 +63,19 @@ export default function AddSupervisorModal({
         fetchedLecturers = response.data?.data || response.data || [];
       }
       
-      // Filter out current supervisor from the list
+      // Filter out current supervisors from the list
+      const currentSupervisorIds = new Set<string>();
       if (currentSupervisor && currentSupervisor._id) {
-        const currentSupervisorId = String(currentSupervisor._id);
+        currentSupervisorIds.add(String(currentSupervisor._id));
+      }
+      if (currentSupervisors && Array.isArray(currentSupervisors)) {
+        currentSupervisors.forEach(s => {
+          if (s._id) currentSupervisorIds.add(String(s._id));
+        });
+      }
+      if (currentSupervisorIds.size > 0) {
         fetchedLecturers = fetchedLecturers.filter(
-          (lecturer: Lecturer) => String(lecturer._id) !== currentSupervisorId
+          (lecturer: Lecturer) => !currentSupervisorIds.has(String(lecturer._id))
         );
       }
       
@@ -87,6 +103,7 @@ export default function AddSupervisorModal({
       setLecturers([]);
       setSearchTerm("");
       setSelectedLecturer(null);
+      setSupervisorType('fullstack');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -119,7 +136,11 @@ export default function AddSupervisorModal({
       setSaving(true);
       const response = await axiosInstance.patch(
         `/api/projects/${projectId}/supervisor`,
-        { supervisor_id: selectedLecturer._id }
+        { 
+          supervisor_id: selectedLecturer._id,
+          supervisor_type: supervisorType,
+          action: 'add'
+        }
       );
 
       if (response.data && response.data.success) {
@@ -128,6 +149,7 @@ export default function AddSupervisorModal({
         // Reset selection first to avoid flickering
         setSelectedLecturer(null);
         setSearchTerm("");
+        setSupervisorType('fullstack');
         
         // Wait before refreshing to avoid flickering
         setTimeout(() => {
@@ -153,7 +175,7 @@ export default function AddSupervisorModal({
     }
   };
 
-  const handleRemove = async () => {
+  const handleRemoveSupervisor = async (supervisorId: string) => {
     if (!confirm("Bạn có chắc muốn xóa giám sát viên khỏi dự án này?")) {
       return;
     }
@@ -162,7 +184,7 @@ export default function AddSupervisorModal({
       setSaving(true);
       const response = await axiosInstance.patch(
         `/api/projects/${projectId}/supervisor`,
-        { supervisor_id: null },
+        { supervisor_id: supervisorId, action: 'remove' },
         {
           headers: {
             'Content-Type': 'application/json'
@@ -173,9 +195,10 @@ export default function AddSupervisorModal({
       if (response.data && response.data.success) {
         toast.success(response.data.message || "Đã xóa giám sát viên thành công");
         
-        // Reset first to avoid flickering
-        setSelectedLecturer(null);
-        setSearchTerm("");
+      // Reset first to avoid flickering
+      setSelectedLecturer(null);
+      setSearchTerm("");
+      setSupervisorType('fullstack');
         
         // Wait before refreshing to avoid flickering
         setTimeout(() => {
@@ -232,29 +255,57 @@ export default function AddSupervisorModal({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto" style={{ maxHeight: "calc(90vh - 180px)" }}>
-          {/* Current Supervisor */}
-          {currentSupervisor && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-                    {currentSupervisor.full_name?.[0]?.toUpperCase() || "G"}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{currentSupervisor.full_name}</p>
-                    <p className="text-sm text-gray-600">{currentSupervisor.email}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleRemove}
-                  disabled={saving}
-                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium transition disabled:opacity-50"
-                >
-                  {saving ? "Đang xóa..." : "Xóa"}
-                </button>
+          {/* Current Supervisors */}
+          {(() => {
+            const supervisors = currentSupervisors && currentSupervisors.length > 0 
+              ? currentSupervisors 
+              : (currentSupervisor ? [currentSupervisor] : []);
+            
+            if (supervisors.length === 0) return null;
+            
+            return (
+              <div className="mb-6 space-y-3">
+                <p className="text-sm font-medium text-gray-700 mb-2">Giảng viên hiện tại:</p>
+                {supervisors.map((supervisor, index) => {
+                  const type = supervisor.type || 'fullstack';
+                  const typeColors = {
+                    frontend: { bg: 'bg-blue-500', text: 'Frontend' },
+                    backend: { bg: 'bg-green-500', text: 'Backend' },
+                    fullstack: { bg: 'bg-purple-500', text: 'Fullstack' }
+                  };
+                  const typeColor = typeColors[type] || typeColors.fullstack;
+                  
+                  return (
+                    <div key={supervisor._id || index} className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full ${typeColor.bg} flex items-center justify-center text-white font-bold`}>
+                            {supervisor.full_name?.[0]?.toUpperCase() || "G"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-900">{supervisor.full_name}</p>
+                              <span className={`text-xs px-2 py-1 rounded ${typeColor.bg} text-white font-medium`}>
+                                {typeColor.text}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">{supervisor.email}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveSupervisor(supervisor._id)}
+                          disabled={saving}
+                          className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium transition disabled:opacity-50"
+                        >
+                          {saving ? "Đang xóa..." : "Xóa"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Search */}
           <div className="mb-4">
@@ -269,6 +320,50 @@ export default function AddSupervisorModal({
               />
             </div>
           </div>
+
+          {/* Supervisor Type Selection */}
+          {selectedLecturer && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Loại giảng viên
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSupervisorType('frontend')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                    supervisorType === 'frontend'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Frontend
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSupervisorType('backend')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                    supervisorType === 'backend'
+                      ? 'bg-green-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Backend
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSupervisorType('fullstack')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                    supervisorType === 'fullstack'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Fullstack
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Lecturers List */}
           {fetchingLecturers ? (

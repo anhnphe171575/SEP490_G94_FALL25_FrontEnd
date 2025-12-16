@@ -63,6 +63,7 @@ type Supervisor = {
   phone: string;
   major?: string;
   avatar: string;
+  type?: 'frontend' | 'backend' | 'fullstack'; // Loại giảng viên
 };
 
 type Team = {
@@ -74,7 +75,8 @@ type Team = {
   team_code?: string;
   createAt: string;
   updateAt: string;
-  supervisor?: Supervisor | null;
+  supervisor?: Supervisor | null; // Giữ lại để tương thích ngược
+  supervisors?: Supervisor[]; // Danh sách giảng viên mới
 };
 
 type User = {
@@ -107,7 +109,9 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
     description: team?.description || '',
     team_code: team?.team_code || '',
     createAt: team?.createAt || '',
-    updateAt: team?.updateAt || ''
+    updateAt: team?.updateAt || '',
+    supervisors: team?.supervisors || [],
+    supervisor: team?.supervisor || null
   };
   
   // Filter out members without proper user_id data
@@ -135,6 +139,7 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
   const [openMemberDetail, setOpenMemberDetail] = useState(false);
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<TeamMember | null>(null);
   const [openSupervisorDetail, setOpenSupervisorDetail] = useState(false);
+  const [selectedSupervisor, setSelectedSupervisor] = useState<Supervisor | null>(null);
   
   // Edit team form
   const [teamName, setTeamName] = useState(safeTeam.name);
@@ -386,7 +391,7 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
         }}
       >
         <CardContent>
-          {/* Supervisor Section */}
+          {/* Supervisors Section */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <SupervisorAccountIcon className="text-purple-600" />
@@ -396,78 +401,106 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
             </div>
           </div>
           
-          {team?.supervisor ? (
-            <>
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg mb-6 border-l-4 border-purple-500">
-                <Avatar
-                  src={team?.supervisor?.avatar}
-                  className="w-16 h-16 border-2 border-purple-300"
-                  sx={{ bgcolor: '#7b68ee' }}
-                >
-                  {team?.supervisor?.full_name ? getInitials(team?.supervisor?.full_name) : "?"}
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Typography variant="h6" className="font-medium">
-                      {team?.supervisor?.full_name}
+          {(() => {
+            // Lấy danh sách supervisors từ supervisors array mới hoặc supervisor cũ (tương thích ngược)
+            const supervisors = team?.supervisors && team.supervisors.length > 0 
+              ? team.supervisors 
+              : (team?.supervisor ? [team.supervisor] : []);
+            
+            if (supervisors.length === 0) {
+              return (
+                <>
+                  <Alert severity="info" className="mb-4">
+                    <Typography variant="body2">
+                      Dự án chưa có giảng viên hướng dẫn. Trưởng nhóm có thể mời giảng viên bằng email.
                     </Typography>
-                    <Chip
-                      label="Giảng viên hướng dẫn"
-                      size="small"
-                      sx={{
-                        bgcolor: '#7b68ee',
-                        color: 'white',
-                        fontWeight: 600,
-                      }}
-                      icon={<SupervisorAccountIcon sx={{ color: 'white !important' }} />}
-                    />
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <EmailIcon className="w-4 h-4" />
-                      <span>{team?.supervisor?.email}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <PhoneIcon className="w-4 h-4" />
-                      <span>{team?.supervisor?.phone || "N/A"}</span>
-                    </div>
-                    {team?.supervisor?.major && (
-                      <div className="flex items-center gap-1">
-                        <SchoolIcon className="w-4 h-4" />
-                        <span>{team?.supervisor?.major}</span>
+                  </Alert>
+                  <Divider className="my-4" />
+                </>
+              );
+            }
+            
+            return (
+              <>
+                {supervisors.map((supervisor, index) => {
+                  const supervisorType = supervisor.type || 'fullstack';
+                  const typeColors = {
+                    frontend: { bg: '#3b82f6', text: 'Frontend' },
+                    backend: { bg: '#10b981', text: 'Backend' },
+                    fullstack: { bg: '#7b68ee', text: 'Fullstack' }
+                  };
+                  const typeColor = typeColors[supervisorType] || typeColors.fullstack;
+                  
+                  return (
+                    <div key={supervisor._id || index} className="mb-4">
+                      <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg border-l-4" style={{ borderLeftColor: typeColor.bg }}>
+                        <Avatar
+                          src={supervisor?.avatar}
+                          className="w-16 h-16 border-2"
+                          sx={{ bgcolor: typeColor.bg, borderColor: typeColor.bg }}
+                        >
+                          {supervisor?.full_name ? getInitials(supervisor.full_name) : "?"}
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Typography variant="h6" className="font-medium">
+                              {supervisor?.full_name}
+                            </Typography>
+                            <Chip
+                              label="Giảng viên hướng dẫn"
+                              size="small"
+                              sx={{
+                                bgcolor: typeColor.bg,
+                                color: 'white',
+                                fontWeight: 600,
+                              }}
+                              icon={<SupervisorAccountIcon sx={{ color: 'white !important' }} />}
+                            />
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <EmailIcon className="w-4 h-4" />
+                              <span>{supervisor?.email}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <PhoneIcon className="w-4 h-4" />
+                              <span>{supervisor?.phone || "N/A"}</span>
+                            </div>
+                            {supervisor?.major && (
+                              <div className="flex items-center gap-1">
+                                <SchoolIcon className="w-4 h-4" />
+                                <span>{supervisor.major}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<VisibilityIcon />}
+                          onClick={() => {
+                            setSelectedSupervisor(supervisor);
+                            setOpenSupervisorDetail(true);
+                          }}
+                          sx={{
+                            borderColor: typeColor.bg,
+                            color: typeColor.bg,
+                            '&:hover': {
+                              borderColor: typeColor.bg,
+                              bgcolor: `${typeColor.bg}15`,
+                            }
+                          }}
+                        >
+                          Xem chi tiết
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<VisibilityIcon />}
-                  onClick={() => setOpenSupervisorDetail(true)}
-                  sx={{
-                    borderColor: '#7b68ee',
-                    color: '#7b68ee',
-                    '&:hover': {
-                      borderColor: '#6952d6',
-                      bgcolor: '#f3f0ff',
-                    }
-                  }}
-                >
-                  Xem chi tiết
-                </Button>
-              </div>
-              <Divider className="my-4" />
-            </>
-          ) : (
-            <>
-              <Alert severity="info" className="mb-4">
-                <Typography variant="body2">
-                  Dự án chưa có giảng viên hướng dẫn. Trưởng nhóm có thể mời giảng viên bằng email.
-                </Typography>
-              </Alert>
-              <Divider className="my-4" />
-            </>
-          )}
+                    </div>
+                  );
+                })}
+                <Divider className="my-4" />
+              </>
+            );
+          })()}
 
           {/* Team Members Section */}
           <div className="flex items-center gap-2 mb-4">
@@ -723,12 +756,15 @@ export default function TeamManagement({ team, projectId, currentUserId, onTeamU
       />
 
       {/* Supervisor Detail Dialog */}
-      {team?.supervisor && (
+      {selectedSupervisor && (
         <SupervisorDetail
           open={openSupervisorDetail}
-          onClose={() => setOpenSupervisorDetail(false)}
+          onClose={() => {
+            setOpenSupervisorDetail(false);
+            setSelectedSupervisor(null);
+          }}
           projectId={projectId}
-          supervisorName={team.supervisor.full_name}
+          supervisorName={selectedSupervisor.full_name}
         />
       )}
 
