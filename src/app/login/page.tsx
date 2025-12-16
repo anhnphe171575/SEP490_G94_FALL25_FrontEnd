@@ -128,7 +128,8 @@ export default function LoginPage() {
         localStorage.setItem("token", token);
       }
 
-      // Ưu tiên redirect URL từ query params (nếu có)
+      // Kiểm tra redirect URL từ query params
+      const redirectUrl = searchParams.get('redirect');
       if (redirectUrl) {
         router.replace(redirectUrl);
       } else if (userRole === 4) {
@@ -189,7 +190,8 @@ export default function LoginPage() {
         localStorage.setItem("token", token);
       }
 
-      // Ưu tiên redirect URL từ query params (nếu có)
+      // Kiểm tra redirect URL từ query params
+      const redirectUrl = searchParams.get('redirect');
       if (redirectUrl) {
         router.replace(redirectUrl);
       } else if (user?.redirectUrl) {

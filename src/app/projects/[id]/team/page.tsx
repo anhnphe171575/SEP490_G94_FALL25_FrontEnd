@@ -114,6 +114,10 @@ export default function TeamManagementPage() {
         if (teamData && !teamData.team_member) {
           teamData.team_member = [];
         }
+        // Ensure supervisors is always an array
+        if (teamData && !teamData.supervisors) {
+          teamData.supervisors = [];
+        }
         setTeam(teamData);
         
         // Fetch project data

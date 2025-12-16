@@ -1307,6 +1307,7 @@ export default function ProjectFeaturesPage() {
           <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="md">
             <DialogTitle sx={{ fontWeight: 'bold' }}>
               Tạo tính năng Mới - Lên Kế Hoạch
+              Tạo tính năng Mới - Lên Kế Hoạch
               <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary', fontWeight: 'normal', mt: 0.5 }}>
                 Tạo tính năng và gắn vào milestone để lên kế hoạch dự án
               </Box>
@@ -1428,6 +1429,7 @@ export default function ProjectFeaturesPage() {
                 disabled={!form.title}
               >
                 Tạo tính năng
+                Tạo tính năng
               </Button>
             </DialogActions>
           </Dialog>
@@ -1463,7 +1465,7 @@ export default function ProjectFeaturesPage() {
                   );
                   setFeatures(enriched);
                 }
-                toast.success('Tạo milestone thành công');
+                toast.success('Tạo cột mốc thành công');
               } catch (error) {
                 console.error('Error reloading data:', error);
               }
